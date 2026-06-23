@@ -25,22 +25,51 @@ from homeassistant.core import callback
 from homeassistant.helpers import selector
 
 from .const import (
+    COMPASS_SECTORS,
     CONF_AI_TASK_ENTITY,
     CONF_DEFAULT_PROVIDER,
     CONF_LATITUDE,
     CONF_LONGITUDE,
     CONF_SPORTS,
     CONF_SPOT_NAME,
+    CONF_SPOT_PREFS,
     CONF_SPOT_SPORTS,
     CONF_SPOTS,
     CONF_USE_LLM,
     CONF_WATER_TYPE,
     DOMAIN,
+    OVERRIDE_FIELDS,
+    PREF_GUST_MAX,
+    PREF_WAVE_IDEAL_M,
+    PREF_WAVE_MAX_M,
+    PREF_WAVE_MIN_M,
+    PREF_WIND_DIRS,
+    PREF_WIND_IDEAL,
+    PREF_WIND_MAX,
+    PREF_WIND_MIN,
     WATER_TYPE_SEA,
     WATER_TYPES,
 )
 from .providers import PROVIDERS
-from .sports import SPORT_PROFILES
+from .sports import SPORT_PROFILES, apply_overrides
+
+_DIR_OPTIONS = [selector.SelectOptionDict(value=s, label=s) for s in COMPASS_SECTORS]
+
+
+def _kn(min_v: float = 0, max_v: float = 60) -> selector.NumberSelector:
+    return selector.NumberSelector(
+        selector.NumberSelectorConfig(
+            min=min_v, max=max_v, step=1, mode="box", unit_of_measurement="kn"
+        )
+    )
+
+
+def _metres(max_v: float = 8) -> selector.NumberSelector:
+    return selector.NumberSelector(
+        selector.NumberSelectorConfig(
+            min=0, max=max_v, step=0.1, mode="box", unit_of_measurement="m"
+        )
+    )
 
 _SPORT_OPTIONS = [
     selector.SelectOptionDict(value=k, label=p.label)
@@ -105,13 +134,16 @@ class SwelligenceConfigFlow(ConfigFlow, domain=DOMAIN):
 
 
 class SwelligenceOptionsFlow(OptionsFlow):
-    """Manage spots and the LLM toggle after setup."""
+    """Manage spots, per-spot preferences, and the LLM toggle after setup."""
+
+    _pref_spot_id: str | None = None
+    _pref_sport: str | None = None
 
     async def async_step_init(
         self, user_input: dict[str, Any] | None = None
     ) -> ConfigFlowResult:
         return self.async_show_menu(
-            step_id="init", menu_options=["add_spot", "settings"]
+            step_id="init", menu_options=["add_spot", "spot_prefs", "settings"]
         )
 
     async def async_step_add_spot(
@@ -177,6 +209,132 @@ class SwelligenceOptionsFlow(OptionsFlow):
         return self.async_show_form(
             step_id="add_spot", data_schema=schema, errors=errors
         )
+
+    async def async_step_spot_prefs(
+        self, user_input: dict[str, Any] | None = None
+    ) -> ConfigFlowResult:
+        """Step 1: choose which spot to tune."""
+        spots = self.config_entry.options.get(CONF_SPOTS, [])
+        if not spots:
+            return self.async_abort(reason="no_spots")
+        if user_input is not None:
+            self._pref_spot_id = user_input["spot"]
+            return await self.async_step_spot_prefs_sport()
+
+        options = [
+            selector.SelectOptionDict(value=s["id"], label=s[CONF_SPOT_NAME])
+            for s in spots
+        ]
+        schema = vol.Schema(
+            {
+                vol.Required("spot"): selector.SelectSelector(
+                    selector.SelectSelectorConfig(options=options)
+                )
+            }
+        )
+        return self.async_show_form(step_id="spot_prefs", data_schema=schema)
+
+    async def async_step_spot_prefs_sport(
+        self, user_input: dict[str, Any] | None = None
+    ) -> ConfigFlowResult:
+        """Step 2: choose which sport at that spot to tune."""
+        spot = self._get_spot(self._pref_spot_id)
+        if spot is None:
+            return self.async_abort(reason="no_spots")
+        if user_input is not None:
+            self._pref_sport = user_input["sport"]
+            return await self.async_step_spot_prefs_edit()
+
+        sports = spot.get(CONF_SPOT_SPORTS) or list(SPORT_PROFILES)
+        options = [
+            selector.SelectOptionDict(
+                value=k, label=SPORT_PROFILES[k].label if k in SPORT_PROFILES else k
+            )
+            for k in sports
+        ]
+        schema = vol.Schema(
+            {
+                vol.Required("sport"): selector.SelectSelector(
+                    selector.SelectSelectorConfig(options=options)
+                )
+            }
+        )
+        return self.async_show_form(
+            step_id="spot_prefs_sport",
+            data_schema=schema,
+            description_placeholders={"spot": spot[CONF_SPOT_NAME]},
+        )
+
+    async def async_step_spot_prefs_edit(
+        self, user_input: dict[str, Any] | None = None
+    ) -> ConfigFlowResult:
+        """Step 3: edit the preference overrides for (spot, sport)."""
+        spot = self._get_spot(self._pref_spot_id)
+        if spot is None:
+            return self.async_abort(reason="no_spots")
+        sport = self._pref_sport
+
+        if user_input is not None:
+            overrides = {
+                k: user_input[k]
+                for k in OVERRIDE_FIELDS
+                if k in user_input and user_input[k] not in (None, "")
+            }
+            new_spots = []
+            for s in self.config_entry.options.get(CONF_SPOTS, []):
+                if s["id"] == self._pref_spot_id:
+                    prefs = {**s.get(CONF_SPOT_PREFS, {}), sport: overrides}
+                    new_spots.append({**s, CONF_SPOT_PREFS: prefs})
+                else:
+                    new_spots.append(s)
+            return self._save({CONF_SPOTS: new_spots})
+
+        # Pre-fill from the effective profile (default + any existing override).
+        base = SPORT_PROFILES.get(sport)
+        eff = apply_overrides(base, spot.get(CONF_SPOT_PREFS, {}).get(sport))
+
+        def opt(key: str, value: Any, sel: selector.Selector):
+            marker = vol.Optional(
+                key,
+                description={"suggested_value": value} if value is not None else None,
+            )
+            return marker, sel
+
+        fields: dict = {}
+        m, s = opt(PREF_WIND_DIRS, eff.wind_dirs or None, selector.SelectSelector(
+            selector.SelectSelectorConfig(options=_DIR_OPTIONS, multiple=True)
+        ))
+        fields[m] = s
+        for key, value in (
+            (PREF_WIND_MIN, eff.wind_min_kn),
+            (PREF_WIND_IDEAL, eff.wind_ideal_kn),
+            (PREF_WIND_MAX, eff.wind_max_kn),
+            (PREF_GUST_MAX, eff.gust_max_kn),
+        ):
+            m, s = opt(key, value, _kn())
+            fields[m] = s
+        for key, value in (
+            (PREF_WAVE_MIN_M, eff.wave_min_m),
+            (PREF_WAVE_IDEAL_M, eff.wave_ideal_m),
+            (PREF_WAVE_MAX_M, eff.wave_max_m),
+        ):
+            m, s = opt(key, value, _metres())
+            fields[m] = s
+
+        return self.async_show_form(
+            step_id="spot_prefs_edit",
+            data_schema=vol.Schema(fields),
+            description_placeholders={
+                "spot": spot[CONF_SPOT_NAME],
+                "sport": base.label if base else sport,
+            },
+        )
+
+    def _get_spot(self, spot_id: str | None) -> dict | None:
+        for s in self.config_entry.options.get(CONF_SPOTS, []):
+            if s["id"] == spot_id:
+                return s
+        return None
 
     async def async_step_settings(
         self, user_input: dict[str, Any] | None = None

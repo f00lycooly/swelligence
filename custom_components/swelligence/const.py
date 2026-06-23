@@ -21,7 +21,8 @@ CONF_SPOT_NAME: Final = "name"
 CONF_LATITUDE: Final = "latitude"
 CONF_LONGITUDE: Final = "longitude"
 CONF_SPOT_SPORTS: Final = "sports"  # subset of enabled sports relevant to this spot
-CONF_WATER_TYPE: Final = "water_type"  # "sea" | "inland"
+CONF_WATER_TYPE: Final = "water_type"  # "sea" | "sheltered" | "inland"
+CONF_SPOT_PREFS: Final = "prefs"  # {sport: {field: value}} per-spot profile overrides
 
 # Per-sport preference keys
 PREF_WIND_MIN: Final = "wind_min_kn"
@@ -30,8 +31,23 @@ PREF_WIND_IDEAL: Final = "wind_ideal_kn"
 PREF_GUST_MAX: Final = "gust_max_kn"
 PREF_WIND_DIRS: Final = "wind_dirs"  # list of compass sectors, e.g. ["SW", "W"]
 PREF_WAVE_MIN_M: Final = "wave_min_m"
+PREF_WAVE_IDEAL_M: Final = "wave_ideal_m"
 PREF_WAVE_MAX_M: Final = "wave_max_m"
 PREF_WATER_TEMP_MIN_C: Final = "water_temp_min_c"
+
+# Profile fields a user may override per spot/sport. These string values match
+# SportProfile field names exactly so overrides map straight to dataclasses.replace.
+OVERRIDE_FIELDS: Final = [
+    PREF_WIND_MIN,
+    PREF_WIND_IDEAL,
+    PREF_WIND_MAX,
+    PREF_GUST_MAX,
+    PREF_WIND_DIRS,
+    PREF_WAVE_MIN_M,
+    PREF_WAVE_IDEAL_M,
+    PREF_WAVE_MAX_M,
+    PREF_WATER_TEMP_MIN_C,
+]
 
 DEFAULT_SCAN_INTERVAL_MINUTES: Final = 30
 

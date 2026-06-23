@@ -19,7 +19,36 @@
         "title": "Swelligence",
         "menu_options": {
           "add_spot": "Add a favourite spot",
+          "spot_prefs": "Tune a spot's preferences",
           "settings": "AI / general settings"
+        }
+      },
+      "spot_prefs": {
+        "title": "Tune a spot",
+        "description": "Pick the spot whose per-sport preferences you want to adjust.",
+        "data": {
+          "spot": "Spot"
+        }
+      },
+      "spot_prefs_sport": {
+        "title": "Choose a sport",
+        "description": "Which sport at {spot} do you want to tune?",
+        "data": {
+          "sport": "Sport"
+        }
+      },
+      "spot_prefs_edit": {
+        "title": "{sport} preferences",
+        "description": "Tune {sport} at {spot}. Wind directions are the wind's compass origin you prefer — for surf, set the offshore direction(s) for this beach. Leave a field blank to keep the default.",
+        "data": {
+          "wind_dirs": "Preferred wind directions (offshore for surf)",
+          "wind_min_kn": "Minimum wind (kn)",
+          "wind_ideal_kn": "Ideal wind (kn)",
+          "wind_max_kn": "Maximum wind (kn)",
+          "gust_max_kn": "Gust ceiling (kn)",
+          "wave_min_m": "Minimum wave (m)",
+          "wave_ideal_m": "Ideal wave (m, surf-type sports)",
+          "wave_max_m": "Maximum wave (m)"
         }
       },
       "add_spot": {
@@ -43,6 +72,9 @@
     },
     "error": {
       "duplicate_spot": "A spot with that name already exists."
+    },
+    "abort": {
+      "no_spots": "Add a spot first before tuning preferences."
     }
   },
   "selector": {

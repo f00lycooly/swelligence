@@ -9,6 +9,7 @@ Units: wind/gust in knots, wave height in metres, water temp in degrees C.
 
 from __future__ import annotations
 
+import dataclasses
 from dataclasses import dataclass, field
 
 
@@ -100,6 +101,14 @@ SPORT_PROFILES: dict[str, SportProfile] = {
 }
 
 
+_OVERRIDABLE = {f.name for f in dataclasses.fields(SportProfile)} - {
+    "key",
+    "label",
+    "icon",
+    "water",
+}
+
+
 def sport_keys() -> list[str]:
     """Return all built-in sport keys."""
     return list(SPORT_PROFILES.keys())
@@ -108,3 +117,19 @@ def sport_keys() -> list[str]:
 def get_profile(key: str) -> SportProfile | None:
     """Return the default profile for a sport key."""
     return SPORT_PROFILES.get(key)
+
+
+def apply_overrides(profile: SportProfile, overrides: dict | None) -> SportProfile:
+    """Return ``profile`` with user overrides applied (defaults preserved).
+
+    Only known, non-None preference fields are applied; identity/weight metadata
+    (key/label/icon/water) is never overridable.
+    """
+    if not overrides:
+        return profile
+    clean = {
+        k: v
+        for k, v in overrides.items()
+        if k in _OVERRIDABLE and v is not None
+    }
+    return dataclasses.replace(profile, **clean) if clean else profile

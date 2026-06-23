@@ -11,12 +11,14 @@ from .const import (
     CONF_DEFAULT_PROVIDER,
     CONF_PROVIDERS,
     CONF_SPORTS,
+    CONF_SPOT_PREFS,
+    CONF_SPOT_SPORTS,
     CONF_SPOTS,
     DOMAIN,
     PLATFORMS,
 )
 from .coordinator import SpotCoordinator
-from .sports import SPORT_PROFILES, SportProfile
+from .sports import SPORT_PROFILES, SportProfile, apply_overrides
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -28,16 +30,30 @@ class SwelligenceRuntime:
         self.coordinators: dict[str, SpotCoordinator] = {}
 
 
-def _resolve_profiles(entry: ConfigEntry) -> dict[str, SportProfile]:
-    """Return profiles for the entry's enabled sports (defaults for now).
-
-    Per-spot/per-sport preference overrides land here in a later milestone; the
-    structure is ready for them via dataclasses.replace on the defaults.
-    """
-    enabled = entry.options.get(CONF_SPORTS) or entry.data.get(CONF_SPORTS) or list(
-        SPORT_PROFILES
+def _enabled_sports(entry: ConfigEntry) -> list[str]:
+    """Sports enabled for this entry (falls back to all built-ins)."""
+    return (
+        entry.options.get(CONF_SPORTS)
+        or entry.data.get(CONF_SPORTS)
+        or list(SPORT_PROFILES)
     )
-    return {k: SPORT_PROFILES[k] for k in enabled if k in SPORT_PROFILES}
+
+
+def _profiles_for_spot(spot: dict, enabled: list[str]) -> dict[str, SportProfile]:
+    """Build the spot's sport profiles: defaults with per-spot overrides applied.
+
+    A spot scores the intersection of its own sports and the entry's enabled
+    sports; each profile is the built-in default with the spot's stored
+    overrides (offshore wind directions, wind/wave windows) merged on top.
+    """
+    spot_sports = spot.get(CONF_SPOT_SPORTS) or enabled
+    prefs = spot.get(CONF_SPOT_PREFS, {})
+    profiles: dict[str, SportProfile] = {}
+    for sport in spot_sports:
+        if sport not in enabled or sport not in SPORT_PROFILES:
+            continue
+        profiles[sport] = apply_overrides(SPORT_PROFILES[sport], prefs.get(sport))
+    return profiles
 
 
 async def async_setup_entry(
@@ -45,7 +61,7 @@ async def async_setup_entry(
 ) -> bool:
     """Set up swelligence from a config entry."""
     runtime = SwelligenceRuntime()
-    profiles = _resolve_profiles(entry)
+    enabled = _enabled_sports(entry)
 
     providers_cfg = entry.options.get(CONF_PROVIDERS) or entry.data.get(
         CONF_PROVIDERS, {}
@@ -64,7 +80,7 @@ async def async_setup_entry(
             spot=spot,
             provider_key=provider_key,
             api_key=api_key,
-            profiles=profiles,
+            profiles=_profiles_for_spot(spot, enabled),
         )
         await coordinator.async_config_entry_first_refresh()
         runtime.coordinators[spot["id"]] = coordinator
