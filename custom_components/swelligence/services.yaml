@@ -21,6 +21,17 @@ get_overview:
       selector:
         text:
           multiple: true
+    priority:
+      name: Sport priority
+      description: >-
+        Sport keys most-wanted first. Nudges the podium ranking so favourites
+        surface when scores are close. Supplied by the card (drag to reorder);
+        empty falls back to the entry's enabled-sports order.
+      required: false
+      example: ["kitesurf", "wingfoil", "surf"]
+      selector:
+        text:
+          multiple: true
 
 get_forecast:
   name: Get suitability forecast

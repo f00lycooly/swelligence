@@ -82,7 +82,7 @@ _OPTIONS = {
 }
 
 # Options-flow steps reachable straight from the menu; each renders a schema.
-_MENU_STEPS = ["add_spot", "edit_spot", "rider", "priority", "providers", "settings"]
+_MENU_STEPS = ["add_spot", "edit_spot", "rider", "providers", "settings"]
 
 
 @pytest.fixture

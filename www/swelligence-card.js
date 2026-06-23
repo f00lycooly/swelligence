@@ -91,6 +91,7 @@ class SwelligenceCard extends HTMLElement {
       const data = {};
       if (this._config.spots) data.spots = this._config.spots;
       if (this._config.sports) data.sports = this._config.sports;
+      if (this._config.priority && this._config.priority.length) data.priority = this._config.priority;
       const r = await this._hass.callService("swelligence", "get_overview", data, undefined, false, true);
       this._ov = (r && r.response) || null;
     } catch (e) { /* keep stale */ }
@@ -101,8 +102,10 @@ class SwelligenceCard extends HTMLElement {
   _showScore() { return this._config.show_score !== false; }
 
   _priority() {
-    return (this._ov && this._ov.sport_priority && this._ov.sport_priority.length)
-      ? this._ov.sport_priority : ORDER;
+    // Priority is a card setting now (drag-to-reorder in the visual editor),
+    // not an integration option. Fall back to the built-in ORDER.
+    return (this._config.priority && this._config.priority.length)
+      ? this._config.priority : ORDER;
   }
   _sortSports(list) {
     const p = this._priority();
@@ -283,6 +286,11 @@ class SwelligenceCardEditor extends HTMLElement {
 
   _update() {
     if (!this._hass || !this._config) return;
+    if (!this._style) {
+      this._style = document.createElement("style");
+      this._style.textContent = EDITOR_CSS;
+      this.appendChild(this._style);
+    }
     if (!this._form) {
       this._form = document.createElement("ha-form");
       this._form.computeLabel = (s) => ({
@@ -293,14 +301,73 @@ class SwelligenceCardEditor extends HTMLElement {
       }[s.name] || s.name);
       this._form.addEventListener("value-changed", (e) => {
         e.stopPropagation();
-        this.dispatchEvent(new CustomEvent("config-changed",
-          { detail: { config: e.detail.value }, bubbles: true, composed: true }));
+        this._emit(e.detail.value);
       });
       this.appendChild(this._form);
+    }
+    if (!this._prio) {
+      this._prio = document.createElement("div");
+      this._prio.className = "spr";
+      this.appendChild(this._prio);
     }
     this._form.hass = this._hass;
     this._form.schema = this._schema();
     this._form.data = { show_score: true, ...this._config };
+    this._renderPriority();
+  }
+
+  _emit(patch) {
+    this._config = { ...this._config, ...patch };
+    this.dispatchEvent(new CustomEvent("config-changed",
+      { detail: { config: this._config }, bubbles: true, composed: true }));
+  }
+
+  /* sport-priority drag editor — the integration no longer stores this. */
+  _sportUniverse() {
+    const found = this._opts().sports.map((o) => o.value);
+    const base = found.length ? found : ORDER.slice();
+    // Keep any saved-priority sports even if no sensor for them exists right now.
+    const extra = (this._config.priority || []).filter((s) => !base.includes(s));
+    return [...base, ...extra];
+  }
+  _priorityOrder() {
+    const universe = this._sportUniverse();
+    const pri = (this._config.priority || []).filter((s) => universe.includes(s));
+    return [...pri, ...universe.filter((s) => !pri.includes(s))];
+  }
+  _renderPriority() {
+    const rows = this._priorityOrder().map((s, i) =>
+      `<div class="spr-row" draggable="true" data-sport="${s}">`
+      + `<span class="spr-hnd">⠿</span>`
+      + `<span class="spr-lbl">${LABELS[s] || s}</span>`
+      + `<span class="spr-rk">${i + 1}</span></div>`).join("");
+    this._prio.innerHTML =
+      `<div class="spr-ttl">Sport priority</div>`
+      + `<div class="spr-sub">Drag to reorder — most-wanted first. Nudges the podium and ranked views when scores are close; never hides anything.</div>`
+      + `<div class="spr-list">${rows}</div>`;
+    this._wireDrag();
+  }
+  _wireDrag() {
+    const list = this._prio.querySelector(".spr-list");
+    let drag = null;
+    list.querySelectorAll(".spr-row").forEach((row) => {
+      row.addEventListener("dragstart", (e) => {
+        drag = row; row.classList.add("drag");
+        e.dataTransfer.effectAllowed = "move";
+      });
+      row.addEventListener("dragend", () => { row.classList.remove("drag"); drag = null; });
+      row.addEventListener("dragover", (e) => {
+        e.preventDefault();
+        if (!drag || drag === row) return;
+        const r = row.getBoundingClientRect();
+        list.insertBefore(drag, (e.clientY - r.top) > r.height / 2 ? row.nextSibling : row);
+      });
+      row.addEventListener("drop", (e) => {
+        e.preventDefault();
+        const order = [...list.querySelectorAll(".spr-row")].map((x) => x.dataset.sport);
+        this._emit({ priority: order });
+      });
+    });
   }
 }
 
@@ -359,6 +426,19 @@ table.grid{border-collapse:separate;border-spacing:6px;width:100%;}
 .pl{font-size:9.5px;color:var(--c-dim);}
 `;
 
+/* visual-editor priority list (light DOM — class-scoped with spr-) */
+const EDITOR_CSS = `
+.spr{margin-top:18px;}
+.spr-ttl{font-size:.95rem;font-weight:600;color:var(--primary-text-color,#eee);}
+.spr-sub{font-size:.78rem;color:var(--secondary-text-color,#999);margin:2px 0 8px;}
+.spr-list{display:flex;flex-direction:column;gap:5px;}
+.spr-row{display:flex;align-items:center;gap:10px;padding:9px 11px;border:1px solid var(--divider-color,#444);border-radius:9px;background:var(--card-background-color,#1b1e25);cursor:grab;user-select:none;}
+.spr-row.drag{opacity:.5;border-style:dashed;}
+.spr-hnd{color:var(--secondary-text-color,#999);font-size:15px;line-height:1;cursor:grab;}
+.spr-lbl{flex:1;font-size:.9rem;color:var(--primary-text-color,#eee);}
+.spr-rk{font-size:.8rem;font-weight:700;color:var(--secondary-text-color,#999);min-width:1.2em;text-align:center;}
+`;
+
 customElements.define("swelligence-card", SwelligenceCard);
 customElements.define("swelligence-card-editor", SwelligenceCardEditor);
 window.customCards = window.customCards || [];
@@ -369,4 +449,4 @@ window.customCards.push({
   preview: true,
   documentationURL: "https://git.bagofholding.co.uk/foolycooly/swelligence",
 });
-console.info("%c SWELLIGENCE-CARD ", "background:#1f9d57;color:#fff", "v9 loaded (optional score)");
+console.info("%c SWELLIGENCE-CARD ", "background:#1f9d57;color:#fff", "v10 loaded (drag sport priority)");

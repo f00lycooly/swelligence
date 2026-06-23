@@ -146,9 +146,11 @@ one profile + quiver in config — so there's no per-rider entity multiplication
   **medallions** (per-spot rings now). NOW modes read sensor states; forecast
   modes call `get_overview`. Bespoke SVG sport icons; verdict colours; rig size
   from quiver; ordering by sport priority.
-- **M10 — Sport preference + overview** *(done)*: `sport_priority` option +
-  pure `ranking.py` (preference-weighted ranking, raw score untouched) +
-  `overview.py` (sessions/podium) behind the `get_overview` service.
+- **M10 — Sport preference + overview** *(done)*: sport priority (drag-to-reorder
+  in the card's visual editor; passed to `get_overview` as `priority`, no longer
+  an integration option) + pure `ranking.py` (preference-weighted ranking, raw
+  score untouched) + `overview.py` (sessions/podium) behind the `get_overview`
+  service.
 - **M4 — More providers** *(provider layer done)*: Windy (keyed; u/v wind + GFS
   wave) and Stormglass (keyed; marine + tide) implemented as `ForecastProvider`s
   and registered in `PROVIDERS`; UKHO implemented as a `TideProvider` overlay in

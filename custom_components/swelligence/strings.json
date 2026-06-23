@@ -22,16 +22,8 @@
           "edit_spot": "Edit a spot (sports / water type)",
           "spot_prefs": "Tune a spot's preferences",
           "rider": "Rider profile & quiver",
-          "priority": "Sport priority",
           "providers": "Forecast provider API keys",
           "settings": "AI / general settings"
-        }
-      },
-      "priority": {
-        "title": "Sport priority",
-        "description": "Order your sports most-wanted first. This nudges ranked views (podium, best-of-day) so your favourites surface when scores are close — it never hides anything. Tip: select them in the order you care about.",
-        "data": {
-          "sport_priority": "Sports, most-wanted first"
         }
       },
       "rider": {

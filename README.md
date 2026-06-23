@@ -85,7 +85,8 @@ enable the LLM toggle and select the AI Task entity.
 | `medallions` | per-spot **rings now** (gauge fills to score) | live sensor states |
 
 Cells/medallions colour by verdict; kite/wing show the rig size from your quiver;
-sports order by your **Sport priority** (options).
+sports order by your **Sport priority** — drag to reorder in the card's visual
+editor (most-wanted first).
 
 A **visual editor** is supported — add the card from the dashboard's card picker
 ("Swelligence Card", with live preview) and configure mode/title/filters in the

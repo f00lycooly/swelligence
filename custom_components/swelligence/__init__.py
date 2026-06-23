@@ -12,7 +12,6 @@ from homeassistant.helpers import config_validation as cv
 from .const import (
     CONF_DEFAULT_PROVIDER,
     CONF_PROVIDERS,
-    CONF_SPORT_PRIORITY,
     CONF_SPORTS,
     CONF_SPOT_PREFS,
     CONF_SPOT_SPORTS,
@@ -117,16 +116,18 @@ def _async_register_overview_service(hass: HomeAssistant) -> None:
     async def _handle_get_overview(call: ServiceCall) -> dict:
         spots_f = set(call.data.get("spots") or [])
         sports_f = set(call.data.get("sports") or [])
-        priority = None
+        # Sport priority now comes from the calling card (the options-flow step
+        # was removed). Fall back to the entry's enabled-sports order so the
+        # podium still ranks sensibly when a card passes no priority.
+        priority = call.data.get("priority") or None
         entries: list[dict] = []
         now: list[dict] = []
         for entry in hass.config_entries.async_entries(DOMAIN):
             runtime = getattr(entry, "runtime_data", None)
             if not runtime:
                 continue
-            pri = entry.options.get(CONF_SPORT_PRIORITY) or entry.options.get(CONF_SPORTS)
-            if pri and priority is None:
-                priority = pri
+            if priority is None:
+                priority = entry.options.get(CONF_SPORTS)
             for coordinator in runtime.coordinators.values():
                 data = coordinator.data
                 if not data:
@@ -165,7 +166,11 @@ def _async_register_overview_service(hass: HomeAssistant) -> None:
         SERVICE_GET_OVERVIEW,
         _handle_get_overview,
         schema=vol.Schema(
-            {vol.Optional("spots"): [cv.string], vol.Optional("sports"): [cv.string]}
+            {
+                vol.Optional("spots"): [cv.string],
+                vol.Optional("sports"): [cv.string],
+                vol.Optional("priority"): [cv.string],
+            }
         ),
         supports_response=SupportsResponse.ONLY,
     )

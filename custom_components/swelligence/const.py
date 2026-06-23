@@ -20,9 +20,6 @@ CONF_RIDER: Final = "rider"
 CONF_RIDER_WEIGHT: Final = "weight_kg"
 CONF_QUIVER: Final = "quiver"  # {sport: [sizes_m2]}
 
-# Ordered sport priority (most-wanted first) — nudges ranking in podium/best-of.
-CONF_SPORT_PRIORITY: Final = "sport_priority"
-
 # Per-provider API key field (nested under CONF_PROVIDERS[key]["api_key"])
 CONF_API_KEY: Final = "api_key"
 

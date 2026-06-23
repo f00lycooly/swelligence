@@ -37,7 +37,6 @@ from .const import (
     CONF_QUIVER,
     CONF_RIDER,
     CONF_RIDER_WEIGHT,
-    CONF_SPORT_PRIORITY,
     CONF_SPORTS,
     CONF_SPOT_NAME,
     CONF_SPOT_PREFS,
@@ -181,44 +180,10 @@ class SwelligenceOptionsFlow(OptionsFlow):
                 "edit_spot",
                 "spot_prefs",
                 "rider",
-                "priority",
                 "providers",
                 "settings",
             ],
         )
-
-    async def async_step_priority(
-        self, user_input: dict[str, Any] | None = None
-    ) -> ConfigFlowResult:
-        """Set the sport priority order (most-wanted first)."""
-        enabled = self.config_entry.options.get(CONF_SPORTS, list(SPORT_PROFILES))
-        if user_input is not None:
-            chosen = user_input.get(CONF_SPORT_PRIORITY, [])
-            # selected (in order) first, then any remaining enabled sports
-            order = chosen + [s for s in enabled if s not in chosen]
-            return self._save({CONF_SPORT_PRIORITY: order})
-
-        current = self.config_entry.options.get(CONF_SPORT_PRIORITY) or enabled
-        ordered_opts = [
-            selector.SelectOptionDict(value=k, label=SPORT_PROFILES[k].label)
-            for k in current if k in SPORT_PROFILES
-        ] + [
-            selector.SelectOptionDict(value=k, label=SPORT_PROFILES[k].label)
-            for k in enabled if k not in current and k in SPORT_PROFILES
-        ]
-        schema = vol.Schema(
-            {
-                vol.Optional(
-                    CONF_SPORT_PRIORITY,
-                    description={"suggested_value": [k for k in current if k in enabled]},
-                ): selector.SelectSelector(
-                    selector.SelectSelectorConfig(
-                        options=ordered_opts, multiple=True, sort=False
-                    )
-                )
-            }
-        )
-        return self.async_show_form(step_id="priority", data_schema=schema)
 
     async def async_step_rider(
         self, user_input: dict[str, Any] | None = None
