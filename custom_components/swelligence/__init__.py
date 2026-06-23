@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import logging
+from collections import Counter
 
 import voluptuous as vol
 from homeassistant.config_entries import ConfigEntry
@@ -10,17 +11,22 @@ from homeassistant.core import HomeAssistant, ServiceCall, SupportsResponse
 from homeassistant.helpers import config_validation as cv
 
 from .const import (
+    CONF_API_KEY,
     CONF_DEFAULT_PROVIDER,
+    CONF_FREE_TIER,
     CONF_PROVIDERS,
+    CONF_SCAN_INTERVAL_MINUTES,
     CONF_SPORTS,
     CONF_SPOT_PREFS,
     CONF_SPOT_SPORTS,
     CONF_SPOTS,
+    DEFAULT_SCAN_INTERVAL_MINUTES,
     DOMAIN,
     PLATFORMS,
 )
 from .coordinator import SpotCoordinator
 from .overview import build_podium, build_sessions
+from .providers import free_tier_min_interval_minutes, get_provider
 from .sports import SPORT_PROFILES, SportProfile, apply_overrides
 
 _LOGGER = logging.getLogger(__name__)
@@ -52,6 +58,27 @@ def _enabled_sports(entry: ConfigEntry) -> list[str]:
         or entry.data.get(CONF_SPORTS)
         or list(SPORT_PROFILES)
     )
+
+
+def _provider_interval(
+    provider_key: str,
+    provider_cfg: dict,
+    base_interval: int,
+    spots_on_provider: int,
+) -> int:
+    """Effective poll interval (minutes) for a spot's provider.
+
+    When the provider's "Free tier" toggle is on, never poll faster than the
+    safe interval derived from its free daily request budget (shared across the
+    spots using it). Otherwise use the user's configured interval.
+    """
+    if not provider_cfg.get(CONF_FREE_TIER):
+        return base_interval
+    cls = get_provider(provider_key)
+    if cls is None:
+        return base_interval
+    safe = free_tier_min_interval_minutes(cls, spots_on_provider)
+    return max(base_interval, safe) if safe else base_interval
 
 
 def _profiles_for_spot(spot: dict, enabled: list[str]) -> dict[str, SportProfile]:
@@ -86,9 +113,20 @@ async def async_setup_entry(
     ) or entry.data.get(CONF_DEFAULT_PROVIDER, "open_meteo")
 
     spots = entry.options.get(CONF_SPOTS) or entry.data.get(CONF_SPOTS, [])
+    # How many spots poll each provider — needed to share a free-tier budget.
+    spots_per_provider = Counter(
+        spot.get("provider", default_provider) for spot in spots
+    )
+    base_interval = entry.options.get(
+        CONF_SCAN_INTERVAL_MINUTES, DEFAULT_SCAN_INTERVAL_MINUTES
+    )
     for spot in spots:
         provider_key = spot.get("provider", default_provider)
-        api_key = providers_cfg.get(provider_key, {}).get("api_key")
+        provider_cfg = providers_cfg.get(provider_key, {}) or {}
+        api_key = provider_cfg.get(CONF_API_KEY)
+        interval = _provider_interval(
+            provider_key, provider_cfg, base_interval, spots_per_provider[provider_key]
+        )
         coordinator = SpotCoordinator(
             hass,
             entry,
@@ -96,6 +134,7 @@ async def async_setup_entry(
             provider_key=provider_key,
             api_key=api_key,
             profiles=_profiles_for_spot(spot, enabled),
+            scan_interval_minutes=interval,
         )
         await coordinator.async_config_entry_first_refresh()
         runtime.coordinators[spot["id"]] = coordinator

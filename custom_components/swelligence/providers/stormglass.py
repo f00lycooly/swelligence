@@ -57,6 +57,8 @@ class StormglassProvider(ForecastProvider, TideProvider):
     label = "Stormglass (key required, marine + tides)"
     requires_api_key = True
     supports_marine = True
+    free_tier_daily_requests = 10  # Stormglass free plan: 10 requests/day
+    requests_per_fetch = 2  # one weather/point call + one tide/extremes call
 
     async def async_fetch(
         self,

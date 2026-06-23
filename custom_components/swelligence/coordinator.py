@@ -70,8 +70,9 @@ class SpotCoordinator(DataUpdateCoordinator[SpotData]):
         provider_key: str,
         api_key: str | None,
         profiles: dict[str, SportProfile],
+        scan_interval_minutes: int | None = None,
     ) -> None:
-        interval = entry.options.get(
+        interval = scan_interval_minutes or entry.options.get(
             CONF_SCAN_INTERVAL_MINUTES, DEFAULT_SCAN_INTERVAL_MINUTES
         )
         super().__init__(

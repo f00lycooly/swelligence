@@ -49,6 +49,30 @@ def get_tide_provider(key: str) -> type[TideProvider] | None:
     return TIDE_PROVIDERS.get(key)
 
 
+def free_tier_min_interval_minutes(
+    provider_cls: type[ForecastProvider],
+    spots_on_provider: int = 1,
+    *,
+    safety: float = 0.8,
+) -> int | None:
+    """Safe minimum poll interval (minutes) to stay within a free-tier budget.
+
+    Uses the provider's ``free_tier_daily_requests`` budget and
+    ``requests_per_fetch`` cost, keeps a ``safety`` headroom (default 80% of the
+    budget), and divides the remaining fetch allowance across all spots polling
+    that provider. Returns ``None`` when the provider has no known free tier.
+    """
+    budget = provider_cls.free_tier_daily_requests
+    cost = max(1, provider_cls.requests_per_fetch)
+    if not budget:
+        return None
+    fetches_per_day = (budget * safety) / cost
+    per_spot = fetches_per_day / max(1, spots_on_provider)
+    if per_spot <= 0:
+        return None
+    return max(1, round((24 * 60) / per_spot))
+
+
 __all__ = [
     "ForecastProvider",
     "ForecastPoint",
@@ -63,4 +87,5 @@ __all__ = [
     "TIDE_PROVIDERS",
     "get_provider",
     "get_tide_provider",
+    "free_tier_min_interval_minutes",
 ]
