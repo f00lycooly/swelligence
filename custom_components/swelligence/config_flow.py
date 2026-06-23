@@ -33,6 +33,8 @@ from .const import (
     CONF_DEFAULT_PROVIDER,
     CONF_LATITUDE,
     CONF_LONGITUDE,
+    CONF_MARINE_PREFER,
+    CONF_MARINE_SOURCE,
     CONF_PLACE_QUERY,
     CONF_PROVIDERS,
     CONF_QUIVER,
@@ -80,6 +82,12 @@ _TIDE_STATE_OPTIONS = [
 _TIDE_SOURCE_OPTIONS = [selector.SelectOptionDict(value="none", label="none")] + [
     selector.SelectOptionDict(value=k, label=cls.label)
     for k, cls in TIDE_PROVIDERS.items()
+]
+# Keyed marine-capable providers can be layered onto the keyless base.
+_MARINE_SOURCE_OPTIONS = [selector.SelectOptionDict(value="none", label="none")] + [
+    selector.SelectOptionDict(value=k, label=cls.label)
+    for k, cls in PROVIDERS.items()
+    if cls.supports_marine and cls.requires_api_key
 ]
 
 
@@ -497,6 +505,8 @@ class SwelligenceOptionsFlow(OptionsFlow):
                 {
                     CONF_PROVIDERS: stored,
                     CONF_TIDE_SOURCE: user_input.get(CONF_TIDE_SOURCE, "none"),
+                    CONF_MARINE_SOURCE: user_input.get(CONF_MARINE_SOURCE, "none"),
+                    CONF_MARINE_PREFER: bool(user_input.get(CONF_MARINE_PREFER)),
                 }
             )
 
@@ -525,14 +535,28 @@ class SwelligenceOptionsFlow(OptionsFlow):
             )
         # Tide overlay source — supplies tides for tide-dependent spots whose
         # forecast provider doesn't (UKHO for UK, or Stormglass).
+        opts = self.config_entry.options
         fields[
             vol.Optional(
-                CONF_TIDE_SOURCE,
-                default=self.config_entry.options.get(CONF_TIDE_SOURCE, "none"),
+                CONF_TIDE_SOURCE, default=opts.get(CONF_TIDE_SOURCE, "none")
             )
         ] = selector.SelectSelector(
             selector.SelectSelectorConfig(options=_TIDE_SOURCE_OPTIONS)
         )
+        # Marine overlay — layer a keyed source's waves/swell onto the base.
+        if len(_MARINE_SOURCE_OPTIONS) > 1:
+            fields[
+                vol.Optional(
+                    CONF_MARINE_SOURCE, default=opts.get(CONF_MARINE_SOURCE, "none")
+                )
+            ] = selector.SelectSelector(
+                selector.SelectSelectorConfig(options=_MARINE_SOURCE_OPTIONS)
+            )
+            fields[
+                vol.Optional(
+                    CONF_MARINE_PREFER, default=bool(opts.get(CONF_MARINE_PREFER))
+                )
+            ] = selector.BooleanSelector()
         return self.async_show_form(
             step_id="providers", data_schema=vol.Schema(fields)
         )

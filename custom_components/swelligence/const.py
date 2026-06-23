@@ -42,6 +42,12 @@ CONF_TIDE_WINDOW_H: Final = "tide_window_h"  # hours either side of the ideal st
 # Entry-level tide overlay: which TideProvider supplies tides when the spot's
 # forecast provider doesn't (key under CONF_PROVIDERS[source]["api_key"]).
 CONF_TIDE_SOURCE: Final = "tide_source"
+
+# Entry-level marine overlay: a keyed provider whose waves/swell/sea-temp are
+# layered onto the (keyless) base where it lacks them ("gap-fill") or always
+# ("prefer"). Budget-throttled by the same free-tier interval as polling.
+CONF_MARINE_SOURCE: Final = "marine_source"
+CONF_MARINE_PREFER: Final = "marine_prefer"
 CONF_SPOT_PREFS: Final = "prefs"  # {sport: {field: value}} per-spot profile overrides
 
 # Per-sport preference keys
