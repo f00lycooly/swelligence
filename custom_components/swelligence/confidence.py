@@ -77,6 +77,30 @@ def _circular_std_deg(values: list[float]) -> float:
     return math.degrees(math.sqrt(-2.0 * math.log(r)))
 
 
+def _circular_mean_deg(values: list[float]) -> float:
+    """Mean compass bearing (degrees, 0..360) of a set of directions."""
+    n = len(values)
+    s = sum(math.sin(math.radians(v)) for v in values) / n
+    c = sum(math.cos(math.radians(v)) for v in values) / n
+    return math.degrees(math.atan2(s, c)) % 360.0
+
+
+def blend_values(field: str, values) -> float | None:
+    """Consensus value for a field across models — the mean for accuracy.
+
+    Uses a circular mean for compass-bearing fields (so 350° and 10° average to
+    0°, not 180°) and an arithmetic mean otherwise. ``None`` when no numeric
+    values are given.
+    """
+    nums = [float(v) for v in (values or []) if isinstance(v, (int, float))]
+    if not nums:
+        return None
+    if field in DIRECTION_FIELDS:
+        # %360 folds a rounded 360.0 back to 0.0 (atan2 can land just below 0).
+        return round(_circular_mean_deg(nums), 1) % 360.0
+    return round(sum(nums) / len(nums), 2)
+
+
 def field_confidence(field: str, values) -> float | None:
     """Confidence (0..1) that ``field`` is well-determined, from model spread.
 

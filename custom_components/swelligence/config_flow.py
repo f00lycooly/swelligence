@@ -33,6 +33,8 @@ from .const import (
     CONF_DEFAULT_PROVIDER,
     CONF_LATITUDE,
     CONF_LONGITUDE,
+    CONF_MARINE_BLEND,
+    CONF_MARINE_ENSEMBLE,
     CONF_MARINE_PREFER,
     CONF_MARINE_SOURCE,
     CONF_PLACE_QUERY,
@@ -547,6 +549,8 @@ class SwelligenceOptionsFlow(OptionsFlow):
                     CONF_TIDE_SOURCE: user_input.get(CONF_TIDE_SOURCE, "none"),
                     CONF_MARINE_SOURCE: user_input.get(CONF_MARINE_SOURCE, "none"),
                     CONF_MARINE_PREFER: bool(user_input.get(CONF_MARINE_PREFER)),
+                    CONF_MARINE_ENSEMBLE: bool(user_input.get(CONF_MARINE_ENSEMBLE)),
+                    CONF_MARINE_BLEND: bool(user_input.get(CONF_MARINE_BLEND)),
                 }
             )
 
@@ -595,6 +599,20 @@ class SwelligenceOptionsFlow(OptionsFlow):
             fields[
                 vol.Optional(
                     CONF_MARINE_PREFER, default=bool(opts.get(CONF_MARINE_PREFER))
+                )
+            ] = selector.BooleanSelector()
+            # Cross-provider ensemble: confidence from base-vs-overlay agreement,
+            # and an optional consensus blend (o07.3). Costs the overlay fetch
+            # even when the base has waves, so it's opt-in and budget-throttled.
+            fields[
+                vol.Optional(
+                    CONF_MARINE_ENSEMBLE,
+                    default=bool(opts.get(CONF_MARINE_ENSEMBLE)),
+                )
+            ] = selector.BooleanSelector()
+            fields[
+                vol.Optional(
+                    CONF_MARINE_BLEND, default=bool(opts.get(CONF_MARINE_BLEND))
                 )
             ] = selector.BooleanSelector()
         return self.async_show_form(
