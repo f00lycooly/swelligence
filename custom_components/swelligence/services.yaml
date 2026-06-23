@@ -1,3 +1,10 @@
+get_overview:
+  name: Get conditions overview
+  description: >-
+    Return a ranked overview across all spots/sports for the dashboard cards:
+    current scores, 7-day go-worthy sessions, and each day's preference-ranked
+    top-3 podium. No parameters.
+
 get_forecast:
   name: Get suitability forecast
   description: >-

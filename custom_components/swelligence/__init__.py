@@ -12,6 +12,7 @@ from homeassistant.helpers import config_validation as cv
 from .const import (
     CONF_DEFAULT_PROVIDER,
     CONF_PROVIDERS,
+    CONF_SPORT_PRIORITY,
     CONF_SPORTS,
     CONF_SPOT_PREFS,
     CONF_SPOT_SPORTS,
@@ -20,11 +21,13 @@ from .const import (
     PLATFORMS,
 )
 from .coordinator import SpotCoordinator
+from .overview import build_podium, build_sessions
 from .sports import SPORT_PROFILES, SportProfile, apply_overrides
 
 _LOGGER = logging.getLogger(__name__)
 
 
+SERVICE_GET_OVERVIEW = "get_overview"
 SERVICE_GET_FORECAST = "get_forecast"
 _GET_FORECAST_SCHEMA = vol.Schema(
     {
@@ -102,7 +105,62 @@ async def async_setup_entry(
     await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)
     entry.async_on_unload(entry.add_update_listener(_async_update_listener))
     _async_register_forecast_service(hass)
+    _async_register_overview_service(hass)
     return True
+
+
+def _async_register_overview_service(hass: HomeAssistant) -> None:
+    """Register swelligence.get_overview — ranked now/sessions/podium for cards."""
+    if hass.services.has_service(DOMAIN, SERVICE_GET_OVERVIEW):
+        return
+
+    async def _handle_get_overview(call: ServiceCall) -> dict:
+        priority = None
+        entries: list[dict] = []
+        now: list[dict] = []
+        for entry in hass.config_entries.async_entries(DOMAIN):
+            runtime = getattr(entry, "runtime_data", None)
+            if not runtime:
+                continue
+            pri = entry.options.get(CONF_SPORT_PRIORITY) or entry.options.get(CONF_SPORTS)
+            if pri and priority is None:
+                priority = pri
+            for coordinator in runtime.coordinators.values():
+                data = coordinator.data
+                if not data:
+                    continue
+                for sport, res in data.results.items():
+                    entries.append({
+                        "spot": coordinator.spot["name"],
+                        "sport": sport,
+                        "slots": coordinator.build_forecast(sport, "hourly"),
+                    })
+                    kit = res.kit
+                    now.append({
+                        "spot": coordinator.spot["name"],
+                        "sport": sport,
+                        "score": round(res.now.score),
+                        "verdict": res.now.verdict,
+                        "suitable": res.now.suitable,
+                        "best_in_hours": res.best_offset_h,
+                        "best_score": round(res.best.score) if res.best else None,
+                        "kit_rig_m2": kit.owned_size_m2 if kit else None,
+                        "kit_power": kit.power if kit else None,
+                    })
+        return {
+            "sport_priority": priority or [],
+            "now": now,
+            "sessions": build_sessions(entries),
+            "podium": build_podium(entries, priority),
+        }
+
+    hass.services.async_register(
+        DOMAIN,
+        SERVICE_GET_OVERVIEW,
+        _handle_get_overview,
+        schema=vol.Schema({}),
+        supports_response=SupportsResponse.ONLY,
+    )
 
 
 def _async_register_forecast_service(hass: HomeAssistant) -> None:
