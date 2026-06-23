@@ -325,6 +325,10 @@ class SpotCoordinator(DataUpdateCoordinator[SpotData]):
         self._tide_cache = (now, events)
         return events
 
+    def profile(self, sport: str) -> SportProfile | None:
+        """The in-use (override-applied) profile for a sport at this spot."""
+        return self._profiles.get(sport)
+
     def build_forecast(self, sport: str, kind: str) -> list[dict]:
         """Build a suitability forecast (kind='hourly'|'daily') for a sport.
 

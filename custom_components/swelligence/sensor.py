@@ -9,6 +9,7 @@ from homeassistant.core import HomeAssistant
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 
 from .entity import SwelligenceEntity
+from .quality import data_quality
 from .sports import SPORT_PROFILES
 
 
@@ -89,7 +90,11 @@ class SuitabilitySensor(SwelligenceEntity, SensorEntity):
         if res.llm_rating is not None:
             attrs["ai_rating"] = res.llm_rating
             attrs["ai_summary"] = res.llm_summary
-        sources = self.coordinator.data.forecast.source_meta.get("sources")
+        forecast = self.coordinator.data.forecast
+        sources = forecast.source_meta.get("sources")
         if sources:
             attrs["data_sources"] = sources
+        profile = self.coordinator.profile(self._sport)
+        if profile is not None:
+            attrs["data_quality"] = data_quality(forecast, profile)
         return attrs

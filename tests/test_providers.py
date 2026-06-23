@@ -79,3 +79,16 @@ def test_marine_time_misalignment_handled():
 def test_empty_wind_returns_no_points():
     assert OpenMeteoProvider._merge(None, None) == []
     assert OpenMeteoProvider._merge({}, None) == []
+
+
+def test_grid_distance_from_snapped_coords():
+    from swelligence.providers.open_meteo import _grid_distance_km
+
+    # Open-Meteo echoes the resolved grid cell; offset from the request is the
+    # data-quality signal.
+    snapped = {"latitude": -43.55, "longitude": 172.75}
+    d = _grid_distance_km(-43.5, 172.7, snapped)
+    assert d is not None and 5.0 < d < 8.0
+    # Missing or coord-less payloads yield no signal.
+    assert _grid_distance_km(-43.5, 172.7, None) is None
+    assert _grid_distance_km(-43.5, 172.7, {"latitude": -43.5}) is None
