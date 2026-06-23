@@ -225,7 +225,7 @@ class SwelligenceCard extends HTMLElement {
         const m = (p.ranks || []).find((r) => r.place === place);
         if (!m) { h += `<div class="pc"><div class="pm empty"></div></div>`; continue; }
         const v = m.verdict || band(m.score);
-        h += `<div class="pc"><div class="pm ${place === 1 ? "big" : ""}" style="--c:${vc(v)};--p:${m.score}"><div class="pi"><div class="ps" style="color:${vc(v)}">${m.score}</div>${ICON(m.sport, "sm")}</div></div><div class="pl">${m.spot.split(" / ")[0].split(" ")[0]}</div></div>`;
+        h += `<div class="pc"><div class="pm ${place === 1 ? "big" : ""}" style="--c:${vc(v)};--p:${m.score}"><div class="pi">${ICON(m.sport)}<div class="ps">${m.score}</div></div></div><div class="pl">${m.spot.split(" / ")[0].split(" ")[0]}</div></div>`;
       }
       h += `</div>`;
     }
@@ -347,8 +347,9 @@ table.grid{border-collapse:separate;border-spacing:6px;width:100%;}
 .pm.big{width:54px;height:54px;}
 .pm::after{content:'';position:absolute;inset:4px;border-radius:50%;background:var(--card-background-color,#1b1e25);}
 .pm.empty{background:var(--c-track);opacity:.4;} .pm.empty::after{background:var(--card-background-color,#1b1e25);}
-.pi{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;z-index:1;}
-.ps{font-weight:800;font-size:18px;line-height:.8;} .pm.big .ps{font-size:21px;} .pi .icon{color:var(--c-dim);margin-top:1px;}
+.pi{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;z-index:1;gap:1px;}
+.ps{font-weight:600;font-size:10px;color:var(--c-dim);line-height:1;} .pm.big .ps{font-size:11px;}
+.pi .icon{width:22px;height:22px;color:var(--c-ink);} .pm.big .pi .icon{width:26px;height:26px;}
 .pl{font-size:9.5px;color:var(--c-dim);}
 `;
 
@@ -362,4 +363,4 @@ window.customCards.push({
   preview: true,
   documentationURL: "https://git.bagofholding.co.uk/foolycooly/swelligence",
 });
-console.info("%c SWELLIGENCE-CARD ", "background:#1f9d57;color:#fff", "v3 loaded (visual editor)");
+console.info("%c SWELLIGENCE-CARD ", "background:#1f9d57;color:#fff", "v8 loaded (podium+medallion icon-led)");
