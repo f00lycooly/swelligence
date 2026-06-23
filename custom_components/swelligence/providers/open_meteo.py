@@ -16,6 +16,7 @@ import logging
 from datetime import datetime
 
 from .base import ForecastPoint, ForecastProvider, SpotForecast
+from .domains import AIR, WATER, WAVE, WIND
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -49,6 +50,7 @@ class OpenMeteoProvider(ForecastProvider):
     label = "Open-Meteo (free, no key)"
     requires_api_key = False
     supports_marine = True
+    provides_domains = frozenset({WIND, AIR, WAVE, WATER})
 
     async def async_fetch(
         self,
@@ -90,7 +92,7 @@ class OpenMeteoProvider(ForecastProvider):
             meta["marine"] = "skipped (inland spot)"
         elif not marine_data:
             meta["marine"] = "unavailable (unsupported grid)"
-        return SpotForecast(
+        forecast = SpotForecast(
             provider=self.key,
             latitude=latitude,
             longitude=longitude,
@@ -98,6 +100,9 @@ class OpenMeteoProvider(ForecastProvider):
             daily_sun=self._parse_sun(wind),
             source_meta=meta,
         )
+        # When the marine grid is missing, only wind/air actually came back.
+        self._stamp_sources(forecast, marine=bool(marine and marine_data))
+        return forecast
 
     @staticmethod
     def _parse_sun(wind: dict | None) -> dict:

@@ -16,6 +16,7 @@ import math
 from datetime import datetime, timezone
 
 from .base import ForecastPoint, ForecastProvider, SpotForecast
+from .domains import AIR, WAVE, WIND
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -34,6 +35,7 @@ class WindyProvider(ForecastProvider):
     label = "Windy (key required)"
     requires_api_key = True
     supports_marine = True
+    provides_domains = frozenset({WIND, AIR, WAVE})
 
     async def async_fetch(
         self,
@@ -55,13 +57,15 @@ class WindyProvider(ForecastProvider):
             meta["marine"] = "skipped (inland spot)"
         elif not wave:
             meta["marine"] = "unavailable (no gfsWave grid)"
-        return SpotForecast(
+        forecast = SpotForecast(
             provider=self.key,
             latitude=latitude,
             longitude=longitude,
             points=points,
             source_meta=meta,
         )
+        self._stamp_sources(forecast, marine=bool(marine and wave))
+        return forecast
 
     @staticmethod
     def _series(payload: dict | None, key: str) -> list:
