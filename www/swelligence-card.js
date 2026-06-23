@@ -88,7 +88,10 @@ class SwelligenceCard extends HTMLElement {
     if (!this._hass || this._loading) return;
     this._loading = true;
     try {
-      const r = await this._hass.callService("swelligence", "get_overview", {}, undefined, false, true);
+      const data = {};
+      if (this._config.spots) data.spots = this._config.spots;
+      if (this._config.sports) data.sports = this._config.sports;
+      const r = await this._hass.callService("swelligence", "get_overview", data, undefined, false, true);
       this._ov = (r && r.response) || null;
     } catch (e) { /* keep stale */ }
     this._loading = false;
@@ -181,14 +184,17 @@ class SwelligenceCard extends HTMLElement {
     if (this._config.spots) sessions = sessions.filter((s) => this._config.spots.includes(s.spot));
     if (this._config.sports) sessions = sessions.filter((s) => this._config.sports.includes(s.sport));
     if (!sessions.length) return `<div class="muted">No go-worthy sessions in the next 7 days.</div>`;
-    const days = [...new Set(sessions.map((s) => s.day))].sort();
+    let days = [...new Set(sessions.map((s) => s.day))].sort();
+    if (this._config.days) days = days.slice(0, this._config.days);
+    sessions = sessions.filter((s) => days.includes(s.day));
     const spots = [...new Set(sessions.map((s) => s.spot))];
     const LO = 3, HI = 22, span = HI - LO;
-    let h = `<div class="tl"><div class="tlrow tlhead"><div class="tlsp"></div>`;
+    const gc = `grid-template-columns:104px repeat(${days.length},1fr)`;
+    let h = `<div class="tl"><div class="tlrow tlhead" style="${gc}"><div class="tlsp"></div>`;
     for (const d of days) h += `<div class="tld">${wday(d)}</div>`;
     h += `</div>`;
     for (const spot of spots) {
-      h += `<div class="tlrow"><div class="tlsp">${spot.split(" / ")[0]}</div>`;
+      h += `<div class="tlrow" style="${gc}"><div class="tlsp">${spot.split(" / ")[0]}</div>`;
       for (const d of days) {
         h += `<div class="tlc">`;
         for (const s of sessions.filter((x) => x.spot === spot && x.day === d)) {
@@ -206,13 +212,15 @@ class SwelligenceCard extends HTMLElement {
   /* ---------- FORECAST: top-3 podium ---------- */
   _podium() {
     if (!this._ov) return `<div class="muted">Loading forecast…</div>`;
-    const pod = this._ov.podium || [];
+    let pod = this._ov.podium || [];
+    if (this._config.days) pod = pod.slice(0, this._config.days);
     if (!pod.length) return `<div class="muted">No forecast.</div>`;
-    let h = `<div class="pod"><div class="prow phead"><div class="rk"></div>`;
+    const gc = `grid-template-columns:26px repeat(${pod.length},1fr)`;
+    let h = `<div class="pod"><div class="prow phead" style="${gc}"><div class="rk"></div>`;
     for (const p of pod) h += `<div class="pd">${wday(p.day)}<span>${p.day.slice(8)}</span></div>`;
     h += `</div>`;
     for (let place = 1; place <= 3; place++) {
-      h += `<div class="prow"><div class="rk r${place}">${place}</div>`;
+      h += `<div class="prow" style="${gc}"><div class="rk r${place}">${place}</div>`;
       for (const p of pod) {
         const m = (p.ranks || []).find((r) => r.place === place);
         if (!m) { h += `<div class="pc"><div class="pm empty"></div></div>`; continue; }
@@ -262,6 +270,7 @@ class SwelligenceCardEditor extends HTMLElement {
         { value: "heatgrid", label: "Heat-grid — now" },
         { value: "medallions", label: "Medallions — now" },
       ] } } },
+      { name: "days", selector: { number: { min: 1, max: 7, mode: "slider", step: 1 } } },
       { name: "spots", selector: { select: { multiple: true, options: o.spots } } },
       { name: "sports", selector: { select: { multiple: true, options: o.sports } } },
     ];
@@ -272,7 +281,8 @@ class SwelligenceCardEditor extends HTMLElement {
     if (!this._form) {
       this._form = document.createElement("ha-form");
       this._form.computeLabel = (s) => ({
-        title: "Title", mode: "Mode", spots: "Spots (filter — leave empty for all)",
+        title: "Title", mode: "Mode", days: "Days to show (forecast modes)",
+        spots: "Spots (filter — leave empty for all)",
         sports: "Sports (filter — leave empty for all)",
       }[s.name] || s.name);
       this._form.addEventListener("value-changed", (e) => {

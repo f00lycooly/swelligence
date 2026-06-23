@@ -1,9 +1,26 @@
 get_overview:
   name: Get conditions overview
   description: >-
-    Return a ranked overview across all spots/sports for the dashboard cards:
-    current scores, 7-day go-worthy sessions, and each day's preference-ranked
-    top-3 podium. No parameters.
+    Return a ranked overview for the dashboard cards: current scores, 7-day
+    go-worthy sessions, and each day's preference-ranked top-3 podium. Optionally
+    restrict to given spots/sports (the podium is recomputed for that subset).
+  fields:
+    spots:
+      name: Spots
+      description: Restrict to these spot names (empty = all).
+      required: false
+      example: ["Hurst Spit / Keyhaven"]
+      selector:
+        text:
+          multiple: true
+    sports:
+      name: Sports
+      description: Restrict to these sport keys (empty = all).
+      required: false
+      example: ["kitesurf", "wingfoil"]
+      selector:
+        text:
+          multiple: true
 
 get_forecast:
   name: Get suitability forecast

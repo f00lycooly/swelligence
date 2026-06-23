@@ -99,10 +99,14 @@ Install:
    type: custom:swelligence-card
    mode: podium          # podium | timeline | heatgrid | medallions
    title: Conditions
-   # optional filters:
+   # optional:
+   # days: 4             # forecast modes: how many days to show (1-7)
    # spots: ["Avon Beach", "Hurst Spit / Keyhaven"]
    # sports: ["kitesurf", "surf"]
    ```
+
+   Filters (`spots`, `sports`, `days`) apply to every mode; for podium/timeline
+   they're sent to `get_overview` so the podium is recomputed for the subset.
 
 Hard-refresh the browser after install/upgrade so the new resource loads.
 

@@ -115,6 +115,8 @@ def _async_register_overview_service(hass: HomeAssistant) -> None:
         return
 
     async def _handle_get_overview(call: ServiceCall) -> dict:
+        spots_f = set(call.data.get("spots") or [])
+        sports_f = set(call.data.get("sports") or [])
         priority = None
         entries: list[dict] = []
         now: list[dict] = []
@@ -129,7 +131,11 @@ def _async_register_overview_service(hass: HomeAssistant) -> None:
                 data = coordinator.data
                 if not data:
                     continue
+                if spots_f and coordinator.spot["name"] not in spots_f:
+                    continue
                 for sport, res in data.results.items():
+                    if sports_f and sport not in sports_f:
+                        continue
                     entries.append({
                         "spot": coordinator.spot["name"],
                         "sport": sport,
@@ -158,7 +164,9 @@ def _async_register_overview_service(hass: HomeAssistant) -> None:
         DOMAIN,
         SERVICE_GET_OVERVIEW,
         _handle_get_overview,
-        schema=vol.Schema({}),
+        schema=vol.Schema(
+            {vol.Optional("spots"): [cv.string], vol.Optional("sports"): [cv.string]}
+        ),
         supports_response=SupportsResponse.ONLY,
     )
 
