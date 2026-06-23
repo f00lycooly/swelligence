@@ -51,7 +51,7 @@ SPORT_PROFILES: dict[str, SportProfile] = {
     "kitesurf": SportProfile(
         key="kitesurf", label="Kitesurf", icon="mdi:kitesurfing", water="sea",
         wind_min_kn=12, wind_ideal_kn=20, wind_max_kn=35, gust_max_kn=40,
-        wave_min_m=None, wave_max_m=2.0, weight_dir=0.7,
+        wave_min_m=None, wave_max_m=3.0, weight_dir=0.7,
     ),
     "windsurf": SportProfile(
         key="windsurf", label="Windsurf", icon="mdi:windsock", water="sea",
@@ -60,8 +60,8 @@ SPORT_PROFILES: dict[str, SportProfile] = {
     ),
     "wingfoil": SportProfile(
         key="wingfoil", label="Wing foil", icon="mdi:wind-power", water="sea",
-        wind_min_kn=10, wind_ideal_kn=16, wind_max_kn=30, gust_max_kn=35,
-        wave_max_m=1.5, weight_dir=0.6,
+        wind_min_kn=10, wind_ideal_kn=16, wind_max_kn=33, gust_max_kn=40,
+        wave_max_m=2.5, weight_dir=0.6,
     ),
     "surf": SportProfile(
         key="surf", label="Surf", icon="mdi:surfing", water="sea",
