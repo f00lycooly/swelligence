@@ -70,6 +70,31 @@ Set up any **AI Task**-capable conversation agent (e.g. Anthropic/Claude,
 OpenAI, or a local model), then in Swelligence options → *AI / general settings*
 enable the LLM toggle and select the AI Task entity.
 
+## Lovelace card
+
+`www/swelligence-card.js` is a dependency-free custom card: a **spot × sport
+suitability matrix** (colour-coded by verdict, with the rig size for kite/wing),
+and a tap-to-expand **forecast** drill-down (7-day best windows + an hourly bar
+strip) that calls the `swelligence.get_forecast` service.
+
+Install:
+
+1. Copy `www/swelligence-card.js` to your HA `config/www/` folder.
+2. Add it as a Lovelace resource (Settings → Dashboards → ⋮ → Resources):
+   URL `/local/swelligence-card.js`, type **JavaScript module**.
+   (Or register via the websocket `lovelace/resources/create`.)
+3. Add the card to a dashboard:
+
+   ```yaml
+   type: custom:swelligence-card
+   title: Conditions
+   # optional filters:
+   # spots: ["Avon Beach", "Hurst Spit / Keyhaven"]
+   # sports: ["kitesurf", "surf"]
+   ```
+
+Hard-refresh the browser after first install so the new resource loads.
+
 ## Development
 
 ```bash
