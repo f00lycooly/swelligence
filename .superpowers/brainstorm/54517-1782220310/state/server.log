@@ -1,8 +1,0 @@
-{"type":"server-started","port":51446,"host":"0.0.0.0","url_host":"192.168.1.3","url":"http://192.168.1.3:51446","screen_dir":"/workspace/swelligence/.superpowers/brainstorm/54517-1782220310/content","state_dir":"/workspace/swelligence/.superpowers/brainstorm/54517-1782220310/state"}
-{"type":"screen-added","file":"/workspace/swelligence/.superpowers/brainstorm/54517-1782220310/content/card-directions.html"}
-{"type":"screen-added","file":"/workspace/swelligence/.superpowers/brainstorm/54517-1782220310/content/card-icons.html"}
-{"type":"screen-added","file":"/workspace/swelligence/.superpowers/brainstorm/54517-1782220310/content/card-forecast.html"}
-{"type":"screen-added","file":"/workspace/swelligence/.superpowers/brainstorm/54517-1782220310/content/card-bestsport.html"}
-{"type":"screen-added","file":"/workspace/swelligence/.superpowers/brainstorm/54517-1782220310/content/card-real.html"}
-{"type":"screen-added","file":"/workspace/swelligence/.superpowers/brainstorm/54517-1782220310/content/card-podium.html"}
-{"type":"server-stopped","reason":"idle timeout"}
