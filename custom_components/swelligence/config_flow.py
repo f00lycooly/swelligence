@@ -43,6 +43,7 @@ from .const import (
     CONF_SPORTS,
     CONF_SPOT_NAME,
     CONF_SPOT_PREFS,
+    CONF_SPOT_PROVIDER,
     CONF_SPOT_SPORTS,
     CONF_SPOTS,
     CONF_TIDE_SOURCE,
@@ -91,6 +92,11 @@ _MARINE_SOURCE_OPTIONS = [selector.SelectOptionDict(value="none", label="none")]
     for k, cls in PROVIDERS.items()
     if cls.supports_marine and cls.requires_api_key
 ]
+# Per-spot routing variants: an "inherit" option falls back to the global setting.
+_INHERIT_OPTION = selector.SelectOptionDict(value="inherit", label="(use global)")
+_PROVIDER_ROUTE_OPTIONS = [_INHERIT_OPTION] + _PROVIDER_OPTIONS
+_MARINE_ROUTE_OPTIONS = [_INHERIT_OPTION] + _MARINE_SOURCE_OPTIONS
+_TIDE_ROUTE_OPTIONS = [_INHERIT_OPTION] + _TIDE_SOURCE_OPTIONS
 
 
 def _tide_fields(state: str = TIDE_STATE_ANY, window: float | None = None) -> dict:
@@ -444,6 +450,18 @@ class SwelligenceOptionsFlow(OptionsFlow):
                     CONF_TIDE_STATE: user_input.get(CONF_TIDE_STATE, TIDE_STATE_ANY),
                     CONF_TIDE_WINDOW_H: user_input.get(CONF_TIDE_WINDOW_H),
                 }
+                # Per-spot source routing: store an override, or drop the key so
+                # it inherits the entry-level (global) source.
+                for route_key in (
+                    CONF_SPOT_PROVIDER,
+                    CONF_MARINE_SOURCE,
+                    CONF_TIDE_SOURCE,
+                ):
+                    value = user_input.get(route_key)
+                    if value in (None, "inherit"):
+                        updated.pop(route_key, None)
+                    else:
+                        updated[route_key] = value
                 new_spots.append(updated)
             return self._save({CONF_SPOTS: new_spots})
 
@@ -471,6 +489,24 @@ class SwelligenceOptionsFlow(OptionsFlow):
                 **_tide_fields(
                     spot.get(CONF_TIDE_STATE, TIDE_STATE_ANY),
                     spot.get(CONF_TIDE_WINDOW_H),
+                ),
+                vol.Optional(
+                    CONF_SPOT_PROVIDER,
+                    default=spot.get(CONF_SPOT_PROVIDER, "inherit"),
+                ): selector.SelectSelector(
+                    selector.SelectSelectorConfig(options=_PROVIDER_ROUTE_OPTIONS)
+                ),
+                vol.Optional(
+                    CONF_MARINE_SOURCE,
+                    default=spot.get(CONF_MARINE_SOURCE, "inherit"),
+                ): selector.SelectSelector(
+                    selector.SelectSelectorConfig(options=_MARINE_ROUTE_OPTIONS)
+                ),
+                vol.Optional(
+                    CONF_TIDE_SOURCE,
+                    default=spot.get(CONF_TIDE_SOURCE, "inherit"),
+                ): selector.SelectSelector(
+                    selector.SelectSelectorConfig(options=_TIDE_ROUTE_OPTIONS)
                 ),
             }
         )

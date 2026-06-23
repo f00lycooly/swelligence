@@ -32,6 +32,10 @@ CONF_PLACE_QUERY: Final = "place_query"
 # Per-spot keys
 CONF_SPOT_ID: Final = "id"
 CONF_SPOT_NAME: Final = "name"
+# Per-spot primary provider (wind/air/base). Falls back to the entry default.
+# Marine/tide sources also accept per-spot overrides (CONF_MARINE_SOURCE /
+# CONF_TIDE_SOURCE on the spot dict) — that's per-domain source routing.
+CONF_SPOT_PROVIDER: Final = "provider"
 CONF_LATITUDE: Final = "latitude"
 CONF_LONGITUDE: Final = "longitude"
 CONF_SPOT_SPORTS: Final = "sports"  # subset of enabled sports relevant to this spot

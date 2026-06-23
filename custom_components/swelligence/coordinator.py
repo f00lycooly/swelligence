@@ -36,7 +36,7 @@ from .const import (
 )
 from .forecast import daily_forecast, hourly_forecast
 from .llm import async_semantic_verdict
-from .overlay import filled_domains, merge_marine
+from .overlay import filled_domains, merge_marine, resolve_route
 from .policy import apply_water_policy, marine_wanted
 from .providers import free_tier_min_interval_minutes, get_provider, get_tide_provider
 from .providers.base import SpotForecast, TideEvent
@@ -182,10 +182,18 @@ class SpotCoordinator(DataUpdateCoordinator[SpotData]):
         """
         if water_type != WATER_TYPE_SEA:
             return
-        source = self.entry.options.get(CONF_MARINE_SOURCE)
+        source = resolve_route(
+            self.spot.get(CONF_MARINE_SOURCE),
+            self.entry.options.get(CONF_MARINE_SOURCE),
+        )
         if not source or source == "none" or source == self._provider_key:
             return
-        prefer = bool(self.entry.options.get(CONF_MARINE_PREFER))
+        prefer = bool(
+            resolve_route(
+                self.spot.get(CONF_MARINE_PREFER),
+                self.entry.options.get(CONF_MARINE_PREFER),
+            )
+        )
         base_has_marine = any(p.wave_height_m is not None for p in forecast.points)
         if base_has_marine and not prefer:
             return  # gap-fill: base already has waves, nothing to add
@@ -291,7 +299,9 @@ class SpotCoordinator(DataUpdateCoordinator[SpotData]):
         Tide extremes for the week change slowly, so we refetch at most every
         ``_TIDE_REFRESH_MINUTES`` to stay well inside any overlay free-tier quota.
         """
-        source = self.entry.options.get(CONF_TIDE_SOURCE)
+        source = resolve_route(
+            self.spot.get(CONF_TIDE_SOURCE), self.entry.options.get(CONF_TIDE_SOURCE)
+        )
         if not source or source == "none":
             return []
         now = datetime.now(timezone.utc)

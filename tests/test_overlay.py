@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from datetime import datetime, timezone
 
-from swelligence.overlay import filled_domains, merge_marine
+from swelligence.overlay import filled_domains, merge_marine, resolve_route
 from swelligence.providers.base import ForecastPoint
 from swelligence.providers.domains import WATER, WAVE
 
@@ -61,3 +61,13 @@ def test_filled_domains_mapping():
     assert filled_domains({"water_temp_c"}) == {WATER}
     assert filled_domains({"swell_height_m", "water_temp_c"}) == {WAVE, WATER}
     assert filled_domains(set()) == set()
+
+
+def test_resolve_route_inherits_or_overrides():
+    # inherit sentinels fall back to the entry-level value...
+    assert resolve_route(None, "stormglass") == "stormglass"
+    assert resolve_route("", "stormglass") == "stormglass"
+    assert resolve_route("inherit", "stormglass") == "stormglass"
+    # ...any real value overrides, including an explicit "none" (off).
+    assert resolve_route("windy", "stormglass") == "windy"
+    assert resolve_route("none", "stormglass") == "none"
