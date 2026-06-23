@@ -53,13 +53,73 @@ bd close <id>         # Complete work
 
 ## Build & Test
 
-_Add your build and test commands here_
+This is a Home Assistant custom integration (Python, no build step). Run the
+pure-logic suite before any deploy or release:
 
 ```bash
-# Example:
-# npm install
-# npm test
+pip install -r requirements-test.txt
+pytest                              # pure-logic suite (stubs HA via tests/conftest.py)
+
+# Optional / CI also runs:
+pip install -r requirements-ha-test.txt
+pytest tests_ha -o asyncio_mode=auto   # real-HA import + flow-schema guard
 ```
+
+CI (`.github/workflows/validate.yml`) runs `pytest`, the HA guard, and hassfest
+on every push/PR. There is no compile/bundle step for the integration; the
+Lovelace card (`www/swelligence-card.js`) is dependency-free vanilla JS.
+
+## Deployment
+
+**Two distinct meanings — confirm which is intended.**
+
+### 1. Deploy to the live Home Assistant (the usual "deploy")
+
+The running HA instance lives at `/appdata/homeassistant/`. Deploying means
+syncing the integration source into its `custom_components/` and restarting HA.
+Deploy only from a clean, up-to-date `main` that has passed `pytest`.
+
+```bash
+cd /workspace/swelligence
+git status --porcelain   # must be empty; deploy reflects committed code only
+pytest                   # quality gate — green before deploy
+
+# Sync the integration (exclude bytecode; --delete removes files dropped from the repo)
+rsync -a --delete --exclude='__pycache__' \
+  custom_components/swelligence/ /appdata/homeassistant/custom_components/swelligence/
+
+# Clear stale bytecode so HA can't load an old .pyc
+rm -rf /appdata/homeassistant/custom_components/swelligence/__pycache__ \
+       /appdata/homeassistant/custom_components/swelligence/providers/__pycache__
+
+# The Lovelace card is separate; only copy when www/swelligence-card.js changed:
+# cp www/swelligence-card.js /appdata/homeassistant/www/swelligence-card.js
+```
+
+Then **verify**: `diff -rq custom_components/swelligence <dest>` (ignoring
+`__pycache__`) should be clean, and `python3 -m py_compile` the deployed `.py`
+files.
+
+**The new code does NOT load until Home Assistant restarts** (Settings →
+Developer Tools → Restart) or the integration is reloaded (Devices & Services →
+Swelligence → ⋮ → Reload). **Do NOT restart HA without explicit confirmation** —
+it interrupts a live home-automation system; that step is the user's call. New
+config-flow options (e.g. cross-provider confidence toggles) only appear after a
+restart, and the user must opt into them in the integration's options.
+
+Notes:
+- A file deploy does **not** bump `manifest.json` `version` — that's a release
+  concern, kept separate (see below).
+- `/appdata/homeassistant/` is its own git repo, so a bad deploy is recoverable
+  there (`git diff` / `git checkout` inside that tree).
+
+### 2. Cut a HACS release (version bump + tag)
+
+For HACS consumers, "deploy" instead means bumping `custom_components/swelligence/
+manifest.json` `version`, committing, and creating an annotated git tag +
+Forgejo release. HACS reads tags/releases. Note: `hacs/action` store-validation
+returns 401 against Forgejo (GitHub-only); run it on a GitHub mirror if needed.
+Releases are public and hard to unpublish — confirm the version first.
 
 ## Architecture Overview
 
