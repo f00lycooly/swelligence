@@ -36,12 +36,33 @@ Prior art that inspired / can complement this:
 - 📊 **Deterministic scoring** — a transparent 0–100 suitability score per
   (spot × sport), with a factor breakdown, that works with **no API key and no
   LLM**.
+- 🎯 **Forecast confidence** — the score's blind spot is *"is this forecast even
+  trustworthy?"* Swelligence answers it from **model agreement**: tight agreement
+  between independent models reads as high confidence, wide divergence as low.
+  Stormglass already returns several source models per field, so confidence comes
+  **free, with zero extra requests**; configure a second marine source and you
+  get **cross-provider** agreement too (with an optional consensus *blend* for
+  accuracy). Each sensor exposes a `confidence` value + `high`/`moderate`/`low`
+  label.
+- 🔎 **Data-quality notes** — a per-sensor `data_quality` summary names the
+  source behind each domain and flags what's thin (e.g. *"swell: open_meteo,
+  windsea-only, no groundswell direction"*) or a grid cell that snapped far
+  offshore.
+- 🧭 **Better-source nudges** — a per-spot diagnostic **Source advice** sensor
+  spots when a domain is routed to a weaker-than-available source (e.g. swell on
+  Open-Meteo while you have Stormglass configured, or UK tides not using UKHO)
+  and names the upgrade — only when a better, *configured* source is actually
+  going unused.
 - 🤖 **Optional AI verdicts** — wire up a Home Assistant **AI Task** entity
   (Claude/OpenAI/local) and Swelligence asks for a *structured* rating + a
-  one-line "should I go?" summary, layered on top of the numbers.
+  one-line "should I go?" summary, layered on top of the numbers. The verdict is
+  fed the model agreement + data sources, so it can hedge in plain language
+  (*"models split on swell size — I'd wait for the next run"*).
 - 🔌 **Pluggable providers** — Open-Meteo (free, no key) is the default; Windy
   and Stormglass (keyed) slot into the same interface, with a UKHO tide overlay
-  for UK spots. Add provider API keys from the integration's options.
+  for UK spots. Per-spot, per-domain source routing and a budget-aware
+  cross-provider ensemble layer on top. Add provider API keys from the
+  integration's options.
 - 🔔 **Automations** — score sensors + `suitable now` binary sensors per
   (spot × sport) drive any notification/automation you like.
 
@@ -51,10 +72,19 @@ For every (spot × sport) you enable:
 
 | Entity | Example | Meaning |
 | --- | --- | --- |
-| `sensor` | `sensor.swelligence_rye_kitesurf_suitability` | 0–100 score now, with `verdict`, `factors`, `best_in_hours`, and (if enabled) `ai_rating`/`ai_summary` attributes |
+| `sensor` | `sensor.swelligence_rye_kitesurf_suitability` | 0–100 score now, with `verdict`, `factors`, `best_in_hours`, `data_quality`, `confidence`/`confidence_label` (when model agreement is available), and (if enabled) `ai_rating`/`ai_summary` attributes |
 | `binary_sensor` | `binary_sensor.swelligence_rye_kitesurf_suitable_now` | On when the score clears the suitability threshold |
 
+Plus one diagnostic sensor **per spot**:
+
+| Entity | Example | Meaning |
+| --- | --- | --- |
+| `sensor` (diagnostic) | `sensor.swelligence_rye_source_advice` | Count of "better source available" nudges; `recommendations` attribute carries the detail. `0` = on the best source it can reach |
+
 Each spot is a single HA **device**, so all its sports group together.
+
+The `get_overview` service also returns a top-level `source_advice` array and
+per-entry `confidence` for dashboard cards.
 
 ## Install
 
@@ -71,6 +101,14 @@ Each spot is a single HA **device**, so all its sports group together.
 Set up any **AI Task**-capable conversation agent (e.g. Anthropic/Claude,
 OpenAI, or a local model), then in Swelligence options → *AI / general settings*
 enable the LLM toggle and select the AI Task entity.
+
+### Cross-provider confidence (optional)
+
+Intra-model confidence from Stormglass needs nothing beyond its API key. To get
+**cross-provider** confidence, set a marine source for a spot (options → *edit
+spot*) and enable **Cross-provider confidence** on the providers step; tick
+**Blend** as well to replace the marine values with the two-source consensus.
+Both are budget-throttled by the same free-tier interval as polling.
 
 ## Lovelace card
 
@@ -123,10 +161,12 @@ python3 scripts/analyze_history.py  # re-score the windiest recent days
 ```
 
 The unit tests cover the deterministic scorer, profile overrides, the
-water-type policy, and Open-Meteo normalisation. They import the pure submodules
-via a stub package (`tests/conftest.py`) so they run without installing Home
-Assistant. Config-flow/coordinator tests that need the HA harness are tracked
-with the live-HA smoke test.
+water-type policy, Open-Meteo normalisation, forecast confidence (intra-model and
+cross-provider), data-quality summaries, the provider-authority nudges, and the
+AI-Task prompt builder. They import the pure submodules via a stub package
+(`tests/conftest.py`) so they run without installing Home Assistant.
+Config-flow/coordinator tests that need the HA harness are tracked with the
+live-HA smoke test.
 
 ## Status
 
