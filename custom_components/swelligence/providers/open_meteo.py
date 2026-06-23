@@ -87,7 +87,12 @@ class OpenMeteoProvider(ForecastProvider):
             )
 
         points = self._merge(wind, marine_data)
-        meta = {"model": (wind or {}).get("timezone_abbreviation", "open-meteo")}
+        meta = {
+            "model": (wind or {}).get("timezone_abbreviation", "open-meteo"),
+            # Point times are naive *local*; this lets tide scoring align them
+            # with UTC tide events.
+            "utc_offset_seconds": (wind or {}).get("utc_offset_seconds", 0),
+        }
         if not marine:
             meta["marine"] = "skipped (inland spot)"
         elif not marine_data:

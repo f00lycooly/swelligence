@@ -41,6 +41,7 @@ HA_MODULES = [
     "sensor",
     "sizing",
     "sports",
+    "tide",
     "geocoding",
     "providers",
     "providers.base",

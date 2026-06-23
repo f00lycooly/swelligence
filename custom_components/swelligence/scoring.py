@@ -171,6 +171,14 @@ def score_point(point: ForecastPoint, profile: SportProfile) -> ScoreResult:
     if hard_fail:
         score = min(score, 30.0)
 
+    # Tide gate: a tide-dependent spot at the wrong state caps the score (the
+    # multiplier is precomputed per point by the coordinator; see tide.py).
+    if point.tide_factor is not None:
+        factors["tide"] = round(point.tide_factor * 100, 1)
+        score = round(score * point.tide_factor, 1)
+        if point.tide_factor < 0.95:
+            reasons.append("tide off")
+
     return ScoreResult(
         score=score,
         verdict=_band(score),
