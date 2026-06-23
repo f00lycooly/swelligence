@@ -19,6 +19,8 @@ from homeassistant.helpers.update_coordinator import DataUpdateCoordinator, Upda
 from .const import (
     CONF_AI_TASK_ENTITY,
     CONF_FREE_TIER,
+    CONF_MARINE_BLEND,
+    CONF_MARINE_ENSEMBLE,
     CONF_MARINE_PREFER,
     CONF_MARINE_SOURCE,
     CONF_PROVIDERS,
@@ -36,7 +38,7 @@ from .const import (
 )
 from .forecast import daily_forecast, hourly_forecast
 from .llm import async_semantic_verdict
-from .overlay import filled_domains, merge_marine, resolve_route
+from .overlay import ensemble_marine, filled_domains, merge_marine, resolve_route
 from .policy import apply_water_policy, marine_wanted
 from .providers import free_tier_min_interval_minutes, get_provider, get_tide_provider
 from .providers.base import SpotForecast, TideEvent
@@ -179,6 +181,10 @@ class SpotCoordinator(DataUpdateCoordinator[SpotData]):
         open-sea swell. Gap-fill writes only missing wave/swell/sea-temp; prefer
         replaces them. Filled domains are re-stamped to the overlay in
         source_meta['sources'] (per-domain provenance from al8.1).
+
+        When ensemble is enabled (o07.3) the overlay is fetched even if the base
+        already has waves, so the two independent sources can be compared for
+        cross-provider confidence (and an optional consensus blend).
         """
         if water_type != WATER_TYPE_SEA:
             return
@@ -194,14 +200,42 @@ class SpotCoordinator(DataUpdateCoordinator[SpotData]):
                 self.entry.options.get(CONF_MARINE_PREFER),
             )
         )
+        ensemble = bool(
+            resolve_route(
+                self.spot.get(CONF_MARINE_ENSEMBLE),
+                self.entry.options.get(CONF_MARINE_ENSEMBLE),
+            )
+        )
+        blend = ensemble and bool(
+            resolve_route(
+                self.spot.get(CONF_MARINE_BLEND),
+                self.entry.options.get(CONF_MARINE_BLEND),
+            )
+        )
         base_has_marine = any(p.wave_height_m is not None for p in forecast.points)
-        if base_has_marine and not prefer:
-            return  # gap-fill: base already has waves, nothing to add
+        # Gap-fill has nothing to add when the base already has waves — but an
+        # ensemble still needs the overlay to measure agreement against it.
+        if base_has_marine and not prefer and not ensemble:
+            return
 
         overlay = await self._overlay_forecast(source, session)
         if not overlay or not overlay.points:
             return
         offset = int(forecast.source_meta.get("utc_offset_seconds", 0) or 0)
+
+        # Cross-provider confidence first, from the original base vs overlay pair
+        # (before any merge/blend mutates the base values).
+        if ensemble:
+            scored = ensemble_marine(
+                forecast.points,
+                overlay.points,
+                blend=blend,
+                base_offset_seconds=offset,
+            )
+            if scored:
+                mode = "blend" if blend else "confidence"
+                forecast.source_meta["marine_ensemble"] = f"{source} ({mode})"
+
         filled = merge_marine(
             forecast.points, overlay.points, prefer=prefer, base_offset_seconds=offset
         )

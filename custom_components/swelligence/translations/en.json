@@ -116,7 +116,9 @@
           "ukho": "UKHO Admiralty API key (UK tides)",
           "tide_source": "Tide source (for tide-dependent spots)",
           "marine_source": "Marine overlay source (waves/swell)",
-          "marine_prefer": "Prefer overlay marine over the base (else gap-fill only)"
+          "marine_prefer": "Prefer overlay marine over the base (else gap-fill only)",
+          "marine_ensemble": "Cross-provider confidence (compare both marine sources; uses extra requests)",
+          "marine_blend": "Blend the two marine sources to a consensus (needs cross-provider confidence)"
         }
       },
       "settings": {

@@ -10,6 +10,7 @@ per-domain provenance (epic al8). No Home Assistant / I/O.
 
 from __future__ import annotations
 
+from .confidence import blend_values, field_confidence
 from .providers.domains import DOMAIN_FIELDS, WATER, WAVE
 from .tide import to_utc_naive
 
@@ -44,6 +45,50 @@ def merge_marine(
                 setattr(bp, field, value)
                 filled.add(field)
     return filled
+
+
+def ensemble_marine(
+    base_points,
+    overlay_points,
+    *,
+    blend: bool = False,
+    base_offset_seconds: int = 0,
+) -> set[str]:
+    """Derive cross-provider confidence (and optionally a consensus blend).
+
+    For each marine field present on *both* the base and the time-aligned overlay
+    point, measure how well the two independent sources agree and stamp a 0..1
+    confidence into ``base_point.source_confidence`` (merging with any signal a
+    provider already attached). When ``blend`` is set, the base value is replaced
+    by the two-source consensus (mean) for accuracy — confidence is computed from
+    the *original* pair first, so blending never inflates agreement.
+
+    Returns the set of field names that gained a confidence signal.
+    """
+    index = {to_utc_naive(p.time): p for p in overlay_points}
+    scored: set[str] = set()
+    for bp in base_points:
+        op = index.get(
+            to_utc_naive(bp.time, local_offset_seconds=base_offset_seconds)
+        )
+        if op is None:
+            continue
+        conf = dict(bp.source_confidence or {})
+        for field in MARINE_FIELDS:
+            bv = getattr(bp, field, None)
+            ov = getattr(op, field, None)
+            if bv is None or ov is None:
+                continue
+            c = field_confidence(field, [bv, ov])
+            if c is None:
+                continue
+            conf[field] = c
+            scored.add(field)
+            if blend:
+                setattr(bp, field, blend_values(field, [bv, ov]))
+        if conf:
+            bp.source_confidence = conf
+    return scored
 
 
 def resolve_route(spot_value, entry_value):

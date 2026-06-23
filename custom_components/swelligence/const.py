@@ -52,6 +52,13 @@ CONF_TIDE_SOURCE: Final = "tide_source"
 # ("prefer"). Budget-throttled by the same free-tier interval as polling.
 CONF_MARINE_SOURCE: Final = "marine_source"
 CONF_MARINE_PREFER: Final = "marine_prefer"
+# Cross-provider ensemble (o07.3): fetch the marine overlay even when the base
+# already has waves, and derive a per-field *confidence* from how well the two
+# independent sources agree. CONF_MARINE_BLEND additionally replaces the base
+# marine values with the two-source consensus (mean) for accuracy. Both opt-in
+# and budget-throttled by the same free-tier interval as the overlay fetch.
+CONF_MARINE_ENSEMBLE: Final = "marine_ensemble"
+CONF_MARINE_BLEND: Final = "marine_blend"
 CONF_SPOT_PREFS: Final = "prefs"  # {sport: {field: value}} per-spot profile overrides
 
 # Per-sport preference keys
