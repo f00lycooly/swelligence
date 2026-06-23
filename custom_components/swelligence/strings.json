@@ -48,7 +48,8 @@
   "selector": {
     "water_type": {
       "options": {
-        "sea": "Sea / coastal",
+        "sea": "Sea / open coast",
+        "sheltered": "Sheltered (harbour / estuary)",
         "inland": "Inland (lake / cable park)"
       }
     }

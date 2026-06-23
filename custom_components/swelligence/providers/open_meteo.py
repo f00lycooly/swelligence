@@ -51,7 +51,12 @@ class OpenMeteoProvider(ForecastProvider):
     supports_marine = True
 
     async def async_fetch(
-        self, latitude: float, longitude: float, *, hours: int = 48
+        self,
+        latitude: float,
+        longitude: float,
+        *,
+        hours: int = 48,
+        marine: bool = True,
     ) -> SpotForecast:
         wind = await self._get(
             _FORECAST_URL,
@@ -64,22 +69,26 @@ class OpenMeteoProvider(ForecastProvider):
                 "timezone": "auto",
             },
         )
-        marine = await self._get(
-            _MARINE_URL,
-            {
-                "latitude": latitude,
-                "longitude": longitude,
-                "hourly": ",".join(_MARINE_HOURLY),
-                "forecast_hours": hours,
-                "timezone": "auto",
-            },
-            optional=True,
-        )
+        marine_data = None
+        if marine:
+            marine_data = await self._get(
+                _MARINE_URL,
+                {
+                    "latitude": latitude,
+                    "longitude": longitude,
+                    "hourly": ",".join(_MARINE_HOURLY),
+                    "forecast_hours": hours,
+                    "timezone": "auto",
+                },
+                optional=True,
+            )
 
-        points = self._merge(wind, marine)
+        points = self._merge(wind, marine_data)
         meta = {"model": (wind or {}).get("timezone_abbreviation", "open-meteo")}
         if not marine:
-            meta["marine"] = "unavailable (inland or unsupported grid)"
+            meta["marine"] = "skipped (inland spot)"
+        elif not marine_data:
+            meta["marine"] = "unavailable (unsupported grid)"
         return SpotForecast(
             provider=self.key,
             latitude=latitude,

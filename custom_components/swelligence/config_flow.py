@@ -36,8 +36,8 @@ from .const import (
     CONF_USE_LLM,
     CONF_WATER_TYPE,
     DOMAIN,
-    WATER_TYPE_INLAND,
     WATER_TYPE_SEA,
+    WATER_TYPES,
 )
 from .providers import PROVIDERS
 from .sports import SPORT_PROFILES
@@ -161,7 +161,7 @@ class SwelligenceOptionsFlow(OptionsFlow):
                     CONF_WATER_TYPE, default=WATER_TYPE_SEA
                 ): selector.SelectSelector(
                     selector.SelectSelectorConfig(
-                        options=[WATER_TYPE_SEA, WATER_TYPE_INLAND],
+                        options=WATER_TYPES,
                         translation_key="water_type",
                     )
                 ),

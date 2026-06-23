@@ -36,7 +36,10 @@ PREF_WATER_TEMP_MIN_C: Final = "water_temp_min_c"
 DEFAULT_SCAN_INTERVAL_MINUTES: Final = 30
 
 WATER_TYPE_SEA: Final = "sea"
-WATER_TYPE_INLAND: Final = "inland"
+WATER_TYPE_SHELTERED: Final = "sheltered"  # harbour/estuary: flat, no open-sea swell
+WATER_TYPE_INLAND: Final = "inland"  # lake/cable park: no marine data at all
+
+WATER_TYPES: Final = [WATER_TYPE_SEA, WATER_TYPE_SHELTERED, WATER_TYPE_INLAND]
 
 # Compass sectors used for wind-direction matching
 COMPASS_SECTORS: Final = [

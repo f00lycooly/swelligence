@@ -69,6 +69,16 @@ class ForecastProvider(ABC):
 
     @abstractmethod
     async def async_fetch(
-        self, latitude: float, longitude: float, *, hours: int = 48
+        self,
+        latitude: float,
+        longitude: float,
+        *,
+        hours: int = 48,
+        marine: bool = True,
     ) -> SpotForecast:
-        """Fetch and normalise the forecast for a coordinate."""
+        """Fetch and normalise the forecast for a coordinate.
+
+        When ``marine`` is False the provider must skip any marine (wave/swell/
+        sea-temperature) request — used for inland spots where that data is
+        meaningless. Wave/swell fields are then left ``None``.
+        """

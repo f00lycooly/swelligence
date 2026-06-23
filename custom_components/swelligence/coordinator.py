@@ -23,6 +23,7 @@ from .const import (
     CONF_SCAN_INTERVAL_MINUTES,
 )
 from .llm import async_semantic_verdict
+from .policy import apply_water_policy, marine_wanted
 from .providers import get_provider
 from .providers.base import SpotForecast
 from .scoring import ScoreResult, best_window, score_point
@@ -86,12 +87,18 @@ class SpotCoordinator(DataUpdateCoordinator[SpotData]):
 
         session = async_get_clientsession(self.hass)
         provider = provider_cls(session, self._api_key)
+        water_type = self.spot.get("water_type", "sea")
         try:
             forecast = await provider.async_fetch(
-                self.spot["latitude"], self.spot["longitude"]
+                self.spot["latitude"],
+                self.spot["longitude"],
+                marine=marine_wanted(water_type),
             )
         except Exception as err:  # noqa: BLE001
             raise UpdateFailed(f"Forecast fetch failed: {err}") from err
+
+        # Suppress nearest-coastal marine data that doesn't apply to this spot.
+        apply_water_policy(forecast, water_type)
 
         current = forecast.current()
         results: dict[str, SportResult] = {}

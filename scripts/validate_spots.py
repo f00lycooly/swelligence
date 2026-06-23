@@ -25,7 +25,8 @@ _pkg = types.ModuleType("swelligence")
 _pkg.__path__ = [str(_PKG_DIR)]
 sys.modules["swelligence"] = _pkg
 
-from swelligence.providers.base import ForecastPoint  # noqa: E402
+from swelligence.policy import apply_water_policy, marine_wanted  # noqa: E402
+from swelligence.providers.base import ForecastPoint, SpotForecast  # noqa: E402
 from swelligence.scoring import best_window, score_point  # noqa: E402
 from swelligence.sports import SPORT_PROFILES  # noqa: E402
 
@@ -34,7 +35,7 @@ _FORECAST_URL = "https://api.open-meteo.com/v1/forecast"
 _MARINE_URL = "https://marine-api.open-meteo.com/v1/marine"
 
 SPOTS = [
-    {"name": "Christchurch Harbour", "lat": 50.728, "lon": -1.745, "water": "sea",
+    {"name": "Christchurch Harbour", "lat": 50.728, "lon": -1.745, "water": "sheltered",
      "sports": ["windsurf", "wingfoil", "sup", "sailing", "seaswim", "wakeboard_sea"]},
     {"name": "Avon Beach", "lat": 50.736, "lon": -1.733, "water": "sea",
      "sports": ["surf", "sup", "kitesurf", "windsurf"]},
@@ -65,24 +66,25 @@ def _at(values, i):
     return values[i]
 
 
-def fetch_points(lat: float, lon: float, hours: int = 48) -> tuple[list[ForecastPoint], bool]:
+def fetch_points(lat: float, lon: float, water: str, hours: int = 48) -> list[ForecastPoint]:
     wind = _get(_FORECAST_URL, {
         "latitude": lat, "longitude": lon,
         "hourly": "wind_speed_10m,wind_gusts_10m,wind_direction_10m,temperature_2m,precipitation,cloud_cover",
         "wind_speed_unit": "ms", "forecast_hours": hours, "timezone": "auto",
     })
-    marine = _get(_MARINE_URL, {
-        "latitude": lat, "longitude": lon,
-        "hourly": "wave_height,wave_period,wave_direction,swell_wave_height,swell_wave_period,sea_surface_temperature",
-        "forecast_hours": hours, "timezone": "auto",
-    })
+    marine = None
+    if marine_wanted(water):
+        marine = _get(_MARINE_URL, {
+            "latitude": lat, "longitude": lon,
+            "hourly": "wave_height,wave_period,wave_direction,swell_wave_height,swell_wave_period,sea_surface_temperature",
+            "forecast_hours": hours, "timezone": "auto",
+        })
     if not wind or "hourly" not in wind:
-        return [], False
+        return []
     wh = wind["hourly"]
     times = wh.get("time", [])
     mh = (marine or {}).get("hourly", {}) if marine else {}
     m_index = {t: i for i, t in enumerate(mh.get("time", []))}
-    has_marine = bool(mh.get("wave_height"))
 
     def kn(values, i):
         v = _at(values, i)
@@ -106,18 +108,25 @@ def fetch_points(lat: float, lon: float, hours: int = 48) -> tuple[list[Forecast
             swell_period_s=_at(mh.get("swell_wave_period", []), mi),
             water_temp_c=_at(mh.get("sea_surface_temperature", []), mi),
         ))
-    return points, has_marine
+    # Apply the same water-type policy the integration uses.
+    forecast = SpotForecast(provider="open_meteo", latitude=lat, longitude=lon, points=points)
+    apply_water_policy(forecast, water)
+    return forecast.points
 
 
 def main() -> int:
     for spot in SPOTS:
-        points, has_marine = fetch_points(spot["lat"], spot["lon"])
+        points = fetch_points(spot["lat"], spot["lon"], spot["water"])
         if not points:
             print(f"\n### {spot['name']} — no forecast\n")
             continue
         now = points[0]
-        marine_note = "" if has_marine else "  [no marine grid → wave/temp factors drop]"
-        print(f"\n### {spot['name']} ({spot['water']}){marine_note}")
+        note = ""
+        if spot["water"] == "inland":
+            note = "  [inland → marine suppressed]"
+        elif spot["water"] == "sheltered":
+            note = "  [sheltered → waves suppressed, temp kept]"
+        print(f"\n### {spot['name']} ({spot['water']}){note}")
         print(f"    now: wind {now.wind_speed_kn}kn gust {now.wind_gust_kn}kn "
               f"@{now.wind_dir_deg}°, wave {now.wave_height_m}m, "
               f"water {now.water_temp_c}°C, air {now.air_temp_c}°C")
