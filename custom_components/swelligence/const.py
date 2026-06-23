@@ -15,6 +15,11 @@ CONF_AI_TASK_ENTITY: Final = "ai_task_entity_id"
 CONF_USE_LLM: Final = "use_llm"
 CONF_SCAN_INTERVAL_MINUTES: Final = "scan_interval_minutes"
 
+# Single local rider personalisation
+CONF_RIDER: Final = "rider"
+CONF_RIDER_WEIGHT: Final = "weight_kg"
+CONF_QUIVER: Final = "quiver"  # {sport: [sizes_m2]}
+
 # Per-spot keys
 CONF_SPOT_ID: Final = "id"
 CONF_SPOT_NAME: Final = "name"

@@ -63,10 +63,13 @@ def _build_prompt(spot: dict, forecast, results, profiles) -> str:
     for sport, res in results.items():
         prof = profiles.get(sport)
         label = prof.label if prof else sport
-        lines.append(
+        line = (
             f"  - {label} ({sport}): now={res.now.score} ({res.now.verdict}); "
             f"factors={res.now.factors}; notes={res.now.reasons}"
         )
+        if getattr(res, "kit", None) and res.kit.summary:
+            line += f"; kit: {res.kit.summary} ({res.kit.power})"
+        lines.append(line)
     lines.append(
         "\nReturn a rating (0-100) and a one-sentence verdict per sport, written "
         "for an experienced rider deciding whether to go."

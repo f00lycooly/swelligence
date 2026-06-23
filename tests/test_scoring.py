@@ -9,7 +9,9 @@ import pytest
 from swelligence.providers.base import ForecastPoint
 from swelligence.scoring import (
     SUITABLE_THRESHOLD,
+    ScoreResult,
     best_window,
+    blend_kit,
     score_point,
 )
 from swelligence.sports import SportProfile
@@ -207,3 +209,29 @@ def test_best_window_respects_horizon():
     pts = [pt(wind_speed_kn=5)] * 3 + [pt(wind_speed_kn=20)]
     bw = best_window(pts, wind_only(), horizon=3)  # excludes the ideal at +3
     assert bw[0] != 3
+
+
+# --- kit blend ----------------------------------------------------------------
+
+def _result(score: float) -> ScoreResult:
+    return ScoreResult(score=score, verdict="", suitable=True, factors={}, reasons=[])
+
+
+def test_blend_kit_perfect_match_unchanged():
+    r = score_point(pt(wind_speed_kn=20), wind_only())
+    assert blend_kit(r, 1.0) is r
+
+
+def test_blend_kit_no_kit_caps_to_40_percent():
+    out = blend_kit(_result(90.0), 0.0)
+    assert out.score == pytest.approx(36.0, abs=0.1)  # 90 * 0.4
+    assert out.verdict == "marginal"
+    assert out.suitable is False
+    assert out.factors["kit"] == 0.0
+
+
+def test_blend_kit_partial_match_scales():
+    out = blend_kit(_result(90.0), 0.5)
+    # 90 * (0.4 + 0.6*0.5) = 90 * 0.7 = 63
+    assert out.score == pytest.approx(63.0, abs=0.1)
+    assert out.suitable is True

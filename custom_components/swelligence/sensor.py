@@ -65,6 +65,11 @@ class SuitabilitySensor(SwelligenceEntity, SensorEntity):
             attrs["best_score"] = res.best.score
             attrs["best_in_hours"] = res.best_offset_h
             attrs["best_verdict"] = res.best.verdict
+        if res.kit is not None:
+            attrs["recommended_size_m2"] = res.kit.ideal_size_m2
+            attrs["rig_size_m2"] = res.kit.owned_size_m2
+            attrs["power"] = res.kit.power
+            attrs["kit_summary"] = res.kit.summary
         if res.llm_rating is not None:
             attrs["ai_rating"] = res.llm_rating
             attrs["ai_summary"] = res.llm_summary

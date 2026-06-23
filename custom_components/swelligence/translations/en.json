@@ -20,7 +20,17 @@
         "menu_options": {
           "add_spot": "Add a favourite spot",
           "spot_prefs": "Tune a spot's preferences",
+          "rider": "Rider profile & quiver",
           "settings": "AI / general settings"
+        }
+      },
+      "rider": {
+        "title": "Rider profile & quiver",
+        "description": "Your weight and the kit you own drive kite/wing size recommendations and whether a spot is actually rideable for you. Enter sizes in m² separated by commas (e.g. 7, 9, 12). Leave weight blank to disable personalisation.",
+        "data": {
+          "weight_kg": "Rider weight (kg)",
+          "kite_sizes": "Kite sizes (m²)",
+          "wing_sizes": "Wing sizes (m²)"
         }
       },
       "spot_prefs": {

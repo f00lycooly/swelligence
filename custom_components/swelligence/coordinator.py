@@ -18,6 +18,9 @@ from homeassistant.helpers.update_coordinator import DataUpdateCoordinator, Upda
 
 from .const import (
     CONF_AI_TASK_ENTITY,
+    CONF_QUIVER,
+    CONF_RIDER,
+    CONF_RIDER_WEIGHT,
     CONF_USE_LLM,
     DEFAULT_SCAN_INTERVAL_MINUTES,
     CONF_SCAN_INTERVAL_MINUTES,
@@ -26,7 +29,8 @@ from .llm import async_semantic_verdict
 from .policy import apply_water_policy, marine_wanted
 from .providers import get_provider
 from .providers.base import SpotForecast
-from .scoring import ScoreResult, best_window, score_point
+from .scoring import ScoreResult, best_window, blend_kit, score_point
+from .sizing import POWER_NA, KitRecommendation, recommend_kit
 from .sports import SportProfile
 
 _LOGGER = logging.getLogger(__name__)
@@ -40,6 +44,7 @@ class SportResult:
     now: ScoreResult
     best_offset_h: int | None = None
     best: ScoreResult | None = None
+    kit: KitRecommendation | None = None
     llm_summary: str | None = None
     llm_rating: int | None = None
 
@@ -101,6 +106,10 @@ class SpotCoordinator(DataUpdateCoordinator[SpotData]):
         apply_water_policy(forecast, water_type)
 
         current = forecast.current()
+        rider = self.entry.options.get(CONF_RIDER, {})
+        weight = rider.get(CONF_RIDER_WEIGHT) or 0
+        quiver = rider.get(CONF_QUIVER, {})
+
         results: dict[str, SportResult] = {}
         for sport in self.spot.get("sports", list(self._profiles)):
             profile = self._profiles.get(sport)
@@ -108,11 +117,23 @@ class SpotCoordinator(DataUpdateCoordinator[SpotData]):
                 continue
             now_res = score_point(current, profile)
             bw = best_window(forecast.points, profile)
+
+            # Quiver-aware personalisation (kite/wing only; no-op if no rider).
+            kit = None
+            if weight:
+                rec = recommend_kit(
+                    sport, weight, current.wind_speed_kn, quiver.get(sport)
+                )
+                if rec.power != POWER_NA:
+                    kit = rec
+                    now_res = blend_kit(now_res, rec.factor)
+
             results[sport] = SportResult(
                 sport=sport,
                 now=now_res,
                 best_offset_h=bw[0] if bw else None,
                 best=bw[1] if bw else None,
+                kit=kit,
             )
 
         data = SpotData(forecast=forecast, results=results)

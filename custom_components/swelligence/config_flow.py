@@ -30,6 +30,9 @@ from .const import (
     CONF_DEFAULT_PROVIDER,
     CONF_LATITUDE,
     CONF_LONGITUDE,
+    CONF_QUIVER,
+    CONF_RIDER,
+    CONF_RIDER_WEIGHT,
     CONF_SPORTS,
     CONF_SPOT_NAME,
     CONF_SPOT_PREFS,
@@ -82,6 +85,23 @@ _PROVIDER_OPTIONS = [
 
 def _slugify(name: str) -> str:
     return "".join(c if c.isalnum() else "_" for c in name.strip().lower()).strip("_")
+
+
+def _parse_sizes(raw: str | None) -> list[float]:
+    """Parse a comma/space separated size list ('7, 9, 12') into sorted floats."""
+    if not raw:
+        return []
+    out: list[float] = []
+    for token in raw.replace(",", " ").split():
+        try:
+            out.append(float(token))
+        except ValueError:
+            continue
+    return sorted(set(out))
+
+
+def _format_sizes(sizes: list[float] | None) -> str:
+    return ", ".join(f"{s:g}" for s in sizes) if sizes else ""
 
 
 class SwelligenceConfigFlow(ConfigFlow, domain=DOMAIN):
@@ -143,8 +163,48 @@ class SwelligenceOptionsFlow(OptionsFlow):
         self, user_input: dict[str, Any] | None = None
     ) -> ConfigFlowResult:
         return self.async_show_menu(
-            step_id="init", menu_options=["add_spot", "spot_prefs", "settings"]
+            step_id="init",
+            menu_options=["add_spot", "spot_prefs", "rider", "settings"],
         )
+
+    async def async_step_rider(
+        self, user_input: dict[str, Any] | None = None
+    ) -> ConfigFlowResult:
+        """Set the single local rider's weight and quiver (kite/wing sizes)."""
+        if user_input is not None:
+            rider = {
+                CONF_RIDER_WEIGHT: user_input.get(CONF_RIDER_WEIGHT),
+                CONF_QUIVER: {
+                    "kitesurf": _parse_sizes(user_input.get("kite_sizes")),
+                    "wingfoil": _parse_sizes(user_input.get("wing_sizes")),
+                },
+            }
+            return self._save({CONF_RIDER: rider})
+
+        rider = self.config_entry.options.get(CONF_RIDER, {})
+        quiver = rider.get(CONF_QUIVER, {})
+        schema = vol.Schema(
+            {
+                vol.Optional(
+                    CONF_RIDER_WEIGHT,
+                    description={"suggested_value": rider.get(CONF_RIDER_WEIGHT)},
+                ): selector.NumberSelector(
+                    selector.NumberSelectorConfig(
+                        min=20, max=150, step=1, mode="box",
+                        unit_of_measurement="kg",
+                    )
+                ),
+                vol.Optional(
+                    "kite_sizes",
+                    description={"suggested_value": _format_sizes(quiver.get("kitesurf"))},
+                ): selector.TextSelector(),
+                vol.Optional(
+                    "wing_sizes",
+                    description={"suggested_value": _format_sizes(quiver.get("wingfoil"))},
+                ): selector.TextSelector(),
+            }
+        )
+        return self.async_show_form(step_id="rider", data_schema=schema)
 
     async def async_step_add_spot(
         self, user_input: dict[str, Any] | None = None

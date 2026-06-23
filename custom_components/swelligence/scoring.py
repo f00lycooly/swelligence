@@ -180,6 +180,26 @@ def score_point(point: ForecastPoint, profile: SportProfile) -> ScoreResult:
     )
 
 
+def blend_kit(result: ScoreResult, kit_factor: float) -> ScoreResult:
+    """Fold a quiver power-match factor into a conditions score.
+
+    kit_factor 1.0 leaves the score untouched; a poor match scales it down to a
+    floor of 40% (so a great-wind day you can't rig for reads "marginal/poor"
+    with the kit advice, rather than vanishing to zero). The factor is recorded
+    in ``factors['kit']`` for transparency.
+    """
+    if kit_factor >= 1.0:
+        return result
+    adjusted = round(result.score * (0.4 + 0.6 * kit_factor), 1)
+    return ScoreResult(
+        score=adjusted,
+        verdict=_band(adjusted),
+        suitable=adjusted >= SUITABLE_THRESHOLD,
+        factors={**result.factors, "kit": round(kit_factor * 100, 1)},
+        reasons=list(result.reasons),
+    )
+
+
 def best_window(
     points: list[ForecastPoint], profile: SportProfile, *, horizon: int = 24
 ) -> tuple[int, ScoreResult] | None:

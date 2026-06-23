@@ -149,9 +149,11 @@ one profile + quiver in config — so there's no per-rider entity multiplication
   water-type policy, and Open-Meteo normalisation (HA-free via a stub package);
   CI runs tests + hassfest + HACS in `.github/workflows`. Config-flow/coordinator
   tests needing the HA harness are deferred to the live-HA smoke test.
-- **M8 — Rider personalisation**: single-rider profile (weight, ability) + quiver
-  of owned kit; a calibratable sizing model; quiver-aware kite/wing scoring and a
-  per-spot kit recommendation ("rig your 9m"). See Personalisation above.
+- **M8 — Rider personalisation** *(done)*: single-rider profile (weight) + quiver
+  (kite/wing sizes) in options; calibratable sizing model (`sizing.py`); quiver-
+  aware scoring folds the power-match into kite/wing scores (great wind + wrong
+  kit -> capped + "rig your 9m²"); recommendation surfaced on sensor attributes
+  and fed to the LLM. Ability-level weighting + windsurf-sail sizing deferred.
 
 ## Testing strategy
 
