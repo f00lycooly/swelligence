@@ -28,7 +28,12 @@ class SportProfile:
     # Preferred wind directions (compass sectors). Empty = direction-agnostic.
     wind_dirs: list[str] = field(default_factory=list)
     # Wave window (metres). None = waves not relevant / not scored.
+    # wave_ideal_m sets the sport's intent:
+    #   * a positive value  -> "waves desired" (e.g. surf): score peaks at ideal.
+    #   * None               -> "flat preferred": flatter water scores higher,
+    #                           declining to 0 at wave_max_m.
     wave_min_m: float | None = None
+    wave_ideal_m: float | None = None
     wave_max_m: float | None = None
     # Minimum comfortable water temperature (degrees C). None = not scored.
     water_temp_min_c: float | None = None
@@ -61,8 +66,8 @@ SPORT_PROFILES: dict[str, SportProfile] = {
     "surf": SportProfile(
         key="surf", label="Surf", icon="mdi:surfing", water="sea",
         wind_min_kn=0, wind_ideal_kn=5, wind_max_kn=15, gust_max_kn=20,
-        wave_min_m=0.6, wave_max_m=3.5, weight_wind=0.6, weight_dir=0.8,
-        weight_wave=1.0,
+        wave_min_m=0.6, wave_ideal_m=1.5, wave_max_m=3.5,
+        weight_wind=0.6, weight_dir=0.8, weight_wave=1.0,
     ),
     "sup": SportProfile(
         key="sup", label="SUP", icon="mdi:rowing", water="any",

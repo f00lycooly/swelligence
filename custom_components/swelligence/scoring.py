@@ -66,9 +66,12 @@ def _wind_factor(speed: float | None, p: SportProfile) -> tuple[float | None, st
 def _gust_factor(gust: float | None, p: SportProfile) -> tuple[float | None, str]:
     if gust is None:
         return None, ""
-    if gust > p.gust_max_kn:
-        return 0.0, f"gusting {gust:.0f}kn (over limit)"
-    return 1.0, ""
+    if gust <= p.gust_max_kn:
+        return 1.0, ""
+    # Graduated penalty: 1.0 at the ceiling, ramping to 0 once gusts reach 50%
+    # over it. A gust slightly over the limit nudges the score, it doesn't kill it.
+    over = (gust - p.gust_max_kn) / max(0.5 * p.gust_max_kn, 0.1)
+    return max(0.0, 1.0 - over), f"gusting {gust:.0f}kn (over {p.gust_max_kn:.0f})"
 
 
 def _dir_factor(deg: float | None, dirs: list[str]) -> tuple[float | None, str]:
@@ -89,15 +92,42 @@ def _dir_factor(deg: float | None, dirs: list[str]) -> tuple[float | None, str]:
 
 
 def _wave_factor(h: float | None, p: SportProfile) -> tuple[float | None, str]:
-    if h is None or (p.wave_min_m is None and p.wave_max_m is None):
+    if h is None or (
+        p.wave_min_m is None and p.wave_ideal_m is None and p.wave_max_m is None
+    ):
         return None, ""
-    lo = p.wave_min_m if p.wave_min_m is not None else 0.0
-    hi = p.wave_max_m if p.wave_max_m is not None else (lo + 3.0)
-    if h < lo:
-        return (0.5 if lo == 0 else 0.3 * (h / lo)), f"flat ({h:.1f}m)"
-    if h > hi:
-        return 0.0, f"too big ({h:.1f}m)"
-    return 1.0, f"{h:.1f}m"
+
+    # Waves-desired sport (surf-like): score ramps up to wave_ideal_m, then
+    # tapers towards wave_max_m. No more binary "full credit anywhere in range".
+    if p.wave_ideal_m and p.wave_ideal_m > 0:
+        base = p.wave_min_m if p.wave_min_m is not None else 0.0
+        if h < base:
+            frac = (h / base) if base else 0.0
+            return max(0.0, 0.5 * frac), f"flat ({h:.1f}m)"
+        if p.wave_max_m is not None and h > p.wave_max_m:
+            return 0.0, f"too big ({h:.1f}m)"
+        if h <= p.wave_ideal_m:
+            span = max(p.wave_ideal_m - base, 0.1)
+            f = 0.6 + 0.4 * (h - base) / span
+        else:
+            top = p.wave_max_m if p.wave_max_m is not None else p.wave_ideal_m + 2.0
+            span = max(top - p.wave_ideal_m, 0.1)
+            f = 1.0 - 0.4 * (h - p.wave_ideal_m) / span
+        return min(1.0, max(0.0, f)), f"{h:.1f}m"
+
+    # Flat-preferred sport: full credit while chop is comfortable, then declining
+    # to 0 at wave_max_m. The comfort plateau stops small, normal sea chop from
+    # penalising wind sports (kite/windsurf/wing) where it's neutral-to-fun.
+    if p.wave_max_m is not None:
+        comfort = 0.4 * p.wave_max_m
+        if h <= comfort:
+            return 1.0, ""
+        if h >= p.wave_max_m:
+            return 0.0, f"too choppy ({h:.1f}m)"
+        f = 1.0 - (h - comfort) / (p.wave_max_m - comfort)
+        note = f"choppy ({h:.1f}m)" if h > 0.7 * p.wave_max_m else ""
+        return max(0.0, f), note
+    return None, ""
 
 
 def _temp_factor(t: float | None, p: SportProfile) -> tuple[float | None, str]:
@@ -132,8 +162,9 @@ def score_point(point: ForecastPoint, profile: SportProfile) -> ScoreResult:
         den += weight
         if note:
             reasons.append(note)
-        # A zeroed essential factor caps the whole session.
-        if factor == 0.0 and name in ("wind", "gust", "wave"):
+        # A zeroed essential factor caps the whole session. Gusts are excluded:
+        # they apply a graduated penalty rather than a hard cap.
+        if factor == 0.0 and name in ("wind", "wave"):
             hard_fail = True
 
     score = 0.0 if den == 0 else round(100 * num / den, 1)
