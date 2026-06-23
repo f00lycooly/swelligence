@@ -138,11 +138,15 @@ one profile + quiver in config — so there's no per-rider entity multiplication
   `dataclasses.replace` on defaults.
 - **M2 — Geocoding**: add spots by place name (Open-Meteo geocoding API) instead
   of raw coordinates.
-- **M3 — Custom Lovelace card** *(done)*: `www/swelligence-card.js` — dependency-
-  free spot × sport matrix (colour by verdict, rig size for kite/wing) with a
-  tap-to-expand forecast drill-down (7-day tiles + hourly strip) via the
-  `get_forecast` service. Sensors expose `spot`/`sport`/`sport_label` attributes
-  for grouping. (A visual config editor is deferred — YAML config for now.)
+- **M3 — Custom Lovelace card** *(done)*: `www/swelligence-card.js` — one theme-
+  aware element, four `mode`s: **podium** (day's preference-ranked top-3),
+  **timeline** (per-spot opportunity windows, 7d), **heatgrid** (spot×sport now),
+  **medallions** (per-spot rings now). NOW modes read sensor states; forecast
+  modes call `get_overview`. Bespoke SVG sport icons; verdict colours; rig size
+  from quiver; ordering by sport priority.
+- **M10 — Sport preference + overview** *(done)*: `sport_priority` option +
+  pure `ranking.py` (preference-weighted ranking, raw score untouched) +
+  `overview.py` (sessions/podium) behind the `get_overview` service.
 - **M4 — More providers**: Windy (keyed, richer models), Stormglass (marine +
   tide), UKHO tides as a tide overlay for tide-sensitive sports/spots.
 - **M5 — Tide awareness**: factor tide state/height into scoring where the spot

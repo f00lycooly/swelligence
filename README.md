@@ -72,28 +72,35 @@ enable the LLM toggle and select the AI Task entity.
 
 ## Lovelace card
 
-`www/swelligence-card.js` is a dependency-free custom card: a **spot × sport
-suitability matrix** (colour-coded by verdict, with the rig size for kite/wing),
-and a tap-to-expand **forecast** drill-down (7-day best windows + an hourly bar
-strip) that calls the `swelligence.get_forecast` service.
+`www/swelligence-card.js` is a dependency-free, theme-aware custom card with four
+**modes**, each built around the bespoke sport icon set:
+
+| `mode` | Shows | Data |
+| --- | --- | --- |
+| `podium` *(default)* | each day's **top-3** opportunities (preference-ranked) | `get_overview` |
+| `timeline` | per-spot **opportunity timeline** — only go-worthy windows over 7 days | `get_overview` |
+| `heatgrid` | spot × sport **suitability now** (verdict colour + rig size) | live sensor states |
+| `medallions` | per-spot **rings now** (gauge fills to score) | live sensor states |
+
+Cells/medallions colour by verdict; kite/wing show the rig size from your quiver;
+sports order by your **Sport priority** (options).
 
 Install:
 
-1. Copy `www/swelligence-card.js` to your HA `config/www/` folder.
-2. Add it as a Lovelace resource (Settings → Dashboards → ⋮ → Resources):
-   URL `/local/swelligence-card.js`, type **JavaScript module**.
-   (Or register via the websocket `lovelace/resources/create`.)
-3. Add the card to a dashboard:
+1. Copy `www/swelligence-card.js` to your HA `config/www/`.
+2. Add a Lovelace resource: URL `/local/swelligence-card.js`, type **JavaScript module**.
+3. Add cards:
 
    ```yaml
    type: custom:swelligence-card
+   mode: podium          # podium | timeline | heatgrid | medallions
    title: Conditions
    # optional filters:
    # spots: ["Avon Beach", "Hurst Spit / Keyhaven"]
    # sports: ["kitesurf", "surf"]
    ```
 
-Hard-refresh the browser after first install so the new resource loads.
+Hard-refresh the browser after install/upgrade so the new resource loads.
 
 ## Development
 
