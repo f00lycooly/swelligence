@@ -9,7 +9,7 @@ from __future__ import annotations
 
 import logging
 from dataclasses import dataclass, field
-from datetime import timedelta
+from datetime import datetime, timedelta, timezone
 
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant
@@ -18,23 +18,32 @@ from homeassistant.helpers.update_coordinator import DataUpdateCoordinator, Upda
 
 from .const import (
     CONF_AI_TASK_ENTITY,
+    CONF_PROVIDERS,
     CONF_QUIVER,
     CONF_RIDER,
     CONF_RIDER_WEIGHT,
+    CONF_TIDE_SOURCE,
+    CONF_TIDE_STATE,
+    CONF_TIDE_WINDOW_H,
     CONF_USE_LLM,
     DEFAULT_SCAN_INTERVAL_MINUTES,
     CONF_SCAN_INTERVAL_MINUTES,
+    WATER_TYPE_INLAND,
 )
 from .forecast import daily_forecast, hourly_forecast
 from .llm import async_semantic_verdict
 from .policy import apply_water_policy, marine_wanted
-from .providers import get_provider
-from .providers.base import SpotForecast
+from .providers import get_provider, get_tide_provider
+from .providers.base import SpotForecast, TideEvent
 from .scoring import ScoreResult, best_window, blend_kit, score_point
 from .sizing import POWER_NA, KitRecommendation, recommend_kit
 from .sports import SportProfile
+from .tide import DEFAULT_TIDE_WINDOW_H, TIDE_STATE_ANY, tide_factor, to_utc_naive
 
 _LOGGER = logging.getLogger(__name__)
+
+# Tide extremes change slowly; refetch the overlay at most this often.
+_TIDE_REFRESH_MINUTES = 720
 
 
 @dataclass(slots=True)
@@ -86,6 +95,8 @@ class SpotCoordinator(DataUpdateCoordinator[SpotData]):
         self._provider_key = provider_key
         self._api_key = api_key
         self._profiles = profiles
+        # (fetched_at, events) cache for the tide overlay.
+        self._tide_cache: tuple[datetime | None, list] = (None, [])
 
     async def _async_update_data(self) -> SpotData:
         provider_cls = get_provider(self._provider_key)
@@ -107,6 +118,10 @@ class SpotCoordinator(DataUpdateCoordinator[SpotData]):
 
         # Suppress nearest-coastal marine data that doesn't apply to this spot.
         apply_water_policy(forecast, water_type)
+
+        # Tide awareness: attach a tide overlay if needed, then stamp a per-point
+        # tide factor the scorer folds in (no-op for non-tide-dependent spots).
+        await self._apply_tide(forecast, session, water_type)
 
         current = forecast.current()
         rider = self.entry.options.get(CONF_RIDER, {})
@@ -142,6 +157,70 @@ class SpotCoordinator(DataUpdateCoordinator[SpotData]):
         data = SpotData(forecast=forecast, results=results)
         await self._maybe_enrich_with_llm(data)
         return data
+
+    async def _apply_tide(self, forecast, session, water_type: str) -> None:
+        """Stamp each point's tide_factor for a tide-dependent spot.
+
+        Tide-dependence is a per-spot setting (CONF_TIDE_STATE). Inland spots and
+        spots set to ``any`` are skipped. Tide events come from the forecast
+        provider when it supplies them (Stormglass); otherwise a configured tide
+        overlay (UKHO / Stormglass) is fetched and cached.
+        """
+        if water_type == WATER_TYPE_INLAND:
+            return
+        state = self.spot.get(CONF_TIDE_STATE, TIDE_STATE_ANY)
+        if state in (None, "", TIDE_STATE_ANY):
+            return
+        window = self.spot.get(CONF_TIDE_WINDOW_H) or DEFAULT_TIDE_WINDOW_H
+
+        events = forecast.tide_events
+        if not events:
+            events = await self._tide_overlay_events(session)
+        if not events:
+            return
+
+        # Collapse points (naive local) and events (UTC) to one UTC basis.
+        offset = int(forecast.source_meta.get("utc_offset_seconds", 0) or 0)
+        norm_events = [
+            TideEvent(time=to_utc_naive(e.time), kind=e.kind, height_m=e.height_m)
+            for e in events
+        ]
+        forecast.tide_events = norm_events
+        forecast.source_meta["tide"] = f"state={state} window={window}h"
+        for point in forecast.points:
+            when = to_utc_naive(point.time, local_offset_seconds=offset)
+            factor, _ = tide_factor(norm_events, when, state, window)
+            point.tide_factor = factor
+
+    async def _tide_overlay_events(self, session) -> list:
+        """Fetch tide events from the configured overlay, cached by TTL.
+
+        Tide extremes for the week change slowly, so we refetch at most every
+        ``_TIDE_REFRESH_MINUTES`` to stay well inside any overlay free-tier quota.
+        """
+        source = self.entry.options.get(CONF_TIDE_SOURCE)
+        if not source or source == "none":
+            return []
+        now = datetime.now(timezone.utc)
+        cached_at, cached = self._tide_cache
+        if cached_at and now - cached_at < timedelta(minutes=_TIDE_REFRESH_MINUTES):
+            return cached
+
+        cls = get_tide_provider(source)
+        if cls is None:
+            return []
+        providers_cfg = self.entry.options.get(CONF_PROVIDERS, {}) or {}
+        api_key = (providers_cfg.get(source, {}) or {}).get("api_key")
+        try:
+            provider = cls(session, api_key)
+            events = await provider.async_fetch_tides(
+                self.spot["latitude"], self.spot["longitude"], days=7
+            )
+        except Exception as err:  # noqa: BLE001 - tide overlay is best-effort
+            _LOGGER.warning("Tide overlay (%s) failed for %s: %s", source, self.spot["name"], err)
+            return cached or []
+        self._tide_cache = (now, events)
+        return events
 
     def build_forecast(self, sport: str, kind: str) -> list[dict]:
         """Build a suitability forecast (kind='hourly'|'daily') for a sport.

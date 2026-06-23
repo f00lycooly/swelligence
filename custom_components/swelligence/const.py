@@ -36,6 +36,12 @@ CONF_LATITUDE: Final = "latitude"
 CONF_LONGITUDE: Final = "longitude"
 CONF_SPOT_SPORTS: Final = "sports"  # subset of enabled sports relevant to this spot
 CONF_WATER_TYPE: Final = "water_type"  # "sea" | "sheltered" | "inland"
+CONF_TIDE_STATE: Final = "tide_state"  # "any"|"high"|"low"|"mid" — spot tide pref
+CONF_TIDE_WINDOW_H: Final = "tide_window_h"  # hours either side of the ideal state
+
+# Entry-level tide overlay: which TideProvider supplies tides when the spot's
+# forecast provider doesn't (key under CONF_PROVIDERS[source]["api_key"]).
+CONF_TIDE_SOURCE: Final = "tide_source"
 CONF_SPOT_PREFS: Final = "prefs"  # {sport: {field: value}} per-spot profile overrides
 
 # Per-sport preference keys

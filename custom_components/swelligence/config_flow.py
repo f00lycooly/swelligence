@@ -43,6 +43,9 @@ from .const import (
     CONF_SPOT_PREFS,
     CONF_SPOT_SPORTS,
     CONF_SPOTS,
+    CONF_TIDE_SOURCE,
+    CONF_TIDE_STATE,
+    CONF_TIDE_WINDOW_H,
     CONF_USE_LLM,
     CONF_WATER_TYPE,
     DOMAIN,
@@ -59,11 +62,45 @@ from .const import (
     WATER_TYPES,
 )
 from .geocoding import async_geocode
-from .providers import PROVIDERS
+from .providers import PROVIDERS, TIDE_PROVIDERS
 from .sports import SPORT_PROFILES, apply_overrides
+from .tide import TIDE_STATE_ANY, TIDE_STATES
 
 # Keyed providers needing an API key entry in the providers settings step.
 _KEYED_PROVIDERS = {k: cls for k, cls in PROVIDERS.items() if cls.requires_api_key}
+# Tide overlays needing an API key (UKHO); Stormglass reuses its forecast key.
+_KEYED_TIDE_PROVIDERS = {
+    k: cls
+    for k, cls in TIDE_PROVIDERS.items()
+    if cls.requires_api_key and k not in PROVIDERS
+}
+_TIDE_STATE_OPTIONS = [
+    selector.SelectOptionDict(value=s, label=s) for s in TIDE_STATES
+]
+_TIDE_SOURCE_OPTIONS = [selector.SelectOptionDict(value="none", label="none")] + [
+    selector.SelectOptionDict(value=k, label=cls.label)
+    for k, cls in TIDE_PROVIDERS.items()
+]
+
+
+def _tide_fields(state: str = TIDE_STATE_ANY, window: float | None = None) -> dict:
+    """Schema fragment for a spot's tide preference (state + window hours)."""
+    return {
+        vol.Optional(
+            CONF_TIDE_STATE, default=state or TIDE_STATE_ANY
+        ): selector.SelectSelector(
+            selector.SelectSelectorConfig(
+                options=_TIDE_STATE_OPTIONS, translation_key="tide_state"
+            )
+        ),
+        vol.Optional(
+            CONF_TIDE_WINDOW_H, description={"suggested_value": window}
+        ): selector.NumberSelector(
+            selector.NumberSelectorConfig(
+                min=0.5, max=4, step=0.5, mode="box", unit_of_measurement="h"
+            )
+        ),
+    }
 
 _DIR_OPTIONS = [selector.SelectOptionDict(value=s, label=s) for s in COMPASS_SECTORS]
 
@@ -241,6 +278,8 @@ class SwelligenceOptionsFlow(OptionsFlow):
                     CONF_SPOT_NAME: user_input[CONF_SPOT_NAME],
                     CONF_WATER_TYPE: user_input[CONF_WATER_TYPE],
                     CONF_SPOT_SPORTS: user_input[CONF_SPOT_SPORTS],
+                    CONF_TIDE_STATE: user_input.get(CONF_TIDE_STATE, TIDE_STATE_ANY),
+                    CONF_TIDE_WINDOW_H: user_input.get(CONF_TIDE_WINDOW_H),
                 }
                 query = (user_input.get(CONF_PLACE_QUERY) or "").strip()
                 if query:
@@ -297,6 +336,7 @@ class SwelligenceOptionsFlow(OptionsFlow):
                         options=spot_sport_options, multiple=True
                     )
                 ),
+                **_tide_fields(),
             }
         )
         return self.async_show_form(
@@ -391,6 +431,8 @@ class SwelligenceOptionsFlow(OptionsFlow):
                     CONF_WATER_TYPE: user_input[CONF_WATER_TYPE],
                     CONF_SPOT_SPORTS: new_sports,
                     CONF_SPOT_PREFS: prefs,
+                    CONF_TIDE_STATE: user_input.get(CONF_TIDE_STATE, TIDE_STATE_ANY),
+                    CONF_TIDE_WINDOW_H: user_input.get(CONF_TIDE_WINDOW_H),
                 }
                 new_spots.append(updated)
             return self._save({CONF_SPOTS: new_spots})
@@ -415,6 +457,10 @@ class SwelligenceOptionsFlow(OptionsFlow):
                     selector.SelectSelectorConfig(
                         options=spot_sport_options, multiple=True
                     )
+                ),
+                **_tide_fields(
+                    spot.get(CONF_TIDE_STATE, TIDE_STATE_ANY),
+                    spot.get(CONF_TIDE_WINDOW_H),
                 ),
             }
         )
@@ -441,7 +487,18 @@ class SwelligenceOptionsFlow(OptionsFlow):
                 if cls.free_tier_daily_requests:
                     cfg[CONF_FREE_TIER] = bool(user_input.get(f"{key}_{CONF_FREE_TIER}"))
                 stored[key] = cfg
-            return self._save({CONF_PROVIDERS: stored})
+            for key in _KEYED_TIDE_PROVIDERS:
+                value = (user_input.get(key) or "").strip()
+                if value:
+                    stored[key] = {**stored.get(key, {}), CONF_API_KEY: value}
+                else:
+                    stored.pop(key, None)
+            return self._save(
+                {
+                    CONF_PROVIDERS: stored,
+                    CONF_TIDE_SOURCE: user_input.get(CONF_TIDE_SOURCE, "none"),
+                }
+            )
 
         fields: dict = {}
         for key, cls in _KEYED_PROVIDERS.items():
@@ -459,6 +516,23 @@ class SwelligenceOptionsFlow(OptionsFlow):
                         default=bool(saved.get(CONF_FREE_TIER)),
                     )
                 ] = selector.BooleanSelector()
+        for key in _KEYED_TIDE_PROVIDERS:
+            saved = stored.get(key, {}) or {}
+            fields[
+                vol.Optional(key, description={"suggested_value": saved.get(CONF_API_KEY)})
+            ] = selector.TextSelector(
+                selector.TextSelectorConfig(type=selector.TextSelectorType.PASSWORD)
+            )
+        # Tide overlay source — supplies tides for tide-dependent spots whose
+        # forecast provider doesn't (UKHO for UK, or Stormglass).
+        fields[
+            vol.Optional(
+                CONF_TIDE_SOURCE,
+                default=self.config_entry.options.get(CONF_TIDE_SOURCE, "none"),
+            )
+        ] = selector.SelectSelector(
+            selector.SelectSelectorConfig(options=_TIDE_SOURCE_OPTIONS)
+        )
         return self.async_show_form(
             step_id="providers", data_schema=vol.Schema(fields)
         )

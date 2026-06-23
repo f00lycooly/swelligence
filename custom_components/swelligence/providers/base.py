@@ -37,6 +37,10 @@ class ForecastPoint:
     cloud_pct: float | None = None
     #: Tidal sea level (metres, provider datum) at this timestep, if supplied.
     sea_level_m: float | None = None
+    #: Precomputed tide-suitability multiplier (0..1) for the spot's tide
+    #: preference at this timestep; ``None`` when the spot isn't tide-dependent
+    #: or no tide data is available. Stamped by the coordinator before scoring.
+    tide_factor: float | None = None
 
 
 @dataclass(slots=True)
