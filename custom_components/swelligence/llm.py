@@ -13,10 +13,28 @@ from __future__ import annotations
 
 import json
 import logging
+from typing import TYPE_CHECKING
 
-from homeassistant.core import HomeAssistant
+from .confidence import aggregate_confidence
+from .quality import data_quality
+
+if TYPE_CHECKING:
+    from homeassistant.core import HomeAssistant
 
 _LOGGER = logging.getLogger(__name__)
+
+# ForecastPoint field -> short human label, for naming where models disagree.
+_FIELD_LABELS = {
+    "wind_speed_kn": "wind",
+    "wind_gust_kn": "gusts",
+    "wind_dir_deg": "wind direction",
+    "wave_height_m": "wave height",
+    "swell_period_s": "swell period",
+    "swell_dir_deg": "swell direction",
+    "water_temp_c": "water temp",
+}
+# Per-field confidence below this reads as "models disagree" worth flagging.
+_LOW_AGREEMENT = 0.45
 
 # JSON schema for the structured AI Task response.
 _STRUCTURE = {
@@ -60,6 +78,7 @@ def _build_prompt(spot: dict, forecast, results, profiles) -> str:
         "Deterministic scores (your rating should broadly agree unless you can "
         "justify otherwise):",
     ]
+    any_confidence = False
     for sport, res in results.items():
         prof = profiles.get(sport)
         label = prof.label if prof else sport
@@ -69,16 +88,41 @@ def _build_prompt(spot: dict, forecast, results, profiles) -> str:
         )
         if getattr(res, "kit", None) and res.kit.summary:
             line += f"; kit: {res.kit.summary} ({res.kit.power})"
+        if prof is not None:
+            line += f"; data: {data_quality(forecast, prof)['summary']}"
+            conf = aggregate_confidence(current, prof) if current else None
+            if conf is not None:
+                any_confidence = True
+                line += (
+                    f"; confidence={conf['label']} ({conf['value']:.2f} model "
+                    "agreement)"
+                )
+                weak = [
+                    _FIELD_LABELS.get(f, f)
+                    for f, c in conf["fields"].items()
+                    if c < _LOW_AGREEMENT
+                ]
+                if weak:
+                    line += f"; models disagree on {', '.join(weak)}"
         lines.append(line)
-    lines.append(
-        "\nReturn a rating (0-100) and a one-sentence verdict per sport, written "
-        "for an experienced rider deciding whether to go."
-    )
+    closing = [
+        "",
+        "Return a rating (0-100) and a one-sentence verdict per sport, written "
+        "for an experienced rider deciding whether to go.",
+    ]
+    if any_confidence:
+        closing.append(
+            "Where confidence is low or models disagree on a field, say so in "
+            "plain language and let it temper the call (e.g. 'models split on "
+            "swell size — I'd wait for the next run'). Name the data source when "
+            "it matters."
+        )
+    lines.extend(closing)
     return "\n".join(lines)
 
 
 async def async_semantic_verdict(
-    hass: HomeAssistant,
+    hass: "HomeAssistant",
     *,
     ai_entity_id: str,
     spot: dict,
