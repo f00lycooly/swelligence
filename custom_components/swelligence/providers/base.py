@@ -5,8 +5,10 @@ from __future__ import annotations
 from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
 from datetime import datetime
+from typing import TYPE_CHECKING
 
-from aiohttp import ClientSession
+if TYPE_CHECKING:
+    from aiohttp import ClientSession
 
 
 @dataclass(slots=True)
