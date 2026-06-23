@@ -23,5 +23,5 @@ class SwelligenceEntity(CoordinatorEntity[SpotCoordinator]):
             name=f"Swelligence: {spot['name']}",
             manufacturer="Swelligence",
             model="Spot forecast",
-            configuration_url="https://github.com/f00lycooly/swelligence",
+            configuration_url="https://git.bagofholding.co.uk/foolycooly/swelligence",
         )
