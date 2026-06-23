@@ -26,8 +26,9 @@ Prior art that inspired / can complement this:
 
 ## Features
 
-- 🗺️ **Favourite spots** — add by name + coordinates; the provider locks onto the
-  nearest model grid automatically.
+- 🗺️ **Favourite spots** — add by place-name search (geocoded) or raw
+  coordinates; the provider locks onto the nearest model grid automatically. Edit
+  a spot's sports or water type any time.
 - 🏄 **Per-sport profiles** — kitesurf, windsurf, wing foil, surf, SUP, sailing,
   sea swim, and wakeboarding (inland *and* sea). Each has a tunable preference
   profile (wind window, gust ceiling, preferred wind directions, wave window,
@@ -38,8 +39,9 @@ Prior art that inspired / can complement this:
 - 🤖 **Optional AI verdicts** — wire up a Home Assistant **AI Task** entity
   (Claude/OpenAI/local) and Swelligence asks for a *structured* rating + a
   one-line "should I go?" summary, layered on top of the numbers.
-- 🔌 **Pluggable providers** — Open-Meteo (free, no key) ships first; Windy and
-  Stormglass slot into the same interface.
+- 🔌 **Pluggable providers** — Open-Meteo (free, no key) is the default; Windy
+  and Stormglass (keyed) slot into the same interface, with a UKHO tide overlay
+  for UK spots. Add provider API keys from the integration's options.
 - 🔔 **Automations** — score sensors + `suitable now` binary sensors per
   (spot × sport) drive any notification/automation you like.
 

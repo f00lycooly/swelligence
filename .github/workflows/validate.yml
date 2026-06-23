@@ -18,6 +18,19 @@ jobs:
       - run: pip install -r requirements-test.txt
       - run: pytest
 
+  ha-guard:
+    name: HA import & schema guard
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+      - run: pip install -r requirements-ha-test.txt
+      # Real Home Assistant import + flow-schema guard (catches what the stubbed
+      # suite in tests/ cannot). Kept as a separate tree/job from the pure tests.
+      - run: pytest tests_ha -o asyncio_mode=auto
+
   hassfest:
     name: Hassfest
     runs-on: ubuntu-latest
