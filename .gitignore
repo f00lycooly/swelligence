@@ -34,3 +34,6 @@ secrets.yaml
 .dolt/
 *.db
 .beads-credential-key
+
+# Design-session artifacts (visual companion brainstorm)
+.superpowers/
