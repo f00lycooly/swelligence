@@ -1,0 +1,8 @@
+{
+  "database": "dolt",
+  "backend": "dolt",
+  "dolt_mode": "server",
+  "dolt_database": "swelligence__603338e4",
+  "project_id": "6ae0d0ab-69a5-4200-8653-dda0b5660822",
+  "global_dolt_database": "beads_global"
+}

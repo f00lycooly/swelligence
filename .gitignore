@@ -29,3 +29,8 @@ config/
 # Secrets (never commit)
 secrets.yaml
 *.token
+
+# Beads / Dolt files (added by bd init)
+.dolt/
+*.db
+.beads-credential-key
