@@ -6,3 +6,4 @@
 {"id":"int-61011c62","kind":"field_change","created_at":"2026-06-23T10:49:24.150611903Z","actor":"Claude Code (Tower)","issue_id":"swelligence-c1v.8","extra":{"field":"status","new_value":"closed","old_value":"in_progress"}}
 {"id":"int-25d07ac2","kind":"field_change","created_at":"2026-06-23T10:52:17.190078277Z","actor":"Claude Code (Tower)","issue_id":"swelligence-c1v.13","extra":{"field":"status","new_value":"closed","old_value":"in_progress"}}
 {"id":"int-011468a0","kind":"field_change","created_at":"2026-06-23T10:56:35.624180258Z","actor":"Claude Code (Tower)","issue_id":"swelligence-c1v.12","extra":{"field":"status","new_value":"closed","old_value":"in_progress"}}
+{"id":"int-399c3af9","kind":"field_change","created_at":"2026-06-23T11:55:18.078766362Z","actor":"Claude Code (Tower)","issue_id":"swelligence-c1v.14","extra":{"field":"status","new_value":"closed","old_value":"open"}}
