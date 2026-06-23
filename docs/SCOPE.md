@@ -155,6 +155,22 @@ one profile + quiver in config — so there's no per-rider entity multiplication
   kit -> capped + "rig your 9m²"); recommendation surfaced on sensor attributes
   and fed to the LLM. Ability-level weighting + windsurf-sail sizing deferred.
 
+## Deployment & secrets (live HA smoke test)
+
+Full runbook: [`DEPLOY.md`](DEPLOY.md). Target is the Tower HA Docker container
+`homeassistant` (config at `/appdata/homeassistant`, API
+`http://192.168.1.3:8123`, v2026.6.4, `ai_task` present). The integration has no
+pip requirements, so deployment is a file copy + restart.
+
+HA access tokens live in **Vault** (admin token authenticates; values are never
+committed):
+
+| Secret | Vault path | Field |
+| --- | --- | --- |
+| HA service/API token | `knowledge/homeautomation/dev/env` | `HA_TOKEN` |
+| HA base URL | `knowledge/homeautomation/dev/env` | `HA_URL` |
+| HA long-lived token | `knowledge/homeautomation/dev/api-keys` | `HA_LONG_LIVED_TOKEN` |
+
 ## Testing strategy
 
 - `scoring.py` is pure → unit-test bands, hard-fails, direction wrap-around,
