@@ -91,6 +91,7 @@ class WindyProvider(ForecastProvider):
         wd = cls._series(wave, "waves_direction-surface")
         sh = cls._series(wave, "swell1_height-surface")
         sp = cls._series(wave, "swell1_period-surface")
+        sd = cls._series(wave, "swell1_direction-surface")
 
         points: list[ForecastPoint] = []
         for i, epoch_ms in enumerate(ts):
@@ -116,6 +117,7 @@ class WindyProvider(ForecastProvider):
                     wave_dir_deg=_at(wd, wi),
                     swell_height_m=_at(sh, wi),
                     swell_period_s=_at(sp, wi),
+                    swell_dir_deg=_at(sd, wi),
                 )
             )
         return points

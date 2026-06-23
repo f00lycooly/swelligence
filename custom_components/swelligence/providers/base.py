@@ -31,6 +31,7 @@ class ForecastPoint:
     wave_dir_deg: float | None = None
     swell_height_m: float | None = None
     swell_period_s: float | None = None
+    swell_dir_deg: float | None = None
     air_temp_c: float | None = None
     water_temp_c: float | None = None
     precip_mm: float | None = None

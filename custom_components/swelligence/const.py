@@ -59,6 +59,8 @@ PREF_WIND_DIRS: Final = "wind_dirs"  # list of compass sectors, e.g. ["SW", "W"]
 PREF_WAVE_MIN_M: Final = "wave_min_m"
 PREF_WAVE_IDEAL_M: Final = "wave_ideal_m"
 PREF_WAVE_MAX_M: Final = "wave_max_m"
+PREF_SWELL_PERIOD: Final = "swell_period_ideal_s"  # ideal swell period (groundswell)
+PREF_SWELL_DIRS: Final = "swell_dirs"  # spot's swell window (compass sectors)
 PREF_WATER_TEMP_MIN_C: Final = "water_temp_min_c"
 
 # Profile fields a user may override per spot/sport. These string values match
@@ -72,6 +74,8 @@ OVERRIDE_FIELDS: Final = [
     PREF_WAVE_MIN_M,
     PREF_WAVE_IDEAL_M,
     PREF_WAVE_MAX_M,
+    PREF_SWELL_PERIOD,
+    PREF_SWELL_DIRS,
     PREF_WATER_TEMP_MIN_C,
 ]
 

@@ -30,6 +30,7 @@ DOMAIN_FIELDS: dict[str, tuple[str, ...]] = {
         "wave_dir_deg",
         "swell_height_m",
         "swell_period_s",
+        "swell_dir_deg",
     ),
     WATER: ("water_temp_c", "sea_level_m"),
     AIR: ("air_temp_c", "precip_mm", "cloud_pct"),

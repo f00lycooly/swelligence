@@ -39,6 +39,7 @@ _MARINE_HOURLY = [
     "wave_direction",
     "swell_wave_height",
     "swell_wave_period",
+    "swell_wave_direction",
     "sea_surface_temperature",
 ]
 
@@ -170,6 +171,7 @@ class OpenMeteoProvider(ForecastProvider):
                     wave_dir_deg=_at(mh.get("wave_direction", []), mi),
                     swell_height_m=_at(mh.get("swell_wave_height", []), mi),
                     swell_period_s=_at(mh.get("swell_wave_period", []), mi),
+                    swell_dir_deg=_at(mh.get("swell_wave_direction", []), mi),
                     water_temp_c=_at(mh.get("sea_surface_temperature", []), mi),
                 )
             )

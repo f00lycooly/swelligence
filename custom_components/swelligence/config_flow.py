@@ -53,6 +53,8 @@ from .const import (
     DOMAIN,
     OVERRIDE_FIELDS,
     PREF_GUST_MAX,
+    PREF_SWELL_DIRS,
+    PREF_SWELL_PERIOD,
     PREF_WAVE_IDEAL_M,
     PREF_WAVE_MAX_M,
     PREF_WAVE_MIN_M,
@@ -670,6 +672,26 @@ class SwelligenceOptionsFlow(OptionsFlow):
             (PREF_WAVE_MAX_M, eff.wave_max_m),
         ):
             m, s = opt(key, value, _metres())
+            fields[m] = s
+        # Swell quality (surf-type sports only — others leave these unset).
+        if eff.swell_period_ideal_s is not None:
+            m, s = opt(
+                PREF_SWELL_DIRS,
+                eff.swell_dirs or None,
+                selector.SelectSelector(
+                    selector.SelectSelectorConfig(options=_DIR_OPTIONS, multiple=True)
+                ),
+            )
+            fields[m] = s
+            m, s = opt(
+                PREF_SWELL_PERIOD,
+                eff.swell_period_ideal_s,
+                selector.NumberSelector(
+                    selector.NumberSelectorConfig(
+                        min=4, max=20, step=1, mode="box", unit_of_measurement="s"
+                    )
+                ),
+            )
             fields[m] = s
 
         return self.async_show_form(

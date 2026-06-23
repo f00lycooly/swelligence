@@ -60,7 +60,9 @@
           "gust_max_kn": "Gust ceiling (kn)",
           "wave_min_m": "Minimum wave (m)",
           "wave_ideal_m": "Ideal wave (m, surf-type sports)",
-          "wave_max_m": "Maximum wave (m)"
+          "wave_max_m": "Maximum wave (m)",
+          "swell_dirs": "Swell window — directions this spot picks up",
+          "swell_period_ideal_s": "Ideal swell period (s, groundswell)"
         }
       },
       "add_spot": {

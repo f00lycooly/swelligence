@@ -36,6 +36,7 @@ _WEATHER_PARAMS: dict[str, tuple[str, bool]] = {
     "waveDirection": ("wave_dir_deg", False),
     "swellHeight": ("swell_height_m", False),
     "swellPeriod": ("swell_period_s", False),
+    "swellDirection": ("swell_dir_deg", False),
     "airTemperature": ("air_temp_c", False),
     "waterTemperature": ("water_temp_c", False),
     "precipitation": ("precip_mm", False),
@@ -47,6 +48,7 @@ _MARINE_FIELDS = {
     "wave_dir_deg",
     "swell_height_m",
     "swell_period_s",
+    "swell_dir_deg",
     "water_temp_c",
 }
 
