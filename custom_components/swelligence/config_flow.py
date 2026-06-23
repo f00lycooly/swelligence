@@ -239,14 +239,14 @@ class SwelligenceOptionsFlow(OptionsFlow):
                     CONF_LATITUDE, default=self.hass.config.latitude
                 ): selector.NumberSelector(
                     selector.NumberSelectorConfig(
-                        min=-90, max=90, step=0.0001, mode="box"
+                        min=-90, max=90, step="any", mode="box"
                     )
                 ),
                 vol.Required(
                     CONF_LONGITUDE, default=self.hass.config.longitude
                 ): selector.NumberSelector(
                     selector.NumberSelectorConfig(
-                        min=-180, max=180, step=0.0001, mode="box"
+                        min=-180, max=180, step="any", mode="box"
                     )
                 ),
                 vol.Required(
