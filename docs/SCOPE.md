@@ -154,6 +154,38 @@ one profile + quiver in config — so there's no per-rider entity multiplication
   aware scoring folds the power-match into kite/wing scores (great wind + wrong
   kit -> capped + "rig your 9m²"); recommendation surfaced on sensor attributes
   and fed to the LLM. Ability-level weighting + windsurf-sail sizing deferred.
+- **M9 — Forecast timeline**: serve future suitability per (spot × sport) the way
+  HA serves weather forecasts. See "Forecast delivery" below.
+
+## Forecast delivery (M9)
+
+Today the sensor state is **now** plus a single look-ahead (`best_in_hours`).
+M9 adds the full timeline, following **HA weather best-practice (2024.4+)**:
+
+- **No forecast in entity attributes.** The `forecast` attribute was deprecated
+  and removed in HA 2024.4 — forecasts are *not* part of entity state. So we do
+  **not** stuff hourly/daily arrays onto sensors, and we do **not** create a
+  Day+0..Day+N sensor per (spot × sport) (that would be ~9 entities × 12 combos).
+- **A service delivers the forecast**, mirroring `weather.get_forecasts`:
+  `swelligence.get_forecast` (`SupportsResponse.ONLY`), target the suitability
+  entity (or `{spot, sport}`), pass `type: hourly | daily`. Returns:
+  - **hourly**: `[{datetime, score, verdict, suitable, wind_speed_kn,
+    wind_gust_kn, wind_bearing, wave_height_m, water_temp_c, kit_ideal_m2,
+    kit_rig_m2, kit_power}]`
+  - **daily**: one entry per day = that day's **best** slot:
+    `[{date, datetime, score, verdict, suitable, kit_*}]`
+  - Kit recommendation is computed **per timestep** (wind varies through the day).
+- **Horizon 7 days**; slots restricted to **sunrise−2h … sunset+2h** (from
+  Open-Meteo daily `sunrise`/`sunset`) so dawn-patrol/evening sessions are kept
+  but the dead of night is dropped. Requires extending the fetch from 48h to 7
+  days (wind + marine + daily sun times).
+- **The M3 card renders the timeline** by calling the service (daily tiles +
+  hourly drill-down) — exactly how the built-in weather forecast card consumes
+  `weather.get_forecasts`. No per-day entities needed.
+- **Optional/secondary**: expose one real `weather` entity per spot
+  (`WeatherEntityFeature.FORECAST_HOURLY|DAILY`, `async_forecast_*`) for the raw
+  conditions, so standard HA weather cards work for free. Suitability stays in
+  the custom service.
 
 ## Deployment & secrets (live HA smoke test)
 
