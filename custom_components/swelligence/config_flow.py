@@ -92,9 +92,9 @@ _MARINE_SOURCE_OPTIONS = [selector.SelectOptionDict(value="none", label="none")]
     for k, cls in PROVIDERS.items()
     if cls.supports_marine and cls.requires_api_key
 ]
-# Per-spot routing variants: an "inherit" option falls back to the global setting.
+# Per-spot routing variants: an "inherit" option falls back to the global
+# setting. _PROVIDER_ROUTE_OPTIONS is built below, once _PROVIDER_OPTIONS exists.
 _INHERIT_OPTION = selector.SelectOptionDict(value="inherit", label="(use global)")
-_PROVIDER_ROUTE_OPTIONS = [_INHERIT_OPTION] + _PROVIDER_OPTIONS
 _MARINE_ROUTE_OPTIONS = [_INHERIT_OPTION] + _MARINE_SOURCE_OPTIONS
 _TIDE_ROUTE_OPTIONS = [_INHERIT_OPTION] + _TIDE_SOURCE_OPTIONS
 
@@ -143,6 +143,8 @@ _SPORT_OPTIONS = [
 _PROVIDER_OPTIONS = [
     selector.SelectOptionDict(value=k, label=cls.label) for k, cls in PROVIDERS.items()
 ]
+# Per-spot primary-provider routing (depends on _PROVIDER_OPTIONS above).
+_PROVIDER_ROUTE_OPTIONS = [_INHERIT_OPTION] + _PROVIDER_OPTIONS
 
 
 def _slugify(name: str) -> str:

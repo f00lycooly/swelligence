@@ -107,6 +107,20 @@ async def test_options_menu_step_renders(hass, options_entry, step: str) -> None
     assert result["step_id"] == step
 
 
+async def test_options_edit_spot_chain_renders(hass, options_entry) -> None:
+    """Walk edit_spot -> edit_spot_fields so the routing/tide selectors build."""
+    result = await hass.config_entries.options.async_init(options_entry.entry_id)
+    result = await hass.config_entries.options.async_configure(
+        result["flow_id"], {"next_step_id": "edit_spot"}
+    )
+    assert result["step_id"] == "edit_spot"
+    result = await hass.config_entries.options.async_configure(
+        result["flow_id"], {"spot": "test_spot"}
+    )
+    assert result["type"] == FlowResultType.FORM
+    assert result["step_id"] == "edit_spot_fields"
+
+
 async def test_options_spot_prefs_chain_renders(hass, options_entry) -> None:
     """Walk spot_prefs -> sport -> edit so every per-sport selector is built."""
     result = await hass.config_entries.options.async_init(options_entry.entry_id)
