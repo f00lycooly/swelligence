@@ -89,4 +89,7 @@ class SuitabilitySensor(SwelligenceEntity, SensorEntity):
         if res.llm_rating is not None:
             attrs["ai_rating"] = res.llm_rating
             attrs["ai_summary"] = res.llm_summary
+        sources = self.coordinator.data.forecast.source_meta.get("sources")
+        if sources:
+            attrs["data_sources"] = sources
         return attrs

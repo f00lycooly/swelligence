@@ -16,6 +16,7 @@ import logging
 from datetime import datetime, timedelta, timezone
 
 from .base import ForecastPoint, ForecastProvider, SpotForecast, TideEvent, TideProvider
+from .domains import AIR, TIDE, WATER, WAVE, WIND
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -59,6 +60,7 @@ class StormglassProvider(ForecastProvider, TideProvider):
     supports_marine = True
     free_tier_daily_requests = 10  # Stormglass free plan: 10 requests/day
     requests_per_fetch = 2  # one weather/point call + one tide/extremes call
+    provides_domains = frozenset({WIND, AIR, WAVE, WATER, TIDE})
 
     async def async_fetch(
         self,
@@ -90,7 +92,7 @@ class StormglassProvider(ForecastProvider, TideProvider):
         meta = {"model": "stormglass:sg"}
         if not marine:
             meta["marine"] = "skipped (inland spot)"
-        return SpotForecast(
+        forecast = SpotForecast(
             provider=self.key,
             latitude=latitude,
             longitude=longitude,
@@ -98,6 +100,8 @@ class StormglassProvider(ForecastProvider, TideProvider):
             tide_events=tides,
             source_meta=meta,
         )
+        self._stamp_sources(forecast, marine=marine)
+        return forecast
 
     async def async_fetch_tides(
         self,

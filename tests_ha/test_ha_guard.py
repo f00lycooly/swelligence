@@ -44,6 +44,7 @@ HA_MODULES = [
     "geocoding",
     "providers",
     "providers.base",
+    "providers.domains",
     "providers.open_meteo",
     "providers.windy",
     "providers.stormglass",

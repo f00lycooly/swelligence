@@ -7,6 +7,8 @@ from dataclasses import dataclass, field
 from datetime import datetime
 from typing import TYPE_CHECKING
 
+from .domains import MARINE_DOMAINS, TIDE, stamp_sources
+
 if TYPE_CHECKING:
     from aiohttp import ClientSession
 
@@ -90,10 +92,26 @@ class ForecastProvider(ABC):
     #: API requests consumed per :meth:`async_fetch` — used to size the
     #: free-tier poll interval so continuous polling stays under the budget.
     requests_per_fetch: int = 1
+    #: Data domains (see :mod:`.domains`) this provider can supply. Drives
+    #: per-domain source provenance and the composite-merge routing.
+    provides_domains: frozenset[str] = frozenset()
 
     def __init__(self, session: ClientSession, api_key: str | None = None) -> None:
         self._session = session
         self._api_key = api_key
+
+    def _stamp_sources(self, forecast: SpotForecast, *, marine: bool) -> None:
+        """Record this provider as the source of each domain it supplied.
+
+        Marine domains are dropped when ``marine`` is False (inland / no-marine
+        spots); TIDE is only claimed when tide events were actually produced.
+        """
+        domains = set(self.provides_domains)
+        if not marine:
+            domains -= MARINE_DOMAINS
+        if not forecast.tide_events:
+            domains.discard(TIDE)
+        stamp_sources(forecast, self.key, domains)
 
     @abstractmethod
     async def async_fetch(
