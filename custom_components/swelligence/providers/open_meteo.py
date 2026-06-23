@@ -55,7 +55,7 @@ class OpenMeteoProvider(ForecastProvider):
         latitude: float,
         longitude: float,
         *,
-        hours: int = 48,
+        days: int = 7,
         marine: bool = True,
     ) -> SpotForecast:
         wind = await self._get(
@@ -64,8 +64,9 @@ class OpenMeteoProvider(ForecastProvider):
                 "latitude": latitude,
                 "longitude": longitude,
                 "hourly": ",".join(_FORECAST_HOURLY),
+                "daily": "sunrise,sunset",
                 "wind_speed_unit": "ms",
-                "forecast_hours": hours,
+                "forecast_days": days,
                 "timezone": "auto",
             },
         )
@@ -77,7 +78,7 @@ class OpenMeteoProvider(ForecastProvider):
                     "latitude": latitude,
                     "longitude": longitude,
                     "hourly": ",".join(_MARINE_HOURLY),
-                    "forecast_hours": hours,
+                    "forecast_days": days,
                     "timezone": "auto",
                 },
                 optional=True,
@@ -94,8 +95,26 @@ class OpenMeteoProvider(ForecastProvider):
             latitude=latitude,
             longitude=longitude,
             points=points,
+            daily_sun=self._parse_sun(wind),
             source_meta=meta,
         )
+
+    @staticmethod
+    def _parse_sun(wind: dict | None) -> dict:
+        """Map each forecast date to its sunrise/sunset datetimes."""
+        daily = (wind or {}).get("daily", {})
+        dates = daily.get("time", [])
+        sunrise = daily.get("sunrise", [])
+        sunset = daily.get("sunset", [])
+        out: dict = {}
+        for i, day in enumerate(dates):
+            sr = _at(sunrise, i)
+            ss = _at(sunset, i)
+            out[day] = {
+                "sunrise": datetime.fromisoformat(sr) if sr else None,
+                "sunset": datetime.fromisoformat(ss) if ss else None,
+            }
+        return out
 
     async def _get(
         self, url: str, params: dict, *, optional: bool = False

@@ -25,6 +25,7 @@ from .const import (
     DEFAULT_SCAN_INTERVAL_MINUTES,
     CONF_SCAN_INTERVAL_MINUTES,
 )
+from .forecast import daily_forecast, hourly_forecast
 from .llm import async_semantic_verdict
 from .policy import apply_water_policy, marine_wanted
 from .providers import get_provider
@@ -97,6 +98,7 @@ class SpotCoordinator(DataUpdateCoordinator[SpotData]):
             forecast = await provider.async_fetch(
                 self.spot["latitude"],
                 self.spot["longitude"],
+                days=7,
                 marine=marine_wanted(water_type),
             )
         except Exception as err:  # noqa: BLE001
@@ -139,6 +141,22 @@ class SpotCoordinator(DataUpdateCoordinator[SpotData]):
         data = SpotData(forecast=forecast, results=results)
         await self._maybe_enrich_with_llm(data)
         return data
+
+    def build_forecast(self, sport: str, kind: str) -> list[dict]:
+        """Build a suitability forecast (kind='hourly'|'daily') for a sport.
+
+        Uses the already-fetched 7-day SpotForecast; no new network call. Applies
+        the rider's quiver per timestep when configured.
+        """
+        if not self.data or sport not in self._profiles:
+            return []
+        rider = self.entry.options.get(CONF_RIDER, {}) or {}
+        weight = rider.get(CONF_RIDER_WEIGHT) or 0
+        quiver = (rider.get(CONF_QUIVER, {}) or {}).get(sport)
+        builder = hourly_forecast if kind == "hourly" else daily_forecast
+        return builder(
+            self.data.forecast, self._profiles[sport], sport, weight, quiver
+        )
 
     async def _maybe_enrich_with_llm(self, data: SpotData) -> None:
         if not self.entry.options.get(CONF_USE_LLM):

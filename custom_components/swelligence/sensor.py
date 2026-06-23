@@ -41,6 +41,18 @@ class SuitabilitySensor(SwelligenceEntity, SensorEntity):
         if profile:
             self._attr_icon = profile.icon
 
+    async def async_added_to_hass(self) -> None:
+        """Register this entity as a get_forecast target."""
+        await super().async_added_to_hass()
+        self.coordinator.entry.runtime_data.forecast_targets[self.entity_id] = (
+            self.coordinator,
+            self._sport,
+        )
+
+    async def async_will_remove_from_hass(self) -> None:
+        self.coordinator.entry.runtime_data.forecast_targets.pop(self.entity_id, None)
+        await super().async_will_remove_from_hass()
+
     @property
     def _result(self):
         return self.coordinator.data.results.get(self._sport)

@@ -43,6 +43,8 @@ class SpotForecast:
     latitude: float
     longitude: float
     points: list[ForecastPoint] = field(default_factory=list)
+    # date ISO (YYYY-MM-DD) -> {"sunrise": datetime, "sunset": datetime}
+    daily_sun: dict = field(default_factory=dict)
     # Free-form provenance: model name, nearest station id/distance, etc.
     source_meta: dict = field(default_factory=dict)
 
@@ -73,11 +75,12 @@ class ForecastProvider(ABC):
         latitude: float,
         longitude: float,
         *,
-        hours: int = 48,
+        days: int = 7,
         marine: bool = True,
     ) -> SpotForecast:
         """Fetch and normalise the forecast for a coordinate.
 
+        ``days`` is the forecast horizon in days (hourly resolution within).
         When ``marine`` is False the provider must skip any marine (wave/swell/
         sea-temperature) request — used for inland spots where that data is
         meaningless. Wave/swell fields are then left ``None``.

@@ -1,0 +1,26 @@
+get_forecast:
+  name: Get suitability forecast
+  description: >-
+    Return the suitability forecast for one or more Swelligence suitability
+    sensors (mirrors weather.get_forecasts). Use type 'hourly' for the full
+    timeline or 'daily' for each day's best window.
+  fields:
+    entity_id:
+      name: Suitability sensor(s)
+      description: One or more swelligence suitability sensors to forecast.
+      required: true
+      selector:
+        entity:
+          integration: swelligence
+          domain: sensor
+          multiple: true
+    type:
+      name: Forecast type
+      description: Hourly timeline or one entry per day (that day's best window).
+      required: false
+      default: daily
+      selector:
+        select:
+          options:
+            - hourly
+            - daily

@@ -4,8 +4,10 @@ from __future__ import annotations
 
 import logging
 
+import voluptuous as vol
 from homeassistant.config_entries import ConfigEntry
-from homeassistant.core import HomeAssistant
+from homeassistant.core import HomeAssistant, ServiceCall, SupportsResponse
+from homeassistant.helpers import config_validation as cv
 
 from .const import (
     CONF_DEFAULT_PROVIDER,
@@ -23,11 +25,22 @@ from .sports import SPORT_PROFILES, SportProfile, apply_overrides
 _LOGGER = logging.getLogger(__name__)
 
 
+SERVICE_GET_FORECAST = "get_forecast"
+_GET_FORECAST_SCHEMA = vol.Schema(
+    {
+        vol.Required("entity_id"): cv.entity_ids,
+        vol.Optional("type", default="daily"): vol.In(["hourly", "daily"]),
+    }
+)
+
+
 class SwelligenceRuntime:
     """Holds the per-entry coordinators, keyed by spot id."""
 
     def __init__(self) -> None:
         self.coordinators: dict[str, SpotCoordinator] = {}
+        # suitability sensor entity_id -> (coordinator, sport)
+        self.forecast_targets: dict[str, tuple[SpotCoordinator, str]] = {}
 
 
 def _enabled_sports(entry: ConfigEntry) -> list[str]:
@@ -88,7 +101,39 @@ async def async_setup_entry(
     entry.runtime_data = runtime
     await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)
     entry.async_on_unload(entry.add_update_listener(_async_update_listener))
+    _async_register_forecast_service(hass)
     return True
+
+
+def _async_register_forecast_service(hass: HomeAssistant) -> None:
+    """Register swelligence.get_forecast once (mirrors weather.get_forecasts)."""
+    if hass.services.has_service(DOMAIN, SERVICE_GET_FORECAST):
+        return
+
+    async def _handle_get_forecast(call: ServiceCall) -> dict:
+        kind = call.data["type"]
+        result: dict[str, dict] = {}
+        for entity_id in call.data["entity_id"]:
+            for entry in hass.config_entries.async_entries(DOMAIN):
+                runtime = getattr(entry, "runtime_data", None)
+                target = runtime and runtime.forecast_targets.get(entity_id)
+                if target:
+                    coordinator, sport = target
+                    result[entity_id] = {
+                        "spot": coordinator.spot["name"],
+                        "sport": sport,
+                        "forecast": coordinator.build_forecast(sport, kind),
+                    }
+                    break
+        return result
+
+    hass.services.async_register(
+        DOMAIN,
+        SERVICE_GET_FORECAST,
+        _handle_get_forecast,
+        schema=_GET_FORECAST_SCHEMA,
+        supports_response=SupportsResponse.ONLY,
+    )
 
 
 async def async_unload_entry(
