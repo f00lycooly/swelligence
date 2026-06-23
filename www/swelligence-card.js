@@ -225,9 +225,67 @@ class SwelligenceCard extends HTMLElement {
   }
 
   _empty() { return `<div class="muted">No Swelligence sensors found. Add spots in the integration options.</div>`; }
-  _empty_() {}
 
+  static getConfigElement() { return document.createElement("swelligence-card-editor"); }
   static getStubConfig() { return { mode: "podium", title: "Conditions" }; }
+}
+
+/* ---------- visual editor (ha-form) ---------- */
+class SwelligenceCardEditor extends HTMLElement {
+  setConfig(config) { this._config = { mode: "podium", ...config }; this._update(); }
+  set hass(hass) { this._hass = hass; this._update(); }
+  connectedCallback() { this._update(); }
+
+  _opts() {
+    const spots = new Set(), sports = new Set();
+    const st = (this._hass && this._hass.states) || {};
+    for (const id in st) {
+      if (!id.startsWith("sensor.swelligence_") || !id.endsWith("_suitability")) continue;
+      const a = st[id].attributes || {};
+      if (a.spot) spots.add(a.spot);
+      if (a.sport) sports.add(a.sport);
+    }
+    return {
+      spots: [...spots].map((s) => ({ value: s, label: s })),
+      sports: this._sortKeys([...sports]).map((s) => ({ value: s, label: LABELS[s] || s })),
+    };
+  }
+  _sortKeys(list) { return list.sort((a, b) => ORDER.indexOf(a) - ORDER.indexOf(b)); }
+
+  _schema() {
+    const o = this._opts();
+    return [
+      { name: "title", selector: { text: {} } },
+      { name: "mode", required: true, selector: { select: { mode: "dropdown", options: [
+        { value: "podium", label: "Podium — top 3 per day" },
+        { value: "timeline", label: "Opportunity timeline (7 days)" },
+        { value: "heatgrid", label: "Heat-grid — now" },
+        { value: "medallions", label: "Medallions — now" },
+      ] } } },
+      { name: "spots", selector: { select: { multiple: true, options: o.spots } } },
+      { name: "sports", selector: { select: { multiple: true, options: o.sports } } },
+    ];
+  }
+
+  _update() {
+    if (!this._hass || !this._config) return;
+    if (!this._form) {
+      this._form = document.createElement("ha-form");
+      this._form.computeLabel = (s) => ({
+        title: "Title", mode: "Mode", spots: "Spots (filter — leave empty for all)",
+        sports: "Sports (filter — leave empty for all)",
+      }[s.name] || s.name);
+      this._form.addEventListener("value-changed", (e) => {
+        e.stopPropagation();
+        this.dispatchEvent(new CustomEvent("config-changed",
+          { detail: { config: e.detail.value }, bubbles: true, composed: true }));
+      });
+      this.appendChild(this._form);
+    }
+    this._form.hass = this._hass;
+    this._form.schema = this._schema();
+    this._form.data = this._config;
+  }
 }
 
 const CSS = `
@@ -284,10 +342,13 @@ table.grid{border-collapse:separate;border-spacing:6px;width:100%;}
 `;
 
 customElements.define("swelligence-card", SwelligenceCard);
+customElements.define("swelligence-card-editor", SwelligenceCardEditor);
 window.customCards = window.customCards || [];
 window.customCards.push({
   type: "swelligence-card",
   name: "Swelligence Card",
   description: "Conditions: podium, opportunity timeline, heat-grid, or medallions.",
+  preview: true,
+  documentationURL: "https://git.bagofholding.co.uk/foolycooly/swelligence",
 });
-console.info("%c SWELLIGENCE-CARD ", "background:#1f9d57;color:#fff", "v2 loaded");
+console.info("%c SWELLIGENCE-CARD ", "background:#1f9d57;color:#fff", "v3 loaded (visual editor)");

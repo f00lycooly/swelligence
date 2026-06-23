@@ -85,11 +85,15 @@ enable the LLM toggle and select the AI Task entity.
 Cells/medallions colour by verdict; kite/wing show the rig size from your quiver;
 sports order by your **Sport priority** (options).
 
+A **visual editor** is supported — add the card from the dashboard's card picker
+("Swelligence Card", with live preview) and configure mode/title/filters in the
+UI; no YAML needed. The YAML below is equivalent.
+
 Install:
 
 1. Copy `www/swelligence-card.js` to your HA `config/www/`.
 2. Add a Lovelace resource: URL `/local/swelligence-card.js`, type **JavaScript module**.
-3. Add cards:
+3. Add cards (visual editor, or YAML):
 
    ```yaml
    type: custom:swelligence-card
