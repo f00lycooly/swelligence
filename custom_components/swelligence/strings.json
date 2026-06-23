@@ -95,12 +95,15 @@
       },
       "edit_spot_fields": {
         "title": "Edit {spot}",
-        "description": "Add or remove the sports tracked at {spot}, adjust its water type, and set its tide dependence. Removing a sport also clears any per-sport tuning you saved for it here.",
+        "description": "Add or remove the sports tracked at {spot}, adjust its water type, set its tide dependence, and route its data sources. Removing a sport also clears any per-sport tuning you saved for it here. Leave a source on '(use global)' to follow the integration-wide setting.",
         "data": {
           "water_type": "Water type",
           "sports": "Sports relevant at this spot",
           "tide_state": "Best tide state (tide-dependent spots)",
-          "tide_window_h": "Tide window (hours either side)"
+          "tide_window_h": "Tide window (hours either side)",
+          "provider": "Primary provider (wind/air) for this spot",
+          "marine_source": "Marine source (waves/swell) for this spot",
+          "tide_source": "Tide source for this spot"
         }
       },
       "providers": {

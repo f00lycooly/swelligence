@@ -46,6 +46,19 @@ def merge_marine(
     return filled
 
 
+def resolve_route(spot_value, entry_value):
+    """Resolve a per-spot source override against the entry-level default.
+
+    A spot value of ``None``/``""``/``"inherit"`` falls through to the
+    entry-level (global) setting; any other value (a provider key or ``"none"``)
+    overrides it. This is how per-spot, per-domain source routing composes on top
+    of the global overlay configuration.
+    """
+    if spot_value in (None, "", "inherit"):
+        return entry_value
+    return spot_value
+
+
 def filled_domains(filled: set[str]) -> set[str]:
     """Map merged field names back to their provenance domains."""
     domains: set[str] = set()
