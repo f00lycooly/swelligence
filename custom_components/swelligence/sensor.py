@@ -8,6 +8,7 @@ from homeassistant.const import PERCENTAGE
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 
+from .confidence import aggregate_confidence
 from .entity import SwelligenceEntity
 from .quality import data_quality
 from .sports import SPORT_PROFILES
@@ -97,4 +98,9 @@ class SuitabilitySensor(SwelligenceEntity, SensorEntity):
         profile = self.coordinator.profile(self._sport)
         if profile is not None:
             attrs["data_quality"] = data_quality(forecast, profile)
+            current = forecast.current()
+            conf = aggregate_confidence(current, profile) if current else None
+            if conf is not None:
+                attrs["confidence"] = conf["value"]
+                attrs["confidence_label"] = conf["label"]
         return attrs

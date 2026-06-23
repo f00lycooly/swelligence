@@ -24,6 +24,7 @@ from .const import (
     DOMAIN,
     PLATFORMS,
 )
+from .confidence import aggregate_confidence
 from .coordinator import SpotCoordinator
 from .overview import build_podium, build_sessions
 from .providers import free_tier_min_interval_minutes, get_provider
@@ -182,6 +183,13 @@ def _async_register_overview_service(hass: HomeAssistant) -> None:
                         "slots": coordinator.build_forecast(sport, "hourly"),
                     })
                     kit = res.kit
+                    profile = coordinator.profile(sport)
+                    current = data.forecast.current()
+                    conf = (
+                        aggregate_confidence(current, profile)
+                        if current and profile
+                        else None
+                    )
                     now.append({
                         "spot": coordinator.spot["name"],
                         "sport": sport,
@@ -192,6 +200,8 @@ def _async_register_overview_service(hass: HomeAssistant) -> None:
                         "best_score": round(res.best.score) if res.best else None,
                         "kit_rig_m2": kit.owned_size_m2 if kit else None,
                         "kit_power": kit.power if kit else None,
+                        "confidence": conf["value"] if conf else None,
+                        "confidence_label": conf["label"] if conf else None,
                     })
         return {
             "sport_priority": priority or [],

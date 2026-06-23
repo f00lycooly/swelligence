@@ -42,6 +42,12 @@ class ForecastPoint:
     #: preference at this timestep; ``None`` when the spot isn't tide-dependent
     #: or no tide data is available. Stamped by the coordinator before scoring.
     tide_factor: float | None = None
+    #: Per-field model-agreement confidence (0..1), keyed by ForecastPoint field
+    #: name (e.g. ``"wave_height_m"``). Populated when a provider retains the
+    #: spread across multiple source models for a field (Stormglass intra-model,
+    #: o07.2; cross-provider ensemble, o07.3). ``None``/absent = single source,
+    #: no agreement signal. Tight agreement -> high; wide divergence -> low.
+    source_confidence: dict[str, float] | None = None
 
 
 @dataclass(slots=True)
