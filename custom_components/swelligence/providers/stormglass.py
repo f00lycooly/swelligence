@@ -15,6 +15,7 @@ from __future__ import annotations
 import logging
 from datetime import datetime, timedelta, timezone
 
+from ..confidence import field_confidence
 from .base import ForecastPoint, ForecastProvider, SpotForecast, TideEvent, TideProvider
 from .domains import AIR, TIDE, WATER, WAVE, WIND
 
@@ -133,6 +134,23 @@ class StormglassProvider(ForecastProvider, TideProvider):
                 return value
         return None
 
+    @staticmethod
+    def _spread(param: dict | None, *, is_wind: bool) -> list[float]:
+        """All independent model values for a field (the spread ``_pick`` drops).
+
+        ``sg`` is Stormglass's own blend of the others, not an independent model,
+        so it is excluded from the agreement measure. Wind values are converted
+        to knots to match the stored unit (and the confidence scale).
+        """
+        if not isinstance(param, dict):
+            return []
+        factor = _MS_TO_KN if is_wind else 1.0
+        return [
+            round(v * factor, 2)
+            for src, v in param.items()
+            if src != "sg" and isinstance(v, (int, float))
+        ]
+
     @classmethod
     def _parse_weather(cls, payload: dict | None) -> list[ForecastPoint]:
         hours = (payload or {}).get("hours") or []
@@ -142,12 +160,24 @@ class StormglassProvider(ForecastProvider, TideProvider):
             if not iso:
                 continue
             kwargs: dict = {}
+            confidence: dict[str, float] = {}
             for sg_name, (field, is_wind) in _WEATHER_PARAMS.items():
-                value = cls._pick(hour.get(sg_name))
+                raw = hour.get(sg_name)
+                value = cls._pick(raw)
                 if value is None:
                     continue
                 kwargs[field] = round(value * _MS_TO_KN, 1) if is_wind else value
-            points.append(ForecastPoint(time=_parse_dt(iso), **kwargs))
+                # The discarded per-model spread is a free confidence signal.
+                conf = field_confidence(field, cls._spread(raw, is_wind=is_wind))
+                if conf is not None:
+                    confidence[field] = conf
+            points.append(
+                ForecastPoint(
+                    time=_parse_dt(iso),
+                    source_confidence=confidence or None,
+                    **kwargs,
+                )
+            )
         return points
 
     @staticmethod
