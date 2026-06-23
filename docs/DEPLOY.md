@@ -49,6 +49,24 @@ rsync -a --delete --exclude '__pycache__' \
   /appdata/homeassistant/custom_components/swelligence/
 ```
 
+## 1.5 — Import-check inside the container (before restarting)
+
+The unit tests stub Home Assistant, so they can't catch a bad `homeassistant.*`
+import in the platform modules. Verify against real HA *before* the restart:
+
+```bash
+docker exec homeassistant python -c "
+import sys; sys.path.insert(0,'/config')
+mods=['__init__','const','entity','coordinator','sensor','binary_sensor',
+      'config_flow','llm','policy','scoring','sizing','sports',
+      'providers.base','providers.open_meteo']
+for m in mods: __import__('custom_components.swelligence.'+m)
+print('ALL', len(mods), 'MODULES IMPORT OK')
+"
+```
+
+A `ModuleNotFoundError` here means a wrong HA import — fix before restarting.
+
 ## 2 — Restart HA and wait for the API
 
 > Briefly interrupts home automation. Restart deploys the new integration code.
