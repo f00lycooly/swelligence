@@ -18,6 +18,9 @@ from homeassistant.helpers.update_coordinator import DataUpdateCoordinator, Upda
 
 from .const import (
     CONF_AI_TASK_ENTITY,
+    CONF_FREE_TIER,
+    CONF_MARINE_PREFER,
+    CONF_MARINE_SOURCE,
     CONF_PROVIDERS,
     CONF_QUIVER,
     CONF_RIDER,
@@ -29,12 +32,15 @@ from .const import (
     DEFAULT_SCAN_INTERVAL_MINUTES,
     CONF_SCAN_INTERVAL_MINUTES,
     WATER_TYPE_INLAND,
+    WATER_TYPE_SEA,
 )
 from .forecast import daily_forecast, hourly_forecast
 from .llm import async_semantic_verdict
+from .overlay import filled_domains, merge_marine
 from .policy import apply_water_policy, marine_wanted
-from .providers import get_provider, get_tide_provider
+from .providers import free_tier_min_interval_minutes, get_provider, get_tide_provider
 from .providers.base import SpotForecast, TideEvent
+from .providers.domains import stamp_sources
 from .scoring import ScoreResult, best_window, blend_kit, score_point
 from .sizing import POWER_NA, KitRecommendation, recommend_kit
 from .sports import SportProfile
@@ -44,6 +50,8 @@ _LOGGER = logging.getLogger(__name__)
 
 # Tide extremes change slowly; refetch the overlay at most this often.
 _TIDE_REFRESH_MINUTES = 720
+# Marine overlay refresh floor (raised to the free-tier interval when applicable).
+_MARINE_REFRESH_MINUTES = 180
 
 
 @dataclass(slots=True)
@@ -97,6 +105,8 @@ class SpotCoordinator(DataUpdateCoordinator[SpotData]):
         self._profiles = profiles
         # (fetched_at, events) cache for the tide overlay.
         self._tide_cache: tuple[datetime | None, list] = (None, [])
+        # provider_key -> (fetched_at, SpotForecast) cache for overlay fetches.
+        self._overlay_cache: dict[str, tuple[datetime, SpotForecast]] = {}
 
     async def _async_update_data(self) -> SpotData:
         provider_cls = get_provider(self._provider_key)
@@ -118,6 +128,10 @@ class SpotCoordinator(DataUpdateCoordinator[SpotData]):
 
         # Suppress nearest-coastal marine data that doesn't apply to this spot.
         apply_water_policy(forecast, water_type)
+
+        # Layer a keyed marine source onto the base where it lacks waves/swell
+        # (gap-fill) or always (prefer). No-op unless a marine source is set.
+        await self._apply_marine_overlay(forecast, session, water_type)
 
         # Tide awareness: attach a tide overlay if needed, then stamp a per-point
         # tide factor the scorer folds in (no-op for non-tide-dependent spots).
@@ -158,6 +172,74 @@ class SpotCoordinator(DataUpdateCoordinator[SpotData]):
         await self._maybe_enrich_with_llm(data)
         return data
 
+    async def _apply_marine_overlay(self, forecast, session, water_type: str) -> None:
+        """Layer a keyed marine source onto the base forecast.
+
+        Only for open-coast (sea) spots — sheltered/inland deliberately have no
+        open-sea swell. Gap-fill writes only missing wave/swell/sea-temp; prefer
+        replaces them. Filled domains are re-stamped to the overlay in
+        source_meta['sources'] (per-domain provenance from al8.1).
+        """
+        if water_type != WATER_TYPE_SEA:
+            return
+        source = self.entry.options.get(CONF_MARINE_SOURCE)
+        if not source or source == "none" or source == self._provider_key:
+            return
+        prefer = bool(self.entry.options.get(CONF_MARINE_PREFER))
+        base_has_marine = any(p.wave_height_m is not None for p in forecast.points)
+        if base_has_marine and not prefer:
+            return  # gap-fill: base already has waves, nothing to add
+
+        overlay = await self._overlay_forecast(source, session)
+        if not overlay or not overlay.points:
+            return
+        offset = int(forecast.source_meta.get("utc_offset_seconds", 0) or 0)
+        filled = merge_marine(
+            forecast.points, overlay.points, prefer=prefer, base_offset_seconds=offset
+        )
+        if filled:
+            stamp_sources(forecast, source, filled_domains(filled))
+            forecast.source_meta["marine_overlay"] = (
+                f"{source} ({'prefer' if prefer else 'gap-fill'})"
+            )
+
+    async def _overlay_forecast(self, key: str, session):
+        """A keyed provider's full forecast, TTL-cached for budget safety.
+
+        Reused for marine gap-fill and (when the provider supplies them) tides,
+        so one fetch serves both. Refetched no more often than the provider's
+        free-tier interval (or the marine floor).
+        """
+        cls = get_provider(key)
+        if cls is None:
+            return None
+        now = datetime.now(timezone.utc)
+        cached = self._overlay_cache.get(key)
+        if cached and now - cached[0] < timedelta(minutes=self._overlay_ttl(key, cls)):
+            return cached[1]
+        providers_cfg = self.entry.options.get(CONF_PROVIDERS, {}) or {}
+        api_key = (providers_cfg.get(key, {}) or {}).get("api_key")
+        try:
+            provider = cls(session, api_key)
+            forecast = await provider.async_fetch(
+                self.spot["latitude"], self.spot["longitude"], days=7, marine=True
+            )
+        except Exception as err:  # noqa: BLE001 - overlay is best-effort
+            _LOGGER.warning(
+                "Marine overlay (%s) failed for %s: %s", key, self.spot["name"], err
+            )
+            return cached[1] if cached else None
+        self._overlay_cache[key] = (now, forecast)
+        return forecast
+
+    def _overlay_ttl(self, key: str, cls) -> int:
+        providers_cfg = self.entry.options.get(CONF_PROVIDERS, {}) or {}
+        on_free_tier = (providers_cfg.get(key, {}) or {}).get(CONF_FREE_TIER)
+        if cls.free_tier_daily_requests and on_free_tier:
+            safe = free_tier_min_interval_minutes(cls, 1) or 0
+            return max(_MARINE_REFRESH_MINUTES, safe)
+        return _MARINE_REFRESH_MINUTES
+
     async def _apply_tide(self, forecast, session, water_type: str) -> None:
         """Stamp each point's tide_factor for a tide-dependent spot.
 
@@ -175,6 +257,10 @@ class SpotCoordinator(DataUpdateCoordinator[SpotData]):
 
         events = forecast.tide_events
         if not events:
+            # Reuse a marine-overlay forecast's tides if one carries them (e.g.
+            # Stormglass already fetched for gap-fill) before a dedicated call.
+            events = self._cached_overlay_tides()
+        if not events:
             events = await self._tide_overlay_events(session)
         if not events:
             return
@@ -191,6 +277,13 @@ class SpotCoordinator(DataUpdateCoordinator[SpotData]):
             when = to_utc_naive(point.time, local_offset_seconds=offset)
             factor, _ = tide_factor(norm_events, when, state, window)
             point.tide_factor = factor
+
+    def _cached_overlay_tides(self) -> list:
+        """Tides from any cached overlay forecast that supplied them."""
+        for _, forecast in self._overlay_cache.values():
+            if forecast.tide_events:
+                return forecast.tide_events
+        return []
 
     async def _tide_overlay_events(self, session) -> list:
         """Fetch tide events from the configured overlay, cached by TTL.
