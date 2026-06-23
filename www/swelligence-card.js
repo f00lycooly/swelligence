@@ -98,6 +98,8 @@ class SwelligenceCard extends HTMLElement {
     this._render();
   }
 
+  _showScore() { return this._config.show_score !== false; }
+
   _priority() {
     return (this._ov && this._ov.sport_priority && this._ov.sport_priority.length)
       ? this._ov.sport_priority : ORDER;
@@ -170,7 +172,8 @@ class SwelligenceCard extends HTMLElement {
       for (const c of items) {
         const v = c.verdict || band(c.score);
         const kit = c.rig_size_m2 ? `<div class="mk">${c.rig_size_m2}m²</div>` : "";
-        h += `<div class="med"><div class="ring" style="--c:${vc(v)};--p:${c.score}"><div class="ri">${ICON(c.sport)}<div class="rs">${c.score}</div></div></div><div class="ml">${LABELS[c.sport] || c.sport}</div>${kit}</div>`;
+        const sc = this._showScore() ? `<div class="rs">${c.score}</div>` : "";
+        h += `<div class="med"><div class="ring" style="--c:${vc(v)};--p:${c.score}"><div class="ri">${ICON(c.sport)}${sc}</div></div><div class="ml">${LABELS[c.sport] || c.sport}</div>${kit}</div>`;
       }
       h += `</div></div>`;
     }
@@ -225,7 +228,8 @@ class SwelligenceCard extends HTMLElement {
         const m = (p.ranks || []).find((r) => r.place === place);
         if (!m) { h += `<div class="pc"><div class="pm empty"></div></div>`; continue; }
         const v = m.verdict || band(m.score);
-        h += `<div class="pc"><div class="pm ${place === 1 ? "big" : ""}" style="--c:${vc(v)};--p:${m.score}"><div class="pi">${ICON(m.sport)}<div class="ps">${m.score}</div></div></div><div class="pl">${m.spot.split(" / ")[0].split(" ")[0]}</div></div>`;
+        const sc = this._showScore() ? `<div class="ps">${m.score}</div>` : "";
+        h += `<div class="pc"><div class="pm ${place === 1 ? "big" : ""}" style="--c:${vc(v)};--p:${m.score}"><div class="pi">${ICON(m.sport)}${sc}</div></div><div class="pl">${m.spot.split(" / ")[0].split(" ")[0]}</div></div>`;
       }
       h += `</div>`;
     }
@@ -271,6 +275,7 @@ class SwelligenceCardEditor extends HTMLElement {
         { value: "medallions", label: "Medallions — now" },
       ] } } },
       { name: "days", selector: { number: { min: 1, max: 7, mode: "slider", step: 1 } } },
+      { name: "show_score", selector: { boolean: {} } },
       { name: "spots", selector: { select: { multiple: true, options: o.spots } } },
       { name: "sports", selector: { select: { multiple: true, options: o.sports } } },
     ];
@@ -282,6 +287,7 @@ class SwelligenceCardEditor extends HTMLElement {
       this._form = document.createElement("ha-form");
       this._form.computeLabel = (s) => ({
         title: "Title", mode: "Mode", days: "Days to show (forecast modes)",
+        show_score: "Show score number (rings)",
         spots: "Spots (filter — leave empty for all)",
         sports: "Sports (filter — leave empty for all)",
       }[s.name] || s.name);
@@ -294,7 +300,7 @@ class SwelligenceCardEditor extends HTMLElement {
     }
     this._form.hass = this._hass;
     this._form.schema = this._schema();
-    this._form.data = this._config;
+    this._form.data = { show_score: true, ...this._config };
   }
 }
 
@@ -363,4 +369,4 @@ window.customCards.push({
   preview: true,
   documentationURL: "https://git.bagofholding.co.uk/foolycooly/swelligence",
 });
-console.info("%c SWELLIGENCE-CARD ", "background:#1f9d57;color:#fff", "v8 loaded (podium+medallion icon-led)");
+console.info("%c SWELLIGENCE-CARD ", "background:#1f9d57;color:#fff", "v9 loaded (optional score)");
