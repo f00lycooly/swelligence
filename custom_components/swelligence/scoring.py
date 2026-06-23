@@ -130,6 +130,35 @@ def _wave_factor(h: float | None, p: SportProfile) -> tuple[float | None, str]:
     return None, ""
 
 
+def _swell_factor(point, p: SportProfile) -> tuple[float | None, str]:
+    """Swell *quality* for surf-type sports: period (groundswell) × direction.
+
+    Long-period swell scores higher than short-period windswell; when the spot
+    has a swell window (``swell_dirs``) and the provider reports swell direction,
+    swell from outside the window is gated down. ``None`` when the sport doesn't
+    care about swell or no swell-period data is available.
+    """
+    if p.swell_period_ideal_s is None or point.swell_period_s is None:
+        return None, ""
+    period = point.swell_period_s
+    lo = 4.0  # below ~4s is wind-chop, not rideable groundswell
+    ideal = max(p.swell_period_ideal_s, lo + 1)
+    f_period = max(0.0, min(1.0, (period - lo) / (ideal - lo)))
+
+    f_dir, _ = _dir_factor(point.swell_dir_deg, p.swell_dirs)
+    factor = f_period if f_dir is None else f_period * f_dir
+
+    if f_dir is not None and f_dir < 0.4:
+        note = "swell out of window"
+    elif period < 7:
+        note = f"short-period swell ({period:.0f}s)"
+    elif period >= ideal:
+        note = f"clean {period:.0f}s groundswell"
+    else:
+        note = f"{period:.0f}s swell"
+    return round(factor, 3), note
+
+
 def _temp_factor(t: float | None, p: SportProfile) -> tuple[float | None, str]:
     if t is None or p.water_temp_min_c is None:
         return None, ""
@@ -146,6 +175,7 @@ def score_point(point: ForecastPoint, profile: SportProfile) -> ScoreResult:
         ("gust", profile.weight_gust, _gust_factor(point.wind_gust_kn, profile)),
         ("direction", profile.weight_dir, _dir_factor(point.wind_dir_deg, profile.wind_dirs)),
         ("wave", profile.weight_wave, _wave_factor(point.wave_height_m, profile)),
+        ("swell", profile.weight_swell, _swell_factor(point, profile)),
         ("temp", profile.weight_temp, _temp_factor(point.water_temp_c, profile)),
     ]
 

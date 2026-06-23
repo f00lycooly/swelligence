@@ -36,12 +36,18 @@ class SportProfile:
     wave_min_m: float | None = None
     wave_ideal_m: float | None = None
     wave_max_m: float | None = None
+    # Swell quality (surf-type sports). When swell_period_ideal_s is set, the
+    # sport scores swell *quality*: long-period groundswell beats short-period
+    # windswell, and swell_dirs (the spot's swell window) gates direction.
+    swell_period_ideal_s: float | None = None
+    swell_dirs: list[str] = field(default_factory=list)
     # Minimum comfortable water temperature (degrees C). None = not scored.
     water_temp_min_c: float | None = None
     # How strongly each factor weighs in the deterministic score (0..1).
     weight_wind: float = 1.0
     weight_dir: float = 0.5
     weight_wave: float = 0.5
+    weight_swell: float = 0.0
     weight_gust: float = 0.3
     weight_temp: float = 0.2
 
@@ -68,7 +74,8 @@ SPORT_PROFILES: dict[str, SportProfile] = {
         key="surf", label="Surf", icon="mdi:surfing", water="sea",
         wind_min_kn=0, wind_ideal_kn=5, wind_max_kn=15, gust_max_kn=20,
         wave_min_m=0.6, wave_ideal_m=1.5, wave_max_m=3.5,
-        weight_wind=0.6, weight_dir=0.8, weight_wave=1.0,
+        swell_period_ideal_s=11,
+        weight_wind=0.6, weight_dir=0.8, weight_wave=1.0, weight_swell=0.7,
     ),
     "sup": SportProfile(
         key="sup", label="SUP", icon="mdi:rowing", water="any",
