@@ -18,6 +18,7 @@ from homeassistant.helpers.update_coordinator import DataUpdateCoordinator, Upda
 
 from .const import (
     CONF_AI_TASK_ENTITY,
+    CONF_API_KEY,
     CONF_FREE_TIER,
     CONF_MARINE_BLEND,
     CONF_MARINE_ENSEMBLE,
@@ -38,6 +39,7 @@ from .const import (
 )
 from .forecast import daily_forecast, hourly_forecast
 from .llm import async_semantic_verdict
+from .authority import recommend_sources
 from .overlay import ensemble_marine, filled_domains, merge_marine, resolve_route
 from .policy import apply_water_policy, marine_wanted
 from .providers import free_tier_min_interval_minutes, get_provider, get_tide_provider
@@ -75,6 +77,9 @@ class SpotData:
 
     forecast: SpotForecast
     results: dict[str, SportResult] = field(default_factory=dict)
+    # 'Better source available' nudges for this spot (o07.4); empty = on the
+    # best source it can reach for every routed domain.
+    source_advice: list[dict] = field(default_factory=list)
 
 
 class SpotCoordinator(DataUpdateCoordinator[SpotData]):
@@ -170,9 +175,35 @@ class SpotCoordinator(DataUpdateCoordinator[SpotData]):
                 kit=kit,
             )
 
-        data = SpotData(forecast=forecast, results=results)
+        data = SpotData(
+            forecast=forecast,
+            results=results,
+            source_advice=self._source_advice(forecast, water_type),
+        )
         await self._maybe_enrich_with_llm(data)
         return data
+
+    def _source_advice(self, forecast, water_type: str) -> list[dict]:
+        """'Better source available' nudges for this spot's actual routing.
+
+        Compares the per-domain provenance (source_meta['sources']) against the
+        authority map, considering only providers the user has configured (the
+        keyless Open-Meteo always counts).
+        """
+        providers_cfg = self.entry.options.get(CONF_PROVIDERS, {}) or {}
+        available = {"open_meteo"}  # the keyless default always works
+        available |= {
+            key
+            for key, cfg in providers_cfg.items()
+            if (cfg or {}).get(CONF_API_KEY)
+        }
+        return recommend_sources(
+            sources=forecast.source_meta.get("sources"),
+            water_type=water_type,
+            latitude=self.spot["latitude"],
+            longitude=self.spot["longitude"],
+            available=available,
+        )
 
     async def _apply_marine_overlay(self, forecast, session, water_type: str) -> None:
         """Layer a keyed marine source onto the base forecast.

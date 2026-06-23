@@ -4,10 +4,11 @@ from __future__ import annotations
 
 from homeassistant.components.sensor import SensorEntity, SensorStateClass
 from homeassistant.config_entries import ConfigEntry
-from homeassistant.const import PERCENTAGE
+from homeassistant.const import PERCENTAGE, EntityCategory
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 
+from .authority import advice_message, provider_name
 from .confidence import aggregate_confidence
 from .entity import SwelligenceEntity
 from .quality import data_quality
@@ -21,8 +22,10 @@ async def async_setup_entry(
 ) -> None:
     """Set up score sensors for every scored (spot, sport)."""
     runtime = entry.runtime_data
-    entities: list[SuitabilitySensor] = []
+    entities: list[SensorEntity] = []
     for coordinator in runtime.coordinators.values():
+        # One diagnostic 'source advice' sensor per spot (not per sport).
+        entities.append(SourceAdviceSensor(coordinator))
         for sport in coordinator.data.results:
             entities.append(SuitabilitySensor(coordinator, sport))
     async_add_entities(entities)
@@ -104,3 +107,47 @@ class SuitabilitySensor(SwelligenceEntity, SensorEntity):
                 attrs["confidence"] = conf["value"]
                 attrs["confidence_label"] = conf["label"]
         return attrs
+
+
+class SourceAdviceSensor(SwelligenceEntity, SensorEntity):
+    """Diagnostic: how many domains could use a better-available source (o07.4).
+
+    State is the count of 'better source available' nudges for the spot (0 = on
+    the best source it can reach for every domain); the recommendations carry the
+    actionable detail. One per spot, in the diagnostic category, so it never adds
+    noise to the suitability entities.
+    """
+
+    _attr_entity_category = EntityCategory.DIAGNOSTIC
+    _attr_icon = "mdi:transit-connection-variant"
+    _attr_name = "Source advice"
+
+    def __init__(self, coordinator) -> None:
+        super().__init__(coordinator, "source_advice")
+
+    @property
+    def native_value(self) -> int:
+        data = self.coordinator.data
+        return len(data.source_advice) if data else 0
+
+    @property
+    def extra_state_attributes(self) -> dict:
+        data = self.coordinator.data
+        recs = data.source_advice if data else []
+        return {
+            "ok": not recs,
+            "summary": (
+                "On the best available source for every domain"
+                if not recs
+                else "; ".join(advice_message(r) for r in recs)
+            ),
+            "recommendations": [
+                {
+                    **r,
+                    "current_name": provider_name(r["current"]),
+                    "suggested_name": provider_name(r["suggested"]),
+                    "message": advice_message(r),
+                }
+                for r in recs
+            ],
+        }
