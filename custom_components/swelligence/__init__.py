@@ -24,6 +24,7 @@ from .const import (
     DOMAIN,
     PLATFORMS,
 )
+from .authority import advice_message
 from .confidence import aggregate_confidence
 from .coordinator import SpotCoordinator
 from .overview import build_podium, build_sessions
@@ -162,6 +163,7 @@ def _async_register_overview_service(hass: HomeAssistant) -> None:
         priority = call.data.get("priority") or None
         entries: list[dict] = []
         now: list[dict] = []
+        source_advice: list[dict] = []
         for entry in hass.config_entries.async_entries(DOMAIN):
             runtime = getattr(entry, "runtime_data", None)
             if not runtime:
@@ -174,6 +176,14 @@ def _async_register_overview_service(hass: HomeAssistant) -> None:
                     continue
                 if spots_f and coordinator.spot["name"] not in spots_f:
                     continue
+                if data.source_advice:
+                    source_advice.append({
+                        "spot": coordinator.spot["name"],
+                        "recommendations": [
+                            {**r, "message": advice_message(r)}
+                            for r in data.source_advice
+                        ],
+                    })
                 for sport, res in data.results.items():
                     if sports_f and sport not in sports_f:
                         continue
@@ -208,6 +218,7 @@ def _async_register_overview_service(hass: HomeAssistant) -> None:
             "now": now,
             "sessions": build_sessions(entries),
             "podium": build_podium(entries, priority),
+            "source_advice": source_advice,
         }
 
     hass.services.async_register(
