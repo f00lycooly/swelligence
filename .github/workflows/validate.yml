@@ -18,18 +18,31 @@ jobs:
       - run: pip install -r requirements-test.txt
       - run: pytest
 
+  ha-guard:
+    name: HA import & schema guard
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+      - run: pip install -r requirements-ha-test.txt
+      # Real Home Assistant import + flow-schema guard (catches what the stubbed
+      # suite in tests/ cannot). Kept as a separate tree/job from the pure tests.
+      - run: pytest tests_ha -o asyncio_mode=auto
+
   hassfest:
     name: Hassfest
-    runs-on: ubuntu-latest
+    # Host-mode (tinkernet-host), not ubuntu-latest: hassfest is a Docker
+    # container action that bind-mounts ${{ github.workspace }} into a sibling
+    # container via the host daemon. In a containerised (ubuntu-latest) job the
+    # workspace is a docker *volume*, so the host path is empty and hassfest
+    # reports "No integrations found!". Host-mode gives it a real host workspace.
+    runs-on: tinkernet-host
     steps:
       - uses: actions/checkout@v4
       - uses: home-assistant/actions/hassfest@master
 
-  hacs:
-    name: HACS
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - uses: hacs/action@main
-        with:
-          category: integration
+  # HACS validation removed: hacs/action validates the repo via the GitHub API
+  # (github.com/<owner>/<repo>) and returns 401 for a Forgejo-hosted repo. Run it
+  # on a GitHub mirror if HACS-store validation is ever needed.

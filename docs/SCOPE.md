@@ -19,8 +19,8 @@ LLM-written verdict, suitable for a dashboard card and automations.
 ## Users & key flows
 
 1. **Setup**: choose sports + default provider; optionally wire an AI Task agent.
-2. **Add spots**: name + coordinates (later: geocode by name) + water type +
-   which sports apply there.
+2. **Add spots**: name + place-name search (geocoded) or coordinates + water
+   type + which sports apply there. Edit sports/water type later.
 3. **Tune preferences**: per-sport wind/wave/direction/temperature windows
    (defaults shipped; overrides are a near-term milestone).
 4. **Consume**: read `sensor`/`binary_sensor` per (spot × sport); build a matrix
@@ -136,19 +136,30 @@ one profile + quiver in config — so there's no per-rider entity multiplication
 - **M1 — Per-sport preference overrides** in the options flow (UI for wind/wave
   windows + offshore directions per spot). Structure already supports it via
   `dataclasses.replace` on defaults.
-- **M2 — Geocoding**: add spots by place name (Open-Meteo geocoding API) instead
-  of raw coordinates.
+- **M2 — Geocoding** *(done)*: add spots by place-name search (Open-Meteo
+  geocoding API) with a disambiguation step when several places match; raw
+  coordinates remain as a fallback. Plus an **edit-spot** step to add/remove a
+  spot's sports and change its water type after creation.
 - **M3 — Custom Lovelace card** *(done)*: `www/swelligence-card.js` — one theme-
   aware element, four `mode`s: **podium** (day's preference-ranked top-3),
   **timeline** (per-spot opportunity windows, 7d), **heatgrid** (spot×sport now),
   **medallions** (per-spot rings now). NOW modes read sensor states; forecast
   modes call `get_overview`. Bespoke SVG sport icons; verdict colours; rig size
   from quiver; ordering by sport priority.
-- **M10 — Sport preference + overview** *(done)*: `sport_priority` option +
-  pure `ranking.py` (preference-weighted ranking, raw score untouched) +
-  `overview.py` (sessions/podium) behind the `get_overview` service.
-- **M4 — More providers**: Windy (keyed, richer models), Stormglass (marine +
-  tide), UKHO tides as a tide overlay for tide-sensitive sports/spots.
+- **M10 — Sport preference + overview** *(done)*: sport priority (drag-to-reorder
+  in the card's visual editor; passed to `get_overview` as `priority`, no longer
+  an integration option) + pure `ranking.py` (preference-weighted ranking, raw
+  score untouched) + `overview.py` (sessions/podium) behind the `get_overview`
+  service.
+- **M4 — More providers** *(provider layer done)*: Windy (keyed; u/v wind + GFS
+  wave) and Stormglass (keyed; marine + tide) implemented as `ForecastProvider`s
+  and registered in `PROVIDERS`; UKHO implemented as a `TideProvider` overlay in
+  the new `TIDE_PROVIDERS` registry (Stormglass doubles as a tide source).
+  Per-provider API keys are entered in the options flow; `ForecastPoint` gained
+  `sea_level_m` and `SpotForecast` a `tide_events` list. Wiring the tide overlay
+  into the coordinator is M5's job. Live verification against the paid APIs is
+  pending real keys — response normalisers are unit-tested with captured-shape
+  fixtures.
 - **M5 — Tide awareness**: factor tide state/height into scoring where the spot
   is tide-dependent.
 - **M6 — Notification blueprint**: "tell me when <spot> is good for <sport>".

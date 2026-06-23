@@ -33,6 +33,23 @@ class ForecastPoint:
     water_temp_c: float | None = None
     precip_mm: float | None = None
     cloud_pct: float | None = None
+    #: Tidal sea level (metres, provider datum) at this timestep, if supplied.
+    sea_level_m: float | None = None
+
+
+@dataclass(slots=True)
+class TideEvent:
+    """A predicted tidal extreme (high or low water).
+
+    Populated by tide-capable providers/overlays (Stormglass, UKHO). The
+    deterministic scorer's tide awareness (M5) consumes this list; until then it
+    is carried through untouched on :class:`SpotForecast`.
+    """
+
+    time: datetime
+    #: ``"high"`` or ``"low"``.
+    kind: str
+    height_m: float | None = None
 
 
 @dataclass(slots=True)
@@ -45,6 +62,8 @@ class SpotForecast:
     points: list[ForecastPoint] = field(default_factory=list)
     # date ISO (YYYY-MM-DD) -> {"sunrise": datetime, "sunset": datetime}
     daily_sun: dict = field(default_factory=dict)
+    # Predicted high/low water events (chronological), if a tide source applied.
+    tide_events: list[TideEvent] = field(default_factory=list)
     # Free-form provenance: model name, nearest station id/distance, etc.
     source_meta: dict = field(default_factory=dict)
 
@@ -85,3 +104,35 @@ class ForecastProvider(ABC):
         sea-temperature) request — used for inland spots where that data is
         meaningless. Wave/swell fields are then left ``None``.
         """
+
+
+class TideProvider(ABC):
+    """Fetches predicted tidal events for a coordinate.
+
+    Tide is an *overlay*: it does not produce a full forecast, only a list of
+    high/low water events that augment a :class:`SpotForecast` from any
+    :class:`ForecastProvider`. UK-only sources (UKHO) and global ones
+    (Stormglass) implement this same shape so the coordinator can attach tides
+    independently of the wind/wave provider in use.
+    """
+
+    #: Registry key stored in config (e.g. ``"ukho"``).
+    key: str = ""
+    #: Human label shown in the UI.
+    label: str = ""
+    #: Whether this tide source needs an API key.
+    requires_api_key: bool = False
+
+    def __init__(self, session: ClientSession, api_key: str | None = None) -> None:
+        self._session = session
+        self._api_key = api_key
+
+    @abstractmethod
+    async def async_fetch_tides(
+        self,
+        latitude: float,
+        longitude: float,
+        *,
+        days: int = 7,
+    ) -> list[TideEvent]:
+        """Return predicted high/low water events for a coordinate."""

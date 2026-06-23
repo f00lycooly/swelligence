@@ -23,17 +23,20 @@ from homeassistant.config_entries import (
 )
 from homeassistant.core import callback
 from homeassistant.helpers import selector
+from homeassistant.helpers.aiohttp_client import async_get_clientsession
 
 from .const import (
     COMPASS_SECTORS,
     CONF_AI_TASK_ENTITY,
+    CONF_API_KEY,
     CONF_DEFAULT_PROVIDER,
     CONF_LATITUDE,
     CONF_LONGITUDE,
+    CONF_PLACE_QUERY,
+    CONF_PROVIDERS,
     CONF_QUIVER,
     CONF_RIDER,
     CONF_RIDER_WEIGHT,
-    CONF_SPORT_PRIORITY,
     CONF_SPORTS,
     CONF_SPOT_NAME,
     CONF_SPOT_PREFS,
@@ -54,8 +57,12 @@ from .const import (
     WATER_TYPE_SEA,
     WATER_TYPES,
 )
+from .geocoding import async_geocode
 from .providers import PROVIDERS
 from .sports import SPORT_PROFILES, apply_overrides
+
+# Keyed providers needing an API key entry in the providers settings step.
+_KEYED_PROVIDERS = {k: cls for k, cls in PROVIDERS.items() if cls.requires_api_key}
 
 _DIR_OPTIONS = [selector.SelectOptionDict(value=s, label=s) for s in COMPASS_SECTORS]
 
@@ -159,47 +166,24 @@ class SwelligenceOptionsFlow(OptionsFlow):
 
     _pref_spot_id: str | None = None
     _pref_sport: str | None = None
+    _edit_spot_id: str | None = None
+    _pending_spot: dict | None = None
+    _geocode_choices: list | None = None
 
     async def async_step_init(
         self, user_input: dict[str, Any] | None = None
     ) -> ConfigFlowResult:
         return self.async_show_menu(
             step_id="init",
-            menu_options=["add_spot", "spot_prefs", "rider", "priority", "settings"],
+            menu_options=[
+                "add_spot",
+                "edit_spot",
+                "spot_prefs",
+                "rider",
+                "providers",
+                "settings",
+            ],
         )
-
-    async def async_step_priority(
-        self, user_input: dict[str, Any] | None = None
-    ) -> ConfigFlowResult:
-        """Set the sport priority order (most-wanted first)."""
-        enabled = self.config_entry.options.get(CONF_SPORTS, list(SPORT_PROFILES))
-        if user_input is not None:
-            chosen = user_input.get(CONF_SPORT_PRIORITY, [])
-            # selected (in order) first, then any remaining enabled sports
-            order = chosen + [s for s in enabled if s not in chosen]
-            return self._save({CONF_SPORT_PRIORITY: order})
-
-        current = self.config_entry.options.get(CONF_SPORT_PRIORITY) or enabled
-        ordered_opts = [
-            selector.SelectOptionDict(value=k, label=SPORT_PROFILES[k].label)
-            for k in current if k in SPORT_PROFILES
-        ] + [
-            selector.SelectOptionDict(value=k, label=SPORT_PROFILES[k].label)
-            for k in enabled if k not in current and k in SPORT_PROFILES
-        ]
-        schema = vol.Schema(
-            {
-                vol.Optional(
-                    CONF_SPORT_PRIORITY,
-                    description={"suggested_value": [k for k in current if k in enabled]},
-                ): selector.SelectSelector(
-                    selector.SelectSelectorConfig(
-                        options=ordered_opts, multiple=True, sort=False
-                    )
-                )
-            }
-        )
-        return self.async_show_form(step_id="priority", data_schema=schema)
 
     async def async_step_rider(
         self, user_input: dict[str, Any] | None = None
@@ -250,17 +234,30 @@ class SwelligenceOptionsFlow(OptionsFlow):
             if any(s["id"] == spot_id for s in spots):
                 errors["base"] = "duplicate_spot"
             else:
-                spots.append(
-                    {
-                        "id": spot_id,
-                        CONF_SPOT_NAME: user_input[CONF_SPOT_NAME],
-                        CONF_LATITUDE: user_input[CONF_LATITUDE],
-                        CONF_LONGITUDE: user_input[CONF_LONGITUDE],
-                        CONF_WATER_TYPE: user_input[CONF_WATER_TYPE],
-                        CONF_SPOT_SPORTS: user_input[CONF_SPOT_SPORTS],
-                    }
-                )
-                return self._save({CONF_SPOTS: spots})
+                # Carry the spot's metadata while we resolve coordinates.
+                self._pending_spot = {
+                    "id": spot_id,
+                    CONF_SPOT_NAME: user_input[CONF_SPOT_NAME],
+                    CONF_WATER_TYPE: user_input[CONF_WATER_TYPE],
+                    CONF_SPOT_SPORTS: user_input[CONF_SPOT_SPORTS],
+                }
+                query = (user_input.get(CONF_PLACE_QUERY) or "").strip()
+                if query:
+                    session = async_get_clientsession(self.hass)
+                    results = await async_geocode(session, query)
+                    if not results:
+                        errors["base"] = "geocode_no_results"
+                    elif len(results) == 1:
+                        return self._finish_add_spot(
+                            results[0].latitude, results[0].longitude
+                        )
+                    else:
+                        self._geocode_choices = results
+                        return await self.async_step_add_spot_pick()
+                else:
+                    return self._finish_add_spot(
+                        user_input[CONF_LATITUDE], user_input[CONF_LONGITUDE]
+                    )
 
         enabled = self.config_entry.options.get(CONF_SPORTS, list(SPORT_PROFILES))
         spot_sport_options = [
@@ -269,6 +266,7 @@ class SwelligenceOptionsFlow(OptionsFlow):
         schema = vol.Schema(
             {
                 vol.Required(CONF_SPOT_NAME): selector.TextSelector(),
+                vol.Optional(CONF_PLACE_QUERY): selector.TextSelector(),
                 vol.Required(
                     CONF_LATITUDE, default=self.hass.config.latitude
                 ): selector.NumberSelector(
@@ -302,6 +300,157 @@ class SwelligenceOptionsFlow(OptionsFlow):
         )
         return self.async_show_form(
             step_id="add_spot", data_schema=schema, errors=errors
+        )
+
+    async def async_step_add_spot_pick(
+        self, user_input: dict[str, Any] | None = None
+    ) -> ConfigFlowResult:
+        """Disambiguate a place-name search that returned several matches."""
+        choices = self._geocode_choices or []
+        if not choices or self._pending_spot is None:
+            return await self.async_step_add_spot()
+        if user_input is not None:
+            choice = choices[int(user_input["match"])]
+            return self._finish_add_spot(choice.latitude, choice.longitude)
+
+        options = [
+            selector.SelectOptionDict(value=str(i), label=r.label)
+            for i, r in enumerate(choices)
+        ]
+        schema = vol.Schema(
+            {
+                vol.Required("match", default="0"): selector.SelectSelector(
+                    selector.SelectSelectorConfig(options=options)
+                )
+            }
+        )
+        return self.async_show_form(
+            step_id="add_spot_pick",
+            data_schema=schema,
+            description_placeholders={"name": self._pending_spot[CONF_SPOT_NAME]},
+        )
+
+    def _finish_add_spot(self, lat: float, lon: float) -> ConfigFlowResult:
+        """Append the pending spot with resolved coordinates and save."""
+        spot = {**self._pending_spot, CONF_LATITUDE: lat, CONF_LONGITUDE: lon}
+        spots = list(self.config_entry.options.get(CONF_SPOTS, []))
+        spots.append(spot)
+        self._pending_spot = None
+        self._geocode_choices = None
+        return self._save({CONF_SPOTS: spots})
+
+    async def async_step_edit_spot(
+        self, user_input: dict[str, Any] | None = None
+    ) -> ConfigFlowResult:
+        """Step 1: pick which existing spot to edit (sports / water type)."""
+        spots = self.config_entry.options.get(CONF_SPOTS, [])
+        if not spots:
+            return self.async_abort(reason="no_spots")
+        if user_input is not None:
+            self._edit_spot_id = user_input["spot"]
+            return await self.async_step_edit_spot_fields()
+
+        options = [
+            selector.SelectOptionDict(value=s["id"], label=s[CONF_SPOT_NAME])
+            for s in spots
+        ]
+        schema = vol.Schema(
+            {
+                vol.Required("spot"): selector.SelectSelector(
+                    selector.SelectSelectorConfig(options=options)
+                )
+            }
+        )
+        return self.async_show_form(step_id="edit_spot", data_schema=schema)
+
+    async def async_step_edit_spot_fields(
+        self, user_input: dict[str, Any] | None = None
+    ) -> ConfigFlowResult:
+        """Step 2: add/remove sports and change the water type for the spot."""
+        spot = self._get_spot(self._edit_spot_id)
+        if spot is None:
+            return self.async_abort(reason="no_spots")
+        enabled = self.config_entry.options.get(CONF_SPORTS, list(SPORT_PROFILES))
+
+        if user_input is not None:
+            new_sports = user_input[CONF_SPOT_SPORTS]
+            new_spots = []
+            for s in self.config_entry.options.get(CONF_SPOTS, []):
+                if s["id"] != self._edit_spot_id:
+                    new_spots.append(s)
+                    continue
+                # Drop per-sport overrides for sports no longer relevant here.
+                prefs = {
+                    k: v
+                    for k, v in (s.get(CONF_SPOT_PREFS, {}) or {}).items()
+                    if k in new_sports
+                }
+                updated = {
+                    **s,
+                    CONF_WATER_TYPE: user_input[CONF_WATER_TYPE],
+                    CONF_SPOT_SPORTS: new_sports,
+                    CONF_SPOT_PREFS: prefs,
+                }
+                new_spots.append(updated)
+            return self._save({CONF_SPOTS: new_spots})
+
+        spot_sport_options = [o for o in _SPORT_OPTIONS if o["value"] in enabled]
+        current_sports = [
+            s for s in (spot.get(CONF_SPOT_SPORTS) or enabled) if s in enabled
+        ]
+        schema = vol.Schema(
+            {
+                vol.Required(
+                    CONF_WATER_TYPE,
+                    default=spot.get(CONF_WATER_TYPE, WATER_TYPE_SEA),
+                ): selector.SelectSelector(
+                    selector.SelectSelectorConfig(
+                        options=WATER_TYPES, translation_key="water_type"
+                    )
+                ),
+                vol.Required(
+                    CONF_SPOT_SPORTS, default=current_sports
+                ): selector.SelectSelector(
+                    selector.SelectSelectorConfig(
+                        options=spot_sport_options, multiple=True
+                    )
+                ),
+            }
+        )
+        return self.async_show_form(
+            step_id="edit_spot_fields",
+            data_schema=schema,
+            description_placeholders={"spot": spot[CONF_SPOT_NAME]},
+        )
+
+    async def async_step_providers(
+        self, user_input: dict[str, Any] | None = None
+    ) -> ConfigFlowResult:
+        """Enter API keys for keyed forecast providers (Windy, Stormglass)."""
+        if not _KEYED_PROVIDERS:
+            return self.async_abort(reason="no_keyed_providers")
+        stored = dict(self.config_entry.options.get(CONF_PROVIDERS, {}) or {})
+        if user_input is not None:
+            for key in _KEYED_PROVIDERS:
+                value = (user_input.get(key) or "").strip()
+                if value:
+                    stored[key] = {**stored.get(key, {}), CONF_API_KEY: value}
+                else:
+                    stored.pop(key, None)
+            return self._save({CONF_PROVIDERS: stored})
+
+        fields: dict = {}
+        for key, cls in _KEYED_PROVIDERS.items():
+            current = (stored.get(key, {}) or {}).get(CONF_API_KEY)
+            fields[
+                vol.Optional(
+                    key, description={"suggested_value": current}
+                )
+            ] = selector.TextSelector(
+                selector.TextSelectorConfig(type=selector.TextSelectorType.PASSWORD)
+            )
+        return self.async_show_form(
+            step_id="providers", data_schema=vol.Schema(fields)
         )
 
     async def async_step_spot_prefs(

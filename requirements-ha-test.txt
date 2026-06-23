@@ -1,0 +1,8 @@
+# Dependencies for the real-Home-Assistant guard suite (tests_ha/).
+# Unlike requirements-test.txt (pure logic, HA stubbed), this installs Home
+# Assistant so the guard can catch bad homeassistant.* imports and invalid
+# selector/flow schemas. pytest-homeassistant-custom-component pins a matching
+# Home Assistant version transitively.
+pytest>=8.0
+pytest-asyncio
+pytest-homeassistant-custom-component

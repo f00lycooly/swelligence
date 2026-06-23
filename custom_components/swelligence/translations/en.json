@@ -19,17 +19,11 @@
         "title": "Swelligence",
         "menu_options": {
           "add_spot": "Add a favourite spot",
+          "edit_spot": "Edit a spot (sports / water type)",
           "spot_prefs": "Tune a spot's preferences",
           "rider": "Rider profile & quiver",
-          "priority": "Sport priority",
+          "providers": "Forecast provider API keys",
           "settings": "AI / general settings"
-        }
-      },
-      "priority": {
-        "title": "Sport priority",
-        "description": "Order your sports most-wanted first. This nudges ranked views (podium, best-of-day) so your favourites surface when scores are close — it never hides anything. Tip: select them in the order you care about.",
-        "data": {
-          "sport_priority": "Sports, most-wanted first"
         }
       },
       "rider": {
@@ -71,13 +65,44 @@
       },
       "add_spot": {
         "title": "Add a spot",
-        "description": "Coordinates are pre-filled from your Home Assistant location. The provider locks onto the nearest model grid automatically.",
+        "description": "Type a place name to search for its coordinates, or leave it blank and enter coordinates directly (pre-filled from your Home Assistant location). The provider locks onto the nearest model grid automatically.",
         "data": {
           "name": "Spot name",
-          "latitude": "Latitude",
-          "longitude": "Longitude",
+          "place_query": "Search by place name (optional)",
+          "latitude": "Latitude (used if no place name)",
+          "longitude": "Longitude (used if no place name)",
           "water_type": "Water type",
           "sports": "Sports relevant at this spot"
+        }
+      },
+      "add_spot_pick": {
+        "title": "Choose a location",
+        "description": "Several places matched your search for {name}. Pick the right one.",
+        "data": {
+          "match": "Matching place"
+        }
+      },
+      "edit_spot": {
+        "title": "Edit a spot",
+        "description": "Pick the spot whose sports or water type you want to change.",
+        "data": {
+          "spot": "Spot"
+        }
+      },
+      "edit_spot_fields": {
+        "title": "Edit {spot}",
+        "description": "Add or remove the sports tracked at {spot} and adjust its water type. Removing a sport also clears any per-sport tuning you saved for it here.",
+        "data": {
+          "water_type": "Water type",
+          "sports": "Sports relevant at this spot"
+        }
+      },
+      "providers": {
+        "title": "Forecast provider API keys",
+        "description": "Enter API keys for the keyed providers you want to use. Leave a field blank to keep a provider disabled. Open-Meteo needs no key and always works.",
+        "data": {
+          "windy": "Windy API key",
+          "stormglass": "Stormglass API key"
         }
       },
       "settings": {
@@ -89,10 +114,12 @@
       }
     },
     "error": {
-      "duplicate_spot": "A spot with that name already exists."
+      "duplicate_spot": "A spot with that name already exists.",
+      "geocode_no_results": "No matching place found. Try a different name or enter coordinates directly."
     },
     "abort": {
-      "no_spots": "Add a spot first before tuning preferences."
+      "no_spots": "Add a spot first before tuning preferences.",
+      "no_keyed_providers": "No keyed providers are available to configure."
     }
   },
   "selector": {
