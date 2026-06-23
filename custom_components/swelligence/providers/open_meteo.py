@@ -15,6 +15,7 @@ from __future__ import annotations
 import logging
 from datetime import datetime
 
+from ..geo import haversine_km
 from .base import ForecastPoint, ForecastProvider, SpotForecast
 from .domains import AIR, WATER, WAVE, WIND
 
@@ -98,6 +99,13 @@ class OpenMeteoProvider(ForecastProvider):
             meta["marine"] = "skipped (inland spot)"
         elif not marine_data:
             meta["marine"] = "unavailable (unsupported grid)"
+        # Open-Meteo snaps the request to the nearest model grid cell and echoes
+        # that cell's coordinates back. The offset is a data-quality signal: a
+        # coarse cell far from the spot (especially offshore for the marine grid)
+        # is less representative. Prefer the marine cell where it resolved.
+        dist = _grid_distance_km(latitude, longitude, marine_data or wind)
+        if dist is not None:
+            meta["grid_distance_km"] = round(dist, 1)
         forecast = SpotForecast(
             provider=self.key,
             latitude=latitude,
@@ -183,3 +191,17 @@ def _at(values: list, i: int | None):
     if i is None or not values or i >= len(values):
         return None
     return values[i]
+
+
+def _grid_distance_km(lat: float, lon: float, payload: dict | None) -> float | None:
+    """Distance from the requested coord to the grid cell Open-Meteo resolved.
+
+    The forecast/marine responses echo the snapped cell's ``latitude``/
+    ``longitude``. ``None`` when the payload is missing or omits them.
+    """
+    if not payload:
+        return None
+    g_lat, g_lon = payload.get("latitude"), payload.get("longitude")
+    if g_lat is None or g_lon is None:
+        return None
+    return haversine_km(lat, lon, g_lat, g_lon)

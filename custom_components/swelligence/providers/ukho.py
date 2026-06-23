@@ -11,9 +11,9 @@ tidal events. It supplies tides only — no wind/wave — so it implements
 from __future__ import annotations
 
 import logging
-import math
 from datetime import datetime
 
+from ..geo import haversine_km
 from .base import TideEvent, TideProvider
 
 _LOGGER = logging.getLogger(__name__)
@@ -50,7 +50,7 @@ class UKHOTideProvider(TideProvider):
     def _nearest_station(payload: dict | None, lat: float, lon: float) -> str | None:
         """Return the Id of the closest station by great-circle distance."""
         best_id: str | None = None
-        best_dist = math.inf
+        best_dist = float("inf")
         for feat in (payload or {}).get("features") or []:
             props = feat.get("properties") or {}
             geom = feat.get("geometry") or {}
@@ -58,7 +58,7 @@ class UKHOTideProvider(TideProvider):
             if len(coords) < 2:
                 continue
             s_lon, s_lat = coords[0], coords[1]
-            dist = _haversine(lat, lon, s_lat, s_lon)
+            dist = haversine_km(lat, lon, s_lat, s_lon)
             if dist < best_dist:
                 best_dist = dist
                 best_id = props.get("Id")
@@ -93,13 +93,3 @@ class UKHOTideProvider(TideProvider):
         ) as resp:
             resp.raise_for_status()
             return await resp.json()
-
-
-def _haversine(lat1: float, lon1: float, lat2: float, lon2: float) -> float:
-    """Great-circle distance in kilometres between two coordinates."""
-    r = 6371.0
-    p1, p2 = math.radians(lat1), math.radians(lat2)
-    dp = math.radians(lat2 - lat1)
-    dl = math.radians(lon2 - lon1)
-    a = math.sin(dp / 2) ** 2 + math.cos(p1) * math.cos(p2) * math.sin(dl / 2) ** 2
-    return 2 * r * math.asin(math.sqrt(a))

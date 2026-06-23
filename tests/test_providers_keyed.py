@@ -11,8 +11,9 @@ import math
 
 import pytest
 
+from swelligence.geo import haversine_km as _haversine
 from swelligence.providers.stormglass import StormglassProvider
-from swelligence.providers.ukho import UKHOTideProvider, _haversine
+from swelligence.providers.ukho import UKHOTideProvider
 from swelligence.providers.windy import WindyProvider
 
 # --- Stormglass -------------------------------------------------------------
