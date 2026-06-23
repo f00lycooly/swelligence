@@ -1,0 +1,56 @@
+{
+  "config": {
+    "step": {
+      "user": {
+        "title": "Swelligence",
+        "description": "Choose the sports you care about and your default forecast provider. You can add favourite spots afterwards from the integration's options.",
+        "data": {
+          "sports": "Sports to track",
+          "default_provider": "Default forecast provider",
+          "use_llm": "Use an AI Task agent for semantic verdicts",
+          "ai_task_entity_id": "AI Task entity"
+        }
+      }
+    }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "title": "Swelligence",
+        "menu_options": {
+          "add_spot": "Add a favourite spot",
+          "settings": "AI / general settings"
+        }
+      },
+      "add_spot": {
+        "title": "Add a spot",
+        "description": "Coordinates are pre-filled from your Home Assistant location. The provider locks onto the nearest model grid automatically.",
+        "data": {
+          "name": "Spot name",
+          "latitude": "Latitude",
+          "longitude": "Longitude",
+          "water_type": "Water type",
+          "sports": "Sports relevant at this spot"
+        }
+      },
+      "settings": {
+        "title": "Settings",
+        "data": {
+          "use_llm": "Use an AI Task agent for semantic verdicts",
+          "ai_task_entity_id": "AI Task entity"
+        }
+      }
+    },
+    "error": {
+      "duplicate_spot": "A spot with that name already exists."
+    }
+  },
+  "selector": {
+    "water_type": {
+      "options": {
+        "sea": "Sea / coastal",
+        "inland": "Inland (lake / cable park)"
+      }
+    }
+  }
+}

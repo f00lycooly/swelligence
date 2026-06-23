@@ -1,0 +1,13 @@
+{
+  "domain": "swelligence",
+  "name": "Swelligence",
+  "codeowners": ["@f00lycooly"],
+  "config_flow": true,
+  "dependencies": [],
+  "after_dependencies": ["ai_task"],
+  "documentation": "https://github.com/f00lycooly/swelligence",
+  "iot_class": "cloud_polling",
+  "issue_tracker": "https://github.com/f00lycooly/swelligence/issues",
+  "requirements": [],
+  "version": "0.1.0"
+}

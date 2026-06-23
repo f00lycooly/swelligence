@@ -1,0 +1,31 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.eggs/
+build/
+dist/
+.venv/
+venv/
+env/
+
+# Test / tooling
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+
+# HA dev
+.HA_VERSION
+config/
+!custom_components/
+
+# Editor / OS
+.vscode/
+.idea/
+.DS_Store
+
+# Secrets (never commit)
+secrets.yaml
+*.token
