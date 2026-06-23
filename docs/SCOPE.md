@@ -92,8 +92,8 @@ scoring or entities changes.
   station/distance).
 - `ScoreResult` — score, verdict band, suitable flag, factor map, reasons.
 - `SportResult` — now + best-window results + optional LLM rating/summary.
-- `RiderProfile` — weight (kg), optional ability level, and a `Quiver` of
-  available kit (see Personalisation).
+- `RiderProfile` — the single local rider: weight (kg), optional ability level,
+  and a `Quiver` of available kit (see Personalisation).
 - `Quiver` — owned kit per powered sport: kite sizes (m²), wing sizes (m²),
   optional boards/foils. Drives the kit recommendation and quiver-aware scoring.
 - `KitRecommendation` — ideal size + the best-matching *owned* size + a power
@@ -106,9 +106,8 @@ suitable?" is rider-specific: a 95 kg rider and a 60 kg rider need different kit
 in the same wind, and a spot is only *actually* rideable if you own a size that
 matches. Swelligence personalises the recommendation:
 
-- **Rider profile**: weight (kg), optional ability level. (Designed for multiple
-  riders — e.g. a household — so each can have their own profile + quiver; v1 may
-  ship single-rider and generalise later.)
+- **Rider profile**: weight (kg), optional ability level. Single local rider —
+  one profile, one quiver (no multi-user modelling).
 - **Quiver**: the sizes you actually own per sport — e.g. kites `[7, 9, 12]` m²,
   wings `[3, 4, 5]` m². Optional boards/foils for finer advice.
 - **Sizing model** (`sizing.py`, calibratable like the sport profiles): a simple
@@ -127,7 +126,8 @@ matches. Swelligence personalises the recommendation:
 
 This keeps the deterministic core honest (wind/wave still scored as now) and
 layers personal feasibility on top; the LLM verdict is given the rider context
-too, so "go ride your 12m" reads naturally.
+too, so "go ride your 12m" reads naturally. Scoped to a single local rider —
+one profile + quiver in config — so there's no per-rider entity multiplication.
 
 ## Roadmap
 
@@ -147,8 +147,8 @@ too, so "go ride your 12m" reads naturally.
 - **M6 — Notification blueprint**: "tell me when <spot> is good for <sport>".
 - **M7 — Tests & CI**: pytest for scoring + provider normalisation; hassfest +
   HACS validation already wired in `.github/workflows`.
-- **M8 — Rider personalisation**: rider profile (weight, ability) + quiver of
-  owned kit; a calibratable sizing model; quiver-aware kite/wing scoring and a
+- **M8 — Rider personalisation**: single-rider profile (weight, ability) + quiver
+  of owned kit; a calibratable sizing model; quiver-aware kite/wing scoring and a
   per-spot kit recommendation ("rig your 9m"). See Personalisation above.
 
 ## Testing strategy
@@ -165,8 +165,6 @@ too, so "go ride your 12m" reads naturally.
 - How aggressively should the AI rating be allowed to diverge from the
   deterministic score before we flag a mismatch?
 - Tide provider selection per region (UKHO for UK; what elsewhere?).
-- Personalisation: single rider vs multi-rider (household) in v1? How to model a
-  shared spot list with per-rider quivers/scores without an entity explosion.
 - Sizing-model calibration: ship rough defaults and let users tune `C_kite`/
   `C_wing`, or seed per-ability presets? Should board/foil volume feed wing
   sizing, or keep it wind+weight only for v1?
