@@ -145,8 +145,10 @@ one profile + quiver in config — so there's no per-rider entity multiplication
 - **M5 — Tide awareness**: factor tide state/height into scoring where the spot
   is tide-dependent.
 - **M6 — Notification blueprint**: "tell me when <spot> is good for <sport>".
-- **M7 — Tests & CI**: pytest for scoring + provider normalisation; hassfest +
-  HACS validation already wired in `.github/workflows`.
+- **M7 — Tests & CI** *(done)*: pytest for the scorer, profile overrides, the
+  water-type policy, and Open-Meteo normalisation (HA-free via a stub package);
+  CI runs tests + hassfest + HACS in `.github/workflows`. Config-flow/coordinator
+  tests needing the HA harness are deferred to the live-HA smoke test.
 - **M8 — Rider personalisation**: single-rider profile (weight, ability) + quiver
   of owned kit; a calibratable sizing model; quiver-aware kite/wing scoring and a
   per-spot kit recommendation ("rig your 9m"). See Personalisation above.

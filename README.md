@@ -70,6 +70,21 @@ Set up any **AI Task**-capable conversation agent (e.g. Anthropic/Claude,
 OpenAI, or a local model), then in Swelligence options → *AI / general settings*
 enable the LLM toggle and select the AI Task entity.
 
+## Development
+
+```bash
+pip install -r requirements-test.txt
+pytest                              # pure-logic suite (no Home Assistant needed)
+python3 scripts/validate_spots.py   # live Open-Meteo scoring sanity-check
+python3 scripts/analyze_history.py  # re-score the windiest recent days
+```
+
+The unit tests cover the deterministic scorer, profile overrides, the
+water-type policy, and Open-Meteo normalisation. They import the pure submodules
+via a stub package (`tests/conftest.py`) so they run without installing Home
+Assistant. Config-flow/coordinator tests that need the HA harness are tracked
+with the live-HA smoke test.
+
 ## Status
 
 **v0.1 — scaffold / foundation.** Core pipeline (provider → score → entities)
