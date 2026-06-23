@@ -157,9 +157,12 @@ one profile + quiver in config — so there's no per-rider entity multiplication
   the new `TIDE_PROVIDERS` registry (Stormglass doubles as a tide source).
   Per-provider API keys are entered in the options flow; `ForecastPoint` gained
   `sea_level_m` and `SpotForecast` a `tide_events` list. Wiring the tide overlay
-  into the coordinator is M5's job. Live verification against the paid APIs is
-  pending real keys — response normalisers are unit-tested with captured-shape
-  fixtures.
+  into the coordinator is M5's job. **Stormglass is live-verified** against the
+  real API (weather + tide events normalise correctly). A **"Free tier"** toggle
+  per keyed provider auto-throttles polling to the provider's daily request
+  budget (`free_tier_daily_requests`/`requests_per_fetch`, shared across spots on
+  that provider) so a free plan can't be exhausted — Stormglass free = 10/day →
+  6 h min interval for one spot. Windy/UKHO live verification still pending keys.
 - **M5 — Tide awareness**: factor tide state/height into scoring where the spot
   is tide-dependent.
 - **M6 — Notification blueprint**: "tell me when <spot> is good for <sport>".

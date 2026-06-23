@@ -29,6 +29,7 @@ from .const import (
     COMPASS_SECTORS,
     CONF_AI_TASK_ENTITY,
     CONF_API_KEY,
+    CONF_FREE_TIER,
     CONF_DEFAULT_PROVIDER,
     CONF_LATITUDE,
     CONF_LONGITUDE,
@@ -431,24 +432,33 @@ class SwelligenceOptionsFlow(OptionsFlow):
             return self.async_abort(reason="no_keyed_providers")
         stored = dict(self.config_entry.options.get(CONF_PROVIDERS, {}) or {})
         if user_input is not None:
-            for key in _KEYED_PROVIDERS:
+            for key, cls in _KEYED_PROVIDERS.items():
                 value = (user_input.get(key) or "").strip()
-                if value:
-                    stored[key] = {**stored.get(key, {}), CONF_API_KEY: value}
-                else:
+                if not value:
                     stored.pop(key, None)
+                    continue
+                cfg = {**stored.get(key, {}), CONF_API_KEY: value}
+                if cls.free_tier_daily_requests:
+                    cfg[CONF_FREE_TIER] = bool(user_input.get(f"{key}_{CONF_FREE_TIER}"))
+                stored[key] = cfg
             return self._save({CONF_PROVIDERS: stored})
 
         fields: dict = {}
         for key, cls in _KEYED_PROVIDERS.items():
-            current = (stored.get(key, {}) or {}).get(CONF_API_KEY)
+            saved = stored.get(key, {}) or {}
             fields[
-                vol.Optional(
-                    key, description={"suggested_value": current}
-                )
+                vol.Optional(key, description={"suggested_value": saved.get(CONF_API_KEY)})
             ] = selector.TextSelector(
                 selector.TextSelectorConfig(type=selector.TextSelectorType.PASSWORD)
             )
+            # Free-tier safe-poll toggle, only for providers with a known quota.
+            if cls.free_tier_daily_requests:
+                fields[
+                    vol.Optional(
+                        f"{key}_{CONF_FREE_TIER}",
+                        default=bool(saved.get(CONF_FREE_TIER)),
+                    )
+                ] = selector.BooleanSelector()
         return self.async_show_form(
             step_id="providers", data_schema=vol.Schema(fields)
         )

@@ -83,6 +83,13 @@ class ForecastProvider(ABC):
     requires_api_key: bool = False
     #: Whether this provider can supply marine (wave/swell) data.
     supports_marine: bool = True
+    #: Free-tier daily request budget, if the provider has a known free quota
+    #: (``None`` = no free tier / unmetered). Drives the "Free tier" safe-poll
+    #: interval in the options flow.
+    free_tier_daily_requests: int | None = None
+    #: API requests consumed per :meth:`async_fetch` — used to size the
+    #: free-tier poll interval so continuous polling stays under the budget.
+    requests_per_fetch: int = 1
 
     def __init__(self, session: ClientSession, api_key: str | None = None) -> None:
         self._session = session

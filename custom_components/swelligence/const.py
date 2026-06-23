@@ -22,6 +22,9 @@ CONF_QUIVER: Final = "quiver"  # {sport: [sizes_m2]}
 
 # Per-provider API key field (nested under CONF_PROVIDERS[key]["api_key"])
 CONF_API_KEY: Final = "api_key"
+# Per-provider free-tier flag — when set, polling is auto-throttled to the
+# provider's free daily request budget (nested under CONF_PROVIDERS[key]).
+CONF_FREE_TIER: Final = "free_tier"
 
 # add_spot: optional place-name search resolved via Open-Meteo geocoding.
 CONF_PLACE_QUERY: Final = "place_query"
