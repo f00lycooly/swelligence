@@ -20,7 +20,6 @@ from swelligence.providers.domains import (
     stamp_sources,
 )
 from swelligence.providers.open_meteo import OpenMeteoProvider
-from swelligence.providers.stormglass import StormglassProvider
 
 
 def _forecast(**kw) -> SpotForecast:
@@ -36,8 +35,8 @@ def test_stamp_sources_writes_per_domain():
 def test_stamp_sources_overwrites_for_overlay():
     fc = _forecast()
     stamp_sources(fc, "open_meteo", {WIND, WAVE})
-    stamp_sources(fc, "stormglass", {WAVE})  # an overlay re-stamps just waves
-    assert fc.source_meta["sources"] == {"wind": "open_meteo", "wave": "stormglass"}
+    stamp_sources(fc, "overlay", {WAVE})  # an overlay re-stamps just waves
+    assert fc.source_meta["sources"] == {"wind": "open_meteo", "wave": "overlay"}
 
 
 def test_assert_legal_domains_accepts_legal_and_rejects_illegal():
@@ -78,8 +77,12 @@ def test_open_meteo_inland_only_wind_air():
     assert set(fc.source_meta["sources"]) == {WIND, AIR}
 
 
-def test_stormglass_claims_tide_only_with_events():
-    p = StormglassProvider(None)
+def test_stamp_sources_discards_tide_without_events():
+    # _stamp_sources drops a claimed TIDE domain unless tide events exist.
+    class _TideyForecaster(OpenMeteoProvider):
+        provides_domains = frozenset({WIND, AIR, WAVE, WATER, TIDE})
+
+    p = _TideyForecaster(None)
     no_tide = _forecast()
     p._stamp_sources(no_tide, marine=True)
     assert TIDE not in no_tide.source_meta["sources"]

@@ -42,7 +42,7 @@ def test_prompt_includes_confidence_and_low_agreement():
         swell_period_s=11.0,
         source_confidence={"wave_height_m": 0.95, "swell_period_s": 0.2},
     )
-    fc = _forecast(point, sources={WIND: "open_meteo", WAVE: "stormglass"})
+    fc = _forecast(point, sources={WIND: "open_meteo", WAVE: "open_meteo"})
     prompt = _build_prompt(
         SPOT, fc, {"surf": _result()}, {"surf": SPORT_PROFILES["surf"]}
     )
@@ -62,12 +62,12 @@ def test_prompt_names_data_sources():
         swell_period_s=11.0,
         swell_dir_deg=200.0,
     )
-    fc = _forecast(point, sources={WIND: "open_meteo", WAVE: "stormglass"})
+    fc = _forecast(point, sources={WIND: "open_meteo", WAVE: "open_meteo"})
     prompt = _build_prompt(
         SPOT, fc, {"surf": _result()}, {"surf": SPORT_PROFILES["surf"]}
     )
     assert "data:" in prompt
-    assert "stormglass" in prompt  # WAVE source surfaced via data_quality
+    assert "swell: open_meteo" in prompt  # WAVE source surfaced via data_quality
 
 
 def test_prompt_omits_confidence_when_no_signal():

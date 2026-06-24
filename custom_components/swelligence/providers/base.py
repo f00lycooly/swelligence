@@ -44,9 +44,9 @@ class ForecastPoint:
     tide_factor: float | None = None
     #: Per-field model-agreement confidence (0..1), keyed by ForecastPoint field
     #: name (e.g. ``"wave_height_m"``). Populated when a provider retains the
-    #: spread across multiple source models for a field (Stormglass intra-model,
-    #: o07.2; cross-provider ensemble, o07.3). ``None``/absent = single source,
-    #: no agreement signal. Tight agreement -> high; wide divergence -> low.
+    #: spread across multiple source models for a field (e.g. Open-Meteo's
+    #: multi-model ``models=`` request). ``None``/absent = single source, no
+    #: agreement signal. Tight agreement -> high; wide divergence -> low.
     source_confidence: dict[str, float] | None = None
 
 
@@ -54,7 +54,7 @@ class ForecastPoint:
 class TideEvent:
     """A predicted tidal extreme (high or low water).
 
-    Populated by tide-capable providers/overlays (Stormglass, UKHO). The
+    Populated by tide overlays (UKHO, NOAA CO-OPS, Open-Meteo modeled). The
     deterministic scorer's tide awareness (M5) consumes this list; until then it
     is carried through untouched on :class:`SpotForecast`.
     """
@@ -163,9 +163,10 @@ class TideProvider(ABC):
 
     Tide is an *overlay*: it does not produce a full forecast, only a list of
     high/low water events that augment a :class:`SpotForecast` from any
-    :class:`ForecastProvider`. UK-only sources (UKHO) and global ones
-    (Stormglass) implement this same shape so the coordinator can attach tides
-    independently of the wind/wave provider in use.
+    :class:`ForecastProvider`. Region authorities (UKHO for the UK, NOAA CO-OPS
+    for the US) and the keyless global modeled fallback implement this same shape
+    so the coordinator can attach tides independently of the wind/wave provider,
+    resolved by region/priority (see :func:`..authority.resolve_overlay`).
     """
 
     #: Registry key stored in config (e.g. ``"ukho"``).

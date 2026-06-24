@@ -322,9 +322,9 @@ class SpotCoordinator(DataUpdateCoordinator[SpotData]):
         """Stamp each point's tide_factor for a tide-dependent spot.
 
         Tide-dependence is a per-spot setting (CONF_TIDE_STATE). Inland spots and
-        spots set to ``any`` are skipped. Tide events come from the forecast
-        provider when it supplies them (Stormglass); otherwise a configured tide
-        overlay (UKHO / Stormglass) is fetched and cached.
+        spots set to ``any`` are skipped. Tide events come from the region-resolved
+        tide overlay (UKHO / NOAA CO-OPS / Open-Meteo modeled fallback), fetched
+        and cached.
         """
         if water_type == WATER_TYPE_INLAND:
             return

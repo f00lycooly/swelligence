@@ -2,9 +2,9 @@
 
 The suitability score says how good conditions are; it cannot say whether a spot
 is even *listening to the best source* for each domain. Some providers are
-authoritative for some data: UKHO Admiralty is the gold standard for UK tides;
-keyed marine models (Stormglass) resolve exposed-coast swell better than
-Open-Meteo's nearest-coastal grid; for wind, Open-Meteo is perfectly fine.
+authoritative for some data: UKHO Admiralty (UK) and NOAA CO-OPS (US) give
+harmonic tides where the modeled fallback is only indicative; for wind/waves,
+Open-Meteo is the source.
 
 That ranking is **not** hardcoded here. Each provider *declares* the domains it
 is an authority for (``authority_rank``) and the region it covers (``covers``);
@@ -47,7 +47,7 @@ _REASONS: dict[str, str] = {
 # falls back to its registry key, so this never blocks adding a provider.
 _PROVIDER_NAMES: dict[str, str] = {
     "open_meteo": "Open-Meteo",
-    "stormglass": "Stormglass",
+    "open_meteo_tide": "Open-Meteo (modeled)",
     "ukho": "UKHO Admiralty",
     "noaa_coops": "NOAA CO-OPS",
     "worldtides": "WorldTides",
@@ -63,9 +63,9 @@ assert_legal_domains(_DOMAIN_LABELS, where="authority._DOMAIN_LABELS")
 def _all_providers() -> dict[str, type]:
     """Every registered provider class, keyed by registry key (deduped).
 
-    A class registered as both a forecast and a tide provider (Stormglass)
-    appears once. Reading from the live registries is what makes authority
-    self-updating as providers are registered or removed.
+    A class registered in both the forecast and tide registries appears once.
+    Reading from the live registries is what makes authority self-updating as
+    providers are registered or removed.
     """
     merged: dict[str, type] = {}
     merged.update(TIDE_PROVIDERS)

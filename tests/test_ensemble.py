@@ -86,7 +86,7 @@ def test_alignment_by_timestamp():
 
 
 def test_merges_with_existing_confidence():
-    # A provider's own intra-model confidence (e.g. Stormglass base) survives.
+    # A provider's own intra-model confidence (e.g. multi-model spread) survives.
     base = [_pt(T0, wave_height_m=1.5, swell_period_s=11.0,
                 source_confidence={"swell_period_s": 0.9})]
     overlay = [_pt(T0, wave_height_m=1.5)]

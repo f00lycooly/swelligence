@@ -43,11 +43,11 @@ def test_surf_windsea_only_names_swell_gaps():
 def test_surf_clean_groundswell_has_no_swell_issues():
     fc = _forecast(
         _point(wave_height_m=1.4, swell_period_s=12.0, swell_dir_deg=210.0),
-        sources={WIND: "open_meteo", WAVE: "stormglass"},
+        sources={WIND: "open_meteo", WAVE: "open_meteo"},
     )
     q = data_quality(fc, SPORT_PROFILES["surf"])
     assert q["issues"] == []
-    assert "swell: stormglass" in q["summary"]
+    assert "swell: open_meteo" in q["summary"]
 
 
 def test_marine_unavailable_flags_missing_waves():
@@ -95,10 +95,10 @@ def test_seaswim_flags_missing_water_temp():
 def test_seaswim_names_water_source_when_present():
     fc = _forecast(
         _point(wave_height_m=0.3, water_temp_c=15.0),
-        sources={WIND: "open_meteo", WAVE: "open_meteo", WATER: "stormglass"},
+        sources={WIND: "open_meteo", WAVE: "open_meteo", WATER: "open_meteo"},
     )
     q = data_quality(fc, SPORT_PROFILES["seaswim"])
-    assert "water temp: stormglass" in q["summary"]
+    assert "water temp: open_meteo" in q["summary"]
     assert "no water temperature" not in q["issues"]
 
 

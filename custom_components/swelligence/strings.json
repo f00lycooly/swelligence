@@ -110,8 +110,6 @@
         "title": "Forecast provider API keys",
         "description": "Enter API keys for the keyed providers you want to use. Leave a field blank to keep a provider disabled. Open-Meteo needs no key and always works. Tick 'Free tier' to auto-throttle polling so a free plan's daily request limit isn't exceeded.",
         "data": {
-          "stormglass": "Stormglass API key",
-          "stormglass_free_tier": "Stormglass: free tier (auto-limit polling)",
           "ukho": "UKHO Admiralty API key (UK tides)",
           "tide_source": "Tide source (for tide-dependent spots)",
           "marine_source": "Marine overlay source (waves/swell)",

@@ -20,24 +20,21 @@ from .base import (
 from .domains import assert_legal_domains
 from .noaa_coops import NOAACoopsTideProvider
 from .open_meteo import OpenMeteoProvider, OpenMeteoTideProvider
-from .stormglass import StormglassProvider
 from .ukho import UKHOTideProvider
 
 # Registry of available forecast providers, keyed by the value stored in config.
-# Open-Meteo is the keyless default that always works; Stormglass is keyed (its
-# API key is stored per-provider under CONF_PROVIDERS).
+# Open-Meteo is the keyless default and (since the single-source simplification)
+# the only forecast provider.
 PROVIDERS: dict[str, type[ForecastProvider]] = {
     OpenMeteoProvider.key: OpenMeteoProvider,
-    StormglassProvider.key: StormglassProvider,
 }
 
 # Registry of tide overlays, resolved by region/priority (see authority.py).
-# UKHO (UK) and Stormglass (global, keyed) are authority sources; Open-Meteo's
-# modeled tide is the keyless priority-0 global fallback so every spot gets one.
+# UKHO (UK) and NOAA CO-OPS (US) are regional authorities; Open-Meteo's modeled
+# tide is the keyless priority-0 global fallback so every spot gets one.
 TIDE_PROVIDERS: dict[str, type[TideProvider]] = {
     UKHOTideProvider.key: UKHOTideProvider,
     NOAACoopsTideProvider.key: NOAACoopsTideProvider,
-    StormglassProvider.key: StormglassProvider,
     OpenMeteoTideProvider.key: OpenMeteoTideProvider,
 }
 
@@ -98,7 +95,6 @@ __all__ = [
     "NOAACoopsTideProvider",
     "OpenMeteoProvider",
     "OpenMeteoTideProvider",
-    "StormglassProvider",
     "UKHOTideProvider",
     "PROVIDERS",
     "TIDE_PROVIDERS",

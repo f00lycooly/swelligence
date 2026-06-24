@@ -1,8 +1,8 @@
-"""Unit tests for the keyed-provider normalisers (no network).
+"""Unit tests for the tide-provider normalisers (no network).
 
-Stormglass and UKHO factor their response parsing into pure static methods so the
-metres/second -> knots conversion and nearest-station logic are testable without
-live (paid) API calls.
+UKHO, NOAA CO-OPS, and the Open-Meteo modeled fallback factor their parsing into
+pure static helpers so nearest-station logic and event derivation are testable
+without live API calls.
 """
 
 from __future__ import annotations
@@ -14,61 +14,7 @@ from datetime import timezone
 from swelligence.geo import haversine_km as _haversine
 from swelligence.providers.noaa_coops import NOAACoopsTideProvider
 from swelligence.providers.open_meteo import _derive_tide_extremes
-from swelligence.providers.stormglass import StormglassProvider
 from swelligence.providers.ukho import UKHOTideProvider
-
-# --- Stormglass -------------------------------------------------------------
-
-SG_WEATHER = {
-    "hours": [
-        {
-            "time": "2026-06-23T12:00:00+00:00",
-            "windSpeed": {"sg": 5.0, "noaa": 4.0},
-            "gust": {"sg": 8.0},
-            "windDirection": {"sg": 200.0},
-            "waveHeight": {"sg": 0.8},
-            "airTemperature": {"noaa": 18.0},  # no 'sg' -> falls back to noaa
-            "waterTemperature": {"sg": 17.0},
-        },
-        {"time": "2026-06-23T13:00:00+00:00", "windSpeed": {"sg": 10.0}},
-    ]
-}
-SG_TIDES = {
-    "data": [
-        {"time": "2026-06-23T06:30:00+00:00", "type": "high", "height": 1.4},
-        {"time": "2026-06-23T12:45:00+00:00", "type": "low", "height": -0.2},
-    ]
-}
-
-
-def test_stormglass_wind_ms_to_knots_and_source_pick():
-    pts = StormglassProvider._parse_weather(SG_WEATHER)
-    assert len(pts) == 2
-    assert pts[0].wind_speed_kn == pytest.approx(9.7, abs=0.05)
-    assert pts[0].wind_gust_kn == pytest.approx(15.6, abs=0.05)
-    # windDirection is not a speed -> not converted.
-    assert pts[0].wind_dir_deg == 200.0
-    # airTemperature falls back to 'noaa' when 'sg' absent.
-    assert pts[0].air_temp_c == 18.0
-    assert pts[1].wind_speed_kn == pytest.approx(19.4, abs=0.05)
-
-
-def test_stormglass_missing_params_left_none():
-    pts = StormglassProvider._parse_weather(SG_WEATHER)
-    assert pts[1].wave_height_m is None
-    assert pts[1].air_temp_c is None
-
-
-def test_stormglass_tides():
-    events = StormglassProvider._parse_tides(SG_TIDES)
-    assert [e.kind for e in events] == ["high", "low"]
-    assert events[0].height_m == 1.4
-    assert events[1].height_m == -0.2
-
-
-def test_stormglass_empty():
-    assert StormglassProvider._parse_weather(None) == []
-    assert StormglassProvider._parse_tides({}) == []
 
 
 # --- UKHO -------------------------------------------------------------------
