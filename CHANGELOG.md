@@ -1,3 +1,11 @@
+## v0.1.1 — 2026-06-24
+
+- chore(beads): close vl9 (search-first add-spot)
+- Merge pull request 'feat(config-flow): search-first add-spot (place-name geocoding primary)' (#21) from feature/search-first-add-spot into main
+- feat(config-flow): search-first add-spot (place-name geocoding primary)
+- chore(beads): close ckl epic — HACS release pipeline complete (v0.1.0 live)
+
+
 # Changelog
 
 All notable changes per release. Versions follow semver; tags are `vX.Y.Z`.
