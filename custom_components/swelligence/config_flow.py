@@ -68,7 +68,7 @@ from .const import (
     WATER_TYPE_SEA,
     WATER_TYPES,
 )
-from .geocoding import async_geocode
+from .geocoding import GeocodeResult, async_geocode
 from .providers import PROVIDERS, TIDE_PROVIDERS
 from .sports import SPORT_PROFILES, apply_overrides
 from .tide import TIDE_STATE_ANY, TIDE_STATES
@@ -148,6 +148,14 @@ _PROVIDER_OPTIONS = [
 ]
 # Per-spot primary-provider routing (depends on _PROVIDER_OPTIONS above).
 _PROVIDER_ROUTE_OPTIONS = [_INHERIT_OPTION] + _PROVIDER_OPTIONS
+
+
+# add_spot form keys that aren't persisted spot fields: the "enter coordinates
+# manually" escape hatch and the in-flight custom-name override carried between
+# the search step and location resolution.
+_MANUAL_COORDS = "manual_coords"
+_NAME_OVERRIDE = "_name_override"
+_QUERY = "_query"
 
 
 def _slugify(name: str) -> str:
@@ -286,39 +294,46 @@ class SwelligenceOptionsFlow(OptionsFlow):
     async def async_step_add_spot(
         self, user_input: dict[str, Any] | None = None
     ) -> ConfigFlowResult:
+        """Add a spot by searching for a place name (primary path).
+
+        Everything except the location is captured here; the location is then
+        resolved from the geocoder (``add_spot_pick`` when several places match)
+        or, for an unnamed break, entered directly (``add_spot_coords``).
+        """
         errors: dict[str, str] = {}
         if user_input is not None:
-            spots = list(self.config_entry.options.get(CONF_SPOTS, []))
-            spot_id = _slugify(user_input[CONF_SPOT_NAME])
-            if any(s["id"] == spot_id for s in spots):
-                errors["base"] = "duplicate_spot"
+            # Carry the spot's config while we resolve its location.
+            self._pending_spot = {
+                CONF_WATER_TYPE: user_input[CONF_WATER_TYPE],
+                CONF_SPOT_SPORTS: user_input[CONF_SPOT_SPORTS],
+                CONF_TIDE_STATE: user_input.get(CONF_TIDE_STATE, TIDE_STATE_ANY),
+                CONF_TIDE_WINDOW_H: user_input.get(CONF_TIDE_WINDOW_H),
+                _NAME_OVERRIDE: (user_input.get(CONF_SPOT_NAME) or "").strip(),
+            }
+            if user_input.get(_MANUAL_COORDS):
+                return await self.async_step_add_spot_coords()
+            query = (user_input.get(CONF_PLACE_QUERY) or "").strip()
+            if not query:
+                errors["base"] = "geocode_query_required"
             else:
-                # Carry the spot's metadata while we resolve coordinates.
-                self._pending_spot = {
-                    "id": spot_id,
-                    CONF_SPOT_NAME: user_input[CONF_SPOT_NAME],
-                    CONF_WATER_TYPE: user_input[CONF_WATER_TYPE],
-                    CONF_SPOT_SPORTS: user_input[CONF_SPOT_SPORTS],
-                    CONF_TIDE_STATE: user_input.get(CONF_TIDE_STATE, TIDE_STATE_ANY),
-                    CONF_TIDE_WINDOW_H: user_input.get(CONF_TIDE_WINDOW_H),
-                }
-                query = (user_input.get(CONF_PLACE_QUERY) or "").strip()
-                if query:
-                    session = async_get_clientsession(self.hass)
-                    results = await async_geocode(session, query)
-                    if not results:
-                        errors["base"] = "geocode_no_results"
-                    elif len(results) == 1:
-                        return self._finish_add_spot(
-                            results[0].latitude, results[0].longitude
-                        )
-                    else:
-                        self._geocode_choices = results
-                        return await self.async_step_add_spot_pick()
-                else:
-                    return self._finish_add_spot(
-                        user_input[CONF_LATITUDE], user_input[CONF_LONGITUDE]
+                session = async_get_clientsession(self.hass)
+                results = await async_geocode(session, query)
+                if not results:
+                    errors["base"] = "geocode_no_results"
+                elif len(results) == 1:
+                    result, err = self._commit_spot(
+                        self._spot_name(results[0]),
+                        results[0].latitude,
+                        results[0].longitude,
                     )
+                    if err:
+                        errors["base"] = err
+                    else:
+                        return result
+                else:
+                    self._geocode_choices = results
+                    self._pending_spot[_QUERY] = query
+                    return await self.async_step_add_spot_pick()
 
         enabled = self.config_entry.options.get(CONF_SPORTS, list(SPORT_PROFILES))
         spot_sport_options = [
@@ -326,22 +341,8 @@ class SwelligenceOptionsFlow(OptionsFlow):
         ]
         schema = vol.Schema(
             {
-                vol.Required(CONF_SPOT_NAME): selector.TextSelector(),
                 vol.Optional(CONF_PLACE_QUERY): selector.TextSelector(),
-                vol.Required(
-                    CONF_LATITUDE, default=self.hass.config.latitude
-                ): selector.NumberSelector(
-                    selector.NumberSelectorConfig(
-                        min=-90, max=90, step="any", mode="box"
-                    )
-                ),
-                vol.Required(
-                    CONF_LONGITUDE, default=self.hass.config.longitude
-                ): selector.NumberSelector(
-                    selector.NumberSelectorConfig(
-                        min=-180, max=180, step="any", mode="box"
-                    )
-                ),
+                vol.Optional(CONF_SPOT_NAME): selector.TextSelector(),
                 vol.Required(
                     CONF_WATER_TYPE, default=WATER_TYPE_SEA
                 ): selector.SelectSelector(
@@ -358,6 +359,9 @@ class SwelligenceOptionsFlow(OptionsFlow):
                     )
                 ),
                 **_tide_fields(),
+                vol.Optional(
+                    _MANUAL_COORDS, default=False
+                ): selector.BooleanSelector(),
             }
         )
         return self.async_show_form(
@@ -371,9 +375,16 @@ class SwelligenceOptionsFlow(OptionsFlow):
         choices = self._geocode_choices or []
         if not choices or self._pending_spot is None:
             return await self.async_step_add_spot()
+        errors: dict[str, str] = {}
         if user_input is not None:
             choice = choices[int(user_input["match"])]
-            return self._finish_add_spot(choice.latitude, choice.longitude)
+            result, err = self._commit_spot(
+                self._spot_name(choice), choice.latitude, choice.longitude
+            )
+            if err:
+                errors["base"] = err
+            else:
+                return result
 
         options = [
             selector.SelectOptionDict(value=str(i), label=r.label)
@@ -389,17 +400,93 @@ class SwelligenceOptionsFlow(OptionsFlow):
         return self.async_show_form(
             step_id="add_spot_pick",
             data_schema=schema,
-            description_placeholders={"name": self._pending_spot[CONF_SPOT_NAME]},
+            errors=errors,
+            description_placeholders={
+                "name": self._pending_spot.get(_NAME_OVERRIDE)
+                or self._pending_spot.get(_QUERY)
+                or "your search"
+            },
         )
 
-    def _finish_add_spot(self, lat: float, lon: float) -> ConfigFlowResult:
-        """Append the pending spot with resolved coordinates and save."""
-        spot = {**self._pending_spot, CONF_LATITUDE: lat, CONF_LONGITUDE: lon}
+    async def async_step_add_spot_coords(
+        self, user_input: dict[str, Any] | None = None
+    ) -> ConfigFlowResult:
+        """Fallback: enter coordinates directly for a break the geocoder can't
+        resolve. The rest of the spot config was captured in ``add_spot``."""
+        if self._pending_spot is None:
+            return await self.async_step_add_spot()
+        errors: dict[str, str] = {}
+        if user_input is not None:
+            result, err = self._commit_spot(
+                user_input[CONF_SPOT_NAME],
+                user_input[CONF_LATITUDE],
+                user_input[CONF_LONGITUDE],
+            )
+            if err:
+                errors["base"] = err
+            else:
+                return result
+
+        override = self._pending_spot.get(_NAME_OVERRIDE)
+        name_key = (
+            vol.Required(CONF_SPOT_NAME, default=override)
+            if override
+            else vol.Required(CONF_SPOT_NAME)
+        )
+        schema = vol.Schema(
+            {
+                name_key: selector.TextSelector(),
+                vol.Required(
+                    CONF_LATITUDE, default=self.hass.config.latitude
+                ): selector.NumberSelector(
+                    selector.NumberSelectorConfig(
+                        min=-90, max=90, step="any", mode="box"
+                    )
+                ),
+                vol.Required(
+                    CONF_LONGITUDE, default=self.hass.config.longitude
+                ): selector.NumberSelector(
+                    selector.NumberSelectorConfig(
+                        min=-180, max=180, step="any", mode="box"
+                    )
+                ),
+            }
+        )
+        return self.async_show_form(
+            step_id="add_spot_coords", data_schema=schema, errors=errors
+        )
+
+    def _spot_name(self, result: GeocodeResult) -> str:
+        """Spot name: the user's override if given, else the matched place."""
+        return (self._pending_spot or {}).get(_NAME_OVERRIDE) or result.name
+
+    def _commit_spot(
+        self, name: str, lat: float, lon: float
+    ) -> tuple[ConfigFlowResult | None, str | None]:
+        """Append the pending spot with a resolved name + coordinates and save.
+
+        Returns ``(result, None)`` on success, or ``(None, error_key)`` when the
+        name collides with an existing spot so the caller re-shows the form.
+        """
+        name = (name or "").strip() or "Spot"
+        spot_id = _slugify(name)
         spots = list(self.config_entry.options.get(CONF_SPOTS, []))
+        if any(s["id"] == spot_id for s in spots):
+            return None, "duplicate_spot"
+        spot = {
+            "id": spot_id,
+            CONF_SPOT_NAME: name,
+            CONF_WATER_TYPE: self._pending_spot[CONF_WATER_TYPE],
+            CONF_SPOT_SPORTS: self._pending_spot[CONF_SPOT_SPORTS],
+            CONF_TIDE_STATE: self._pending_spot[CONF_TIDE_STATE],
+            CONF_TIDE_WINDOW_H: self._pending_spot[CONF_TIDE_WINDOW_H],
+            CONF_LATITUDE: lat,
+            CONF_LONGITUDE: lon,
+        }
         spots.append(spot)
         self._pending_spot = None
         self._geocode_choices = None
-        return self._save({CONF_SPOTS: spots})
+        return self._save({CONF_SPOTS: spots}), None
 
     async def async_step_edit_spot(
         self, user_input: dict[str, Any] | None = None

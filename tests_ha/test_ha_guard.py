@@ -121,6 +121,63 @@ async def test_options_edit_spot_chain_renders(hass, options_entry) -> None:
     assert result["step_id"] == "edit_spot_fields"
 
 
+async def test_options_add_spot_search_chain(hass, options_entry) -> None:
+    """Search-first add-spot: query -> disambiguation pick -> save.
+
+    Geocoding is mocked (no network); the chosen match must supply the spot's
+    name and coordinates.
+    """
+    from unittest.mock import AsyncMock, patch
+
+    from custom_components.swelligence.geocoding import GeocodeResult
+
+    matches = [
+        GeocodeResult("Christchurch", 50.73, -1.78, "United Kingdom", "England"),
+        GeocodeResult("Christchurch", -43.53, 172.63, "New Zealand", "Canterbury"),
+    ]
+    result = await hass.config_entries.options.async_init(options_entry.entry_id)
+    result = await hass.config_entries.options.async_configure(
+        result["flow_id"], {"next_step_id": "add_spot"}
+    )
+    assert result["step_id"] == "add_spot"
+    with patch(
+        "custom_components.swelligence.config_flow.async_geocode",
+        AsyncMock(return_value=matches),
+    ):
+        result = await hass.config_entries.options.async_configure(
+            result["flow_id"],
+            {"place_query": "Christchurch", "water_type": "sea", "sports": ["surf"]},
+        )
+    assert result["type"] == FlowResultType.FORM
+    assert result["step_id"] == "add_spot_pick"
+    result = await hass.config_entries.options.async_configure(
+        result["flow_id"], {"match": "0"}
+    )
+    assert result["type"] == FlowResultType.CREATE_ENTRY
+    new = [s for s in result["data"][CONF_SPOTS] if s["id"] == "christchurch"]
+    assert new and new[0]["latitude"] == 50.73 and new[0]["name"] == "Christchurch"
+
+
+async def test_options_add_spot_manual_coords_chain(hass, options_entry) -> None:
+    """Manual fallback: toggle 'enter coordinates' -> coords step -> save."""
+    result = await hass.config_entries.options.async_init(options_entry.entry_id)
+    result = await hass.config_entries.options.async_configure(
+        result["flow_id"], {"next_step_id": "add_spot"}
+    )
+    result = await hass.config_entries.options.async_configure(
+        result["flow_id"],
+        {"water_type": "sea", "sports": ["surf"], "manual_coords": True},
+    )
+    assert result["type"] == FlowResultType.FORM
+    assert result["step_id"] == "add_spot_coords"
+    result = await hass.config_entries.options.async_configure(
+        result["flow_id"],
+        {"name": "Secret Reef", "latitude": 50.5, "longitude": -1.9},
+    )
+    assert result["type"] == FlowResultType.CREATE_ENTRY
+    assert any(s["id"] == "secret_reef" for s in result["data"][CONF_SPOTS])
+
+
 async def test_options_spot_prefs_chain_renders(hass, options_entry) -> None:
     """Walk spot_prefs -> sport -> edit so every per-sport selector is built."""
     result = await hass.config_entries.options.async_init(options_entry.entry_id)
