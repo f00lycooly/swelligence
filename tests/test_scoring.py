@@ -8,6 +8,9 @@ import pytest
 
 from swelligence.providers.base import ForecastPoint
 from swelligence.scoring import (
+    INCOMPLETE_CAP,
+    MISSING_DATA,
+    NOT_CONFIGURED,
     SUITABLE_THRESHOLD,
     ScoreResult,
     best_window,
@@ -188,6 +191,92 @@ def test_missing_wind_skips_factor():
     res = score_point(pt(wave_height_m=0.5), p)  # no wind
     assert res.score == 100.0  # only wave scored, comfortable
     assert "wind" not in res.factors
+    # No essential_factors on a synthetic profile -> missing wind is non-essential
+    # -> no completeness cap, but the gap is still recorded.
+    assert res.completeness.get("wind") == MISSING_DATA
+
+
+# --- factor completeness semantics (slh.1) -----------------------------------
+
+def _essential(missing_field) -> SportProfile:
+    """A waves-desired profile that treats wave + swell as essential."""
+    return SportProfile(
+        key="e", label="E", icon="mdi:e", water="sea",
+        wind_min_kn=0, wind_ideal_kn=5, wind_max_kn=40, gust_max_kn=50,
+        wave_min_m=0.6, wave_ideal_m=1.5, wave_max_m=3.5,
+        swell_period_ideal_s=11,
+        weight_wind=0.6, weight_dir=0.0, weight_wave=1.0, weight_swell=0.7,
+        weight_gust=0.0, weight_temp=0.0,
+        essential_factors=frozenset({"wave", "swell"}),
+    )
+
+
+def test_essential_missing_caps_score():
+    # Great wave, but the sport treats swell as essential and there's no swell
+    # data -> capped, not averaged away to a flattering number.
+    res = score_point(pt(wave_height_m=1.5), _essential("swell"))
+    assert res.score <= INCOMPLETE_CAP
+    assert res.completeness.get("swell") == MISSING_DATA
+    assert "swell data unavailable" in " ".join(res.reasons)
+
+
+def test_essential_present_no_cap():
+    # Same profile, full data -> no completeness cap, scores high.
+    res = score_point(
+        pt(wave_height_m=1.5, swell_period_s=12), _essential("swell")
+    )
+    assert res.score > INCOMPLETE_CAP
+    assert "swell" not in res.completeness
+
+
+def test_non_essential_missing_is_not_capped():
+    # A profile where swell is scored but NOT essential: missing swell drops out
+    # of the mean (recorded) but does not cap an otherwise-good wave score.
+    p = SportProfile(
+        key="n", label="N", icon="mdi:n", water="sea",
+        wind_min_kn=0, wind_ideal_kn=5, wind_max_kn=40, gust_max_kn=50,
+        wave_min_m=0.6, wave_ideal_m=1.5, wave_max_m=3.5,
+        swell_period_ideal_s=11,
+        weight_wind=0.0, weight_dir=0.0, weight_wave=1.0, weight_swell=0.7,
+        weight_gust=0.0, weight_temp=0.0,
+    )  # essential_factors defaults to empty
+    res = score_point(pt(wave_height_m=1.5), p)  # no swell
+    assert res.score == 100.0
+    assert res.completeness.get("swell") == MISSING_DATA
+
+
+def test_not_configured_direction_nudges_without_changing_score():
+    # weight_dir > 0 and a wind bearing present, but no offshore window set:
+    # direction is "not configured" -> excluded from the mean (score unchanged
+    # vs wind alone), surfaced as a nudge, never as a condition penalty.
+    p = SportProfile(
+        key="c", label="C", icon="mdi:c", water="sea",
+        wind_min_kn=10, wind_ideal_kn=20, wind_max_kn=30, gust_max_kn=40,
+        wind_dirs=[],
+        weight_wind=1.0, weight_dir=0.8, weight_wave=0.0,
+        weight_gust=0.0, weight_temp=0.0,
+    )
+    res = score_point(pt(wind_speed_kn=20, wind_dir_deg=180), p)
+    assert res.score == 100.0  # wind ideal; direction not counted, not penalised
+    assert res.completeness.get("direction") == NOT_CONFIGURED
+    assert any("offshore" in n for n in res.nudges)
+    assert "direction" not in res.factors
+
+
+def test_not_applicable_factor_is_silent():
+    # Surf-like waves-desired profile doesn't score temp -> temp is neither in
+    # completeness (not a gap) nor a nudge, even with no water_temp data.
+    res = score_point(pt(wave_height_m=1.5, swell_period_s=12), _essential("x"))
+    assert "temp" not in res.completeness
+    assert res.nudges == [] or all("temp" not in n for n in res.nudges)
+
+
+def test_zero_weight_factor_never_flags_completeness():
+    # A factor the sport zero-weights must not produce a not_configured nudge
+    # nor a missing_data record, even with empty dirs and no bearing.
+    res = score_point(pt(wind_speed_kn=20), wind_only())  # weight_dir=0, dirs=[]
+    assert "direction" not in res.completeness
+    assert res.nudges == []
 
 
 # --- best window --------------------------------------------------------------

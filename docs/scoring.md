@@ -23,14 +23,18 @@ ForecastPoint + SportProfile
         │
         ▼
 ┌─────────────────────────────────────────────┐
-│ 2. Weighted mean of the *available* factors   │   score = 100 · Σ(fᵢ·wᵢ) / Σwᵢ
-│    (None and weight≤0 dropped)                │   over factors that apply
+│ 2. Classify each factor's completeness, then  │   score = 100 · Σ(fᵢ·wᵢ) / Σwᵢ
+│    weighted mean of the *applicable* factors  │   over applicable factors
+│    (see §2a — None is no longer one "unknown")│
 └─────────────────────────────────────────────┘
         │
         ▼
 ┌─────────────────────────────────────────────┐
-│ 3. HARD-FAIL cap: if wind OR wave factor == 0 │   score = min(score, 30)
-│    → cap at 30 (gust is exempt — see §2)       │
+│ 3a. HARD-FAIL cap: if wind OR wave factor == 0│   score = min(score, 30)
+│     → cap at 30 (gust is exempt — see §2)      │
+├─────────────────────────────────────────────┤
+│ 3b. INCOMPLETE cap: if any *essential* factor │   score = min(score, 50)
+│     has no provider data → cap at 50 (see §2a)│
 └─────────────────────────────────────────────┘
         │
         ▼
@@ -50,8 +54,47 @@ ForecastPoint + SportProfile
 ```
 
 The weighted **mean** (not sum) means a sport is scored only on the factors it
-cares about and has data for — a missing field lowers nothing; it just drops out
-of the denominator.
+cares about — but *how* a missing field is treated now depends on **why** it's
+missing (§2a), not a blanket "drop it from the denominator".
+
+---
+
+## 2a. Factor completeness (`slh.1`)
+
+A factor's `None` used to mean one thing — "unknown, ignore it". That silently
+treated missing-but-essential data as if it didn't matter (inflating scores) and
+let under-configured spots dodge strictness a tuned spot gets. Each factor is now
+classified into one of four **completeness states**:
+
+| State | When | Effect on score |
+|---|---|---|
+| `applicable` | factor has a value | contributes to the weighted mean (as before) |
+| `not_applicable` | sport doesn't score it (`weight ≤ 0`, or no window/feature set) | silent, free — excluded, no nudge |
+| `not_configured` | sport *would* score it and data exists, but **spot metadata** is missing (e.g. empty `wind_dirs`) | excluded from the mean (score unchanged) + a **nudge** so the gap is visible, not silently relaxed |
+| `missing_data` | sport scores it and is configured, but the **provider** returned `None` | recorded; if the factor is **essential** for the sport → **INCOMPLETE cap (50)** |
+
+**Essential factors** are an explicit per-sport set (`SportProfile.essential_factors`),
+kept conservative so config/grid realities don't false-cap:
+
+| Sport | essential | Sport | essential |
+|---|---|---|---|
+| kitesurf / windsurf / wingfoil / sailing | `wind` | surf | `wave`, `swell` |
+| sup | `wind` | seaswim | `wave`, `temp` |
+| wakeboard (inland) | `wind` | wakeboard (sea) | `wind`, `wave` |
+
+Atmospheric `wind` is essential everywhere (always supplied); marine
+`wave`/`swell`/`temp` are essential **only** for genuinely sea-defined sports
+(surf, sea-swim, sea-wakeboard) so inland / "any"-water spots aren't capped when
+no marine grid exists. A surf spot with no swell data therefore reads "incomplete
+/ marginal" rather than "epic" — honest about an unverifiable defining condition.
+The cap (`INCOMPLETE_CAP = 50`) sits below the `suitable` threshold (55) but above
+the known-bad hard-fail (30): *unknown* is less punitive than *known-bad*.
+
+`ScoreResult` carries `completeness` (per-factor state for the notable cases) and
+`nudges` (actionable config hints), both surfaced as sensor attributes. Scores are
+**identical to before whenever all data is present** — only the *absence* of data
+is now typed — so no recalibration is required for this change (broader fixtures:
+`slh.5`).
 
 ---
 
@@ -213,15 +256,13 @@ A scoring/safety review (2026-06-24) flagged fairness gaps and a missing safety
 dimension, now tracked under epic **`swelligence-slh` (Scoring fairness + safety
 markers)**:
 
-- **Missing data is neutral → optimistic.** `None` factors drop from the
-  denominator, so an *essential* missing field (surf without swell quality, swim
-  without water temp) scores as if it didn't matter. Fix: factor **completeness
-  semantics** — distinguish *not-applicable* / *not-configured* / *missing
-  provider data*, and cap per sport when an essential field is missing
-  (`slh.1`).
-- **Untuned spots can score higher.** Direction only scores when `wind_dirs` /
-  `swell_dirs` are set, so an unconfigured spot escapes strictness a tuned one
-  gets. Treated as *not-configured* above, surfaced as a nudge (`slh.1`).
+- **Missing data is neutral → optimistic.** ✅ *Fixed in `slh.1`* — factor
+  **completeness semantics** (§2a) distinguish *not-applicable* /
+  *not-configured* / *missing provider data*, and an essential-missing field now
+  caps the score (50) instead of dropping from the denominator.
+- **Untuned spots can score higher.** ✅ *Fixed in `slh.1`* — an unset `wind_dirs`
+  / `swell_dirs` is *not-configured*: excluded from the mean and surfaced as a
+  nudge rather than silently relaxing the strictness a tuned spot gets.
 - **Safety is not modelled.** Planned as a **separate first-class output**
   (`safety_flags`), not another weight: offshore-wind risk (good for surf, unsafe
   for SUP/swim), gust, extremes (the current hard-fails surfaced explicitly),
