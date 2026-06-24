@@ -13,6 +13,12 @@
 #   scripts/release.sh --dry-run       # show the computed version, change nothing
 #   scripts/release.sh --as 0.4.0      # force an explicit version
 #   scripts/release.sh --no-push       # bump + commit + tag locally, don't push
+#   scripts/release.sh --no-mirror-sync# push, but don't force the GitHub mirror sync
+#
+# Mirror model: the Forgejo push mirror is sync-on-release (NOT sync-on-commit),
+# so after pushing the tag this script forces a one-shot mirror sync via the
+# Forgejo API (push_mirrors-sync) — that is the ONLY time the GitHub mirror is
+# pushed on purpose, and it's what makes release.yml fire promptly.
 #
 # Bump rules (0.x-aware — pre-1.0, a breaking change bumps MINOR, not MAJOR):
 #   * any `feat!:` / `fix!:` / `BREAKING CHANGE` -> minor (pre-1.0) / major (>=1.0)
@@ -29,19 +35,53 @@ REMOTE="origin"   # Forgejo primary; the push mirror fans out to GitHub
 DRY_RUN=0
 PUSH=1
 STRICT=0
+MIRROR_SYNC=1
 FORCED=""
 
 while [[ $# -gt 0 ]]; do
   case "$1" in
-    --dry-run) DRY_RUN=1 ;;
-    --no-push) PUSH=0 ;;
-    --strict)  STRICT=1 ;;
-    --as)      FORCED="${2:-}"; shift ;;
-    -h|--help) sed -n '2,28p' "$0"; exit 0 ;;
+    --dry-run)         DRY_RUN=1 ;;
+    --no-push)         PUSH=0 ;;
+    --no-mirror-sync)  MIRROR_SYNC=0 ;;
+    --strict)          STRICT=1 ;;
+    --as)              FORCED="${2:-}"; shift ;;
+    -h|--help) sed -n '2,34p' "$0"; exit 0 ;;
     *) echo "unknown arg: $1" >&2; exit 2 ;;
   esac
   shift
 done
+
+# Force a one-shot sync of the Forgejo push mirror so the freshly-pushed tag
+# reaches GitHub now (the mirror is sync-on-release, not sync-on-commit). Owner/
+# repo + host are derived from the origin URL; the token comes from git's
+# credential store. Best-effort: a failure here never fails the release — the
+# tag is already on Forgejo, and the periodic interval / a manual "Synchronize
+# Now" are backstops.
+trigger_mirror_sync() {
+  local url host path owner repo token code
+  url="$(git remote get-url "$REMOTE")"
+  url="${url#*://}"; url="${url#*@}"        # strip scheme + any embedded creds
+  host="${url%%/*}"
+  path="${url#*/}"; path="${path%.git}"
+  owner="${path%%/*}"; repo="${path##*/}"
+  if [[ "$host" != *.* || -z "$owner" || -z "$repo" || "$owner" == "$path" ]]; then
+    echo "warn: couldn't parse Forgejo owner/repo from $REMOTE; sync the mirror manually." >&2
+    return 0
+  fi
+  token="$(printf 'protocol=https\nhost=%s\n\n' "$host" | git credential fill 2>/dev/null | sed -n 's/^password=//p')"
+  if [[ -z "$token" ]]; then
+    echo "warn: no stored credential for $host; sync the mirror manually (Forgejo -> Synchronize Now)." >&2
+    return 0
+  fi
+  code="$(curl -s -o /dev/null -w '%{http_code}' -X POST \
+    -H "Authorization: token $token" \
+    "https://$host/api/v1/repos/$owner/$repo/push_mirrors-sync")"
+  if [[ "$code" == "200" || "$code" == "204" ]]; then
+    echo "forced Forgejo push-mirror sync -> GitHub (HTTP $code)."
+  else
+    echo "warn: mirror sync trigger returned HTTP $code; use Forgejo 'Synchronize Now' if the tag doesn't appear." >&2
+  fi
+}
 
 cd "$(git rev-parse --show-toplevel)"
 
@@ -135,8 +175,14 @@ echo "committed + tagged v$next"
 if [[ "$PUSH" == "1" ]]; then
   git push "$REMOTE" HEAD
   git push "$REMOTE" "v$next"
-  echo "pushed to $REMOTE; the Forgejo push mirror will carry v$next to GitHub,"
-  echo "where release.yml publishes the GitHub Release HACS reads."
+  echo "pushed v$next to $REMOTE."
+  if [[ "$MIRROR_SYNC" == "1" ]]; then
+    trigger_mirror_sync
+  else
+    echo "(--no-mirror-sync) GitHub won't see v$next until the next mirror sync."
+  fi
+  echo "GitHub release.yml then validates the tag and publishes the Release HACS reads."
 else
   echo "local only (--no-push). Push with: git push $REMOTE HEAD && git push $REMOTE v$next"
+  echo "(then sync the mirror: Forgejo -> Synchronize Now, or re-run with push enabled.)"
 fi
