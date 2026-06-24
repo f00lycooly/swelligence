@@ -1,87 +1,43 @@
-## v0.1.1 — 2026-06-24
-
-- chore(beads): close vl9 (search-first add-spot)
-- Merge pull request 'feat(config-flow): search-first add-spot (place-name geocoding primary)' (#21) from feature/search-first-add-spot into main
-- feat(config-flow): search-first add-spot (place-name geocoding primary)
-- chore(beads): close ckl epic — HACS release pipeline complete (v0.1.0 live)
-
-
 # Changelog
 
 All notable changes per release. Versions follow semver; tags are `vX.Y.Z`.
 
+## v0.1.1 — 2026-06-24
+
+- feat(config-flow): search-first add-spot (place-name geocoding primary)
+
 ## v0.1.0 — 2026-06-24
 
-- chore(beads): close ckl.4, start ckl.3 (first release)
-- Merge pull request 'feat(release): force push-mirror sync on release (sync-on-release model) (ckl.4)' (#19) from feature/ckl4-release-mirror-sync into main
+- ci(release): ignore HACS `brands` check for custom repository (ckl.3)
 - feat(release): force push-mirror sync on release (sync-on-release model) (ckl.4)
-- chore(beads): close ckl.1 (release tooling merged)
-- Merge pull request 'ci(release): HACS release pipeline — tag-triggered Action + bump helper (ckl.1)' (#18) from feature/ckl-hacs-release-pipeline into main
 - ci(release): HACS release pipeline — tag-triggered Action + bump helper (ckl.1)
-- chore(beads): close swelligence-slh.1 (factor completeness, merged via PR #17)
-- Merge pull request 'feat(scoring): factor completeness semantics + essential-missing cap (slh.1)' (#17) from feature/slh-1-factor-completeness into main
-- chore(beads): note slh.1 implementation + PR #17
 - feat(scoring): factor completeness semantics + essential-missing cap (slh.1)
-- Merge pull request 'docs(claude): document deployment approach + build/test commands' (#16) from docs/deployment-approach into main
 - docs(mockups): add spot-detail card mockup + template
 - docs(scoring): record fairness/safety review limitations; file epic swelligence-slh
 - docs: document single-source architecture + full scoring reference
-- chore(beads): close akc + unr (capture); file 48w.7 scoring-consumption follow-up
 - feat(open-meteo): batch all spots into two calls (akc)
 - feat(open-meteo): capture 12 additional-detail fields (live-validated names)
-- chore(beads): close swelligence-48w.3 (remove Stormglass); update 48w.6 scope
 - refactor(providers): remove Stormglass provider (single-source forecast)
-- chore(beads): close swelligence-7sw (NOAA CO-OPS provider)
 - feat(providers): add NOAA CO-OPS tide provider (US, free/no-key, harmonic)
-- chore(beads): sync interaction log
-- chore(beads): close swelligence-48w.2 (enabling refactor); marine-overlay collapse -> 48w.6
 - feat(providers): Open-Meteo modeled tide fallback (keyless global, priority 0)
-- chore(beads): drop stray legality-UI note from swelligence-48w.2
-- chore(beads): file legality-UI requirement on swelligence-48w.2
 - refactor(providers): declarative overlay-capability model + region resolver
-- chore(beads): sequence data-fields + fetching before confidence re-source
 - refactor(providers): remove Windy provider (single-source simplification)
-- chore(beads): restructure provider strategy — single-source simplification epic
 - docs(research): marine data API research — batching, field mapping, providers
 - docs(claude): document deployment approach + build/test commands
-- Merge pull request 'docs(readme): document o07 confidence & source-intelligence features' (#15) from docs/o07-confidence-readme into main
 - docs(readme): document o07 confidence & source-intelligence features
-- Merge pull request 'feat(authority): provider-authority map + better-source nudges (o07.4)' (#14) from feature/o07.4-provider-authority into main
 - feat(authority): provider-authority map + 'better source' nudges (o07.4)
-- Merge pull request 'feat(llm): confidence + sources in the AI Task verdict (o07.5)' (#13) from feature/o07.5-llm-confidence-verdict into main
 - feat(llm): confidence + sources in the AI Task verdict (o07.5)
-- Merge pull request 'feat(confidence): cross-provider ensemble spread + consensus blend (o07.3)' (#12) from feature/o07.3-cross-provider-confidence into main
 - feat(confidence): cross-provider ensemble spread + consensus blend (o07.3)
-- Merge pull request 'feat(confidence): Stormglass intra-model agreement → confidence (o07.2)' (#11) from feature/o07.2-stormglass-confidence into main
 - feat(confidence): Stormglass intra-model agreement -> confidence (o07.2)
-- Merge pull request 'feat(quality): per-sensor data_quality attribute (o07.1)' (#10) from feature/o07.1-data-quality into main
 - feat(quality): per-sensor data_quality attribute (o07.1)
-- chore(beads): add epic o07 (forecast confidence & source intelligence); supersede al8.5
-- chore(beads): session activity log
-- chore(beads): close al8.4 (per-spot source routing)
-- Merge pull request 'feat(routing): per-spot, per-domain source routing (al8.4)' (#9) from feature/al8.4-source-routing into main
 - fix(config_flow): define _PROVIDER_ROUTE_OPTIONS after _PROVIDER_OPTIONS
 - feat(routing): per-spot, per-domain source routing (al8.4)
-- chore(beads): close al8.3 (swell-quality scoring)
-- Merge pull request 'feat(scoring): swell-quality scoring for surf (period + direction) — al8.3' (#8) from feature/al8.3-swell-scoring into main
 - feat(scoring): swell-quality scoring for surf (period + direction) — al8.3
-- chore(beads): close al8.2 (marine gap-fill overlay)
-- Merge pull request 'feat(coordinator): budget-aware marine gap-fill overlay (al8.2)' (#7) from feature/al8.2-marine-overlay into main
 - feat(coordinator): budget-aware marine gap-fill overlay (al8.2)
-- chore(beads): close c1v.6 (tide awareness)
-- Merge pull request 'feat(scoring): tide awareness for tide-dependent spots (M5 / c1v.6)' (#6) from feature/c1v.6-tide-scoring into main
 - feat(scoring): tide awareness for tide-dependent spots (M5 / c1v.6)
-- chore(beads): close al8.1 (per-domain source provenance)
-- Merge pull request 'feat(providers): per-domain source provenance in source_meta (al8.1)' (#5) from feature/al8.1-source-provenance into main
 - feat(providers): per-domain source provenance in source_meta (al8.1)
-- chore(beads): add epic al8 (multi-source forecast layering) + 5 phased children
-- chore(beads): close c1v.22 (free-tier auto-throttle)
-- Merge pull request 'feat(providers): Free-tier toggle auto-throttles polling to the daily budget' (#4) from feature/stormglass-free-tier into main
 - feat(providers): Free-tier toggle auto-throttles polling to the daily budget
-- chore(beads): close c1v.21 (sport priority moved to card)
-- Merge pull request 'feat: keyed providers, geocoding, spot editing, HA import/schema guard (P2)' (#2) from feature/p2-providers-geocoding-ci-guard into main
 - ci: re-trigger after runner workspace bind-mount fix
-- Merge pull request 'ci: hassfest host-mode + drop HACS (Forgejo-incompatible)' (#3) from ci/hassfest-hostmode-drop-hacs into feature/p2-providers-geocoding-ci-guard
 - fix(manifest): sort keys (domain, name, then alphabetical) for hassfest
 - ci: run hassfest host-mode, drop HACS (Forgejo-incompatible)
 - fix(ci): put repo root on sys.path for the HA guard suite
@@ -90,9 +46,7 @@ All notable changes per release. Versions follow semver; tags are `vX.Y.Z`.
 - ci: re-trigger after runner PATH fix (node toolcache now resolvable)
 - ci: re-trigger workflow after runner label fix
 - feat(card): move sport priority to a draggable card editor; drop integration option
-- chore(beads): close c1v.3/.5/.15/.20, add c1v.21
 - feat(providers,config-flow,ci): keyed providers, geocoding, spot editing, HA guard
-- Merge pull request 'chore: gitignore .superpowers design artifacts' (#1) from chore/ignore-superpowers into main
 - chore: gitignore .superpowers design artifacts and untrack them
 - feat(card): optional score (show_score) on ring views
 - fix(card): podium rings icon-led too (icon 22/26px, score 10/11px secondary)
@@ -105,18 +59,13 @@ All notable changes per release. Versions follow semver; tags are `vX.Y.Z`.
 - feat(card): M3 Lovelace suitability matrix + forecast drill-down
 - feat(forecast): 7-day suitability forecast via get_forecast service (M9)
 - docs(scope): finalize M9 forecast delivery per HA weather best-practice
-- chore(beads): file M9 forecast-timeline feature (currently only NOW is exposed)
-- chore(beads): close c1v.14 (live smoke test PASS), note c1v.15 schema-test need
 - fix(config): NumberSelector step=0.0001 rejected by HA -> step=any for coords
 - fix(entity): import DeviceInfo from device_registry (fixes live HA load)
-- chore(beads): c1v.14 smoke-test progress (deployed, loads clean, flow verified)
 - docs: live-HA deploy runbook + Vault token references for smoke test (c1v.14)
 - feat(personalisation): quiver-aware kite/wing scoring + kit recommendation (M8)
 - feat(sizing): rider sizing model — weight/wind -> ideal kite/wing size (M8)
 - test(M7): pytest suite for scorer, overrides, policy, provider normalisation
-- chore(beads): close c1v.2 (M1), file live-HA smoke-test task
 - feat(config): M1 per-spot preference overrides (offshore wind dirs + windows)
-- chore(beads): calibration memory + M1 surf-direction note
 - fix(scoring): recalibrate wing/kite upper end against 3 weeks of history
 - fix(scoring): graduated wave factor + softer gust handling (profile calibration)
 - fix(provider): suppress nearest-coastal marine data for inland/sheltered spots
@@ -127,4 +76,3 @@ All notable changes per release. Versions follow semver; tags are `vX.Y.Z`.
 - bd init: initialize beads issue tracking
 - chore: point project URLs at Forgejo instead of GitHub
 - feat: scaffold Swelligence — water/wind-sports suitability integration
-
