@@ -33,6 +33,12 @@ jobs:
 
   hassfest:
     name: Hassfest
+    # Forgejo-only: the `tinkernet-host` runner exists on this Forgejo instance,
+    # not on the GitHub mirror. On GitHub this job is skipped — release.yml runs
+    # hassfest there on ubuntu-latest instead (no container-workspace issue on
+    # GitHub-hosted runners), and the push mirror would otherwise leave this job
+    # queued forever against a runner label GitHub doesn't have.
+    if: ${{ !contains(github.server_url, 'github.com') }}
     # Host-mode (tinkernet-host), not ubuntu-latest: hassfest is a Docker
     # container action that bind-mounts ${{ github.workspace }} into a sibling
     # container via the host daemon. In a containerised (ubuntu-latest) job the
@@ -43,6 +49,6 @@ jobs:
       - uses: actions/checkout@v4
       - uses: home-assistant/actions/hassfest@master
 
-  # HACS validation removed: hacs/action validates the repo via the GitHub API
-  # (github.com/<owner>/<repo>) and returns 401 for a Forgejo-hosted repo. Run it
-  # on a GitHub mirror if HACS-store validation is ever needed.
+  # HACS validation runs in release.yml (tag-triggered, on the GitHub mirror)
+  # where hacs/action can reach the GitHub API. It returns 401 against Forgejo,
+  # so it is intentionally not part of this push/PR validation here.

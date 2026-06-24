@@ -91,8 +91,14 @@ per-entry `confidence` for dashboard cards.
 
 ### HACS (custom repository)
 
-1. HACS → ⋮ → *Custom repositories* → add this repo, category **Integration**.
-2. Install **Swelligence**, restart Home Assistant.
+> HACS only works with GitHub, so install from the GitHub mirror
+> (`https://github.com/f00lycooly/swelligence`). Development happens on Forgejo;
+> the mirror is the release surface HACS reads (see [docs/releasing.md](docs/releasing.md)).
+
+1. HACS → ⋮ → *Custom repositories* → add
+   `https://github.com/f00lycooly/swelligence`, category **Integration**.
+2. Install **Swelligence** (HACS offers the latest `vX.Y.Z` release), restart
+   Home Assistant.
 3. *Settings → Devices & Services → Add Integration → Swelligence*.
 4. Pick your sports + default provider (Open-Meteo needs no key).
 5. Open the integration's options → **Add a favourite spot**.
