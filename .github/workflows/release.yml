@@ -1,0 +1,59 @@
+name: Release
+
+# Runs on the GitHub mirror only. A `vX.Y.Z` tag pushed to Forgejo is carried
+# here by the Forgejo push mirror; this workflow validates it and publishes the
+# GitHub Release that HACS consumes. (Forgejo stays primary; GitHub is the
+# HACS-facing release surface — see docs/releasing.md.)
+
+on:
+  push:
+    tags:
+      - "v*"
+
+permissions:
+  contents: write   # create the Release
+
+jobs:
+  release:
+    name: Validate & publish
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Tag must match manifest version
+        run: |
+          tag="${GITHUB_REF_NAME#v}"
+          man="$(python3 -c "import json;print(json.load(open('custom_components/swelligence/manifest.json'))['version'])")"
+          echo "tag=$tag manifest=$man"
+          if [ "$tag" != "$man" ]; then
+            echo "::error::tag v$tag does not match manifest.json version $man" >&2
+            exit 1
+          fi
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+
+      - name: Pure-logic tests
+        run: |
+          pip install -r requirements-test.txt
+          pytest
+
+      - name: Real-HA import & schema guard
+        run: |
+          pip install -r requirements-ha-test.txt
+          pytest tests_ha -o asyncio_mode=auto
+
+      - name: Hassfest
+        uses: home-assistant/actions/hassfest@master
+
+      - name: HACS validation
+        uses: hacs/action@main
+        with:
+          category: integration
+
+      - name: Publish GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          generate_release_notes: true
+          name: ${{ github.ref_name }}
