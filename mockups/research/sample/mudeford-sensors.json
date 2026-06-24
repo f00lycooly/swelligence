@@ -101,13 +101,50 @@
     }
   },
   "sensor.swelligence_mudeford_surf_suitability": {
-    "state": "unavailable",
-    "last_updated_ts": 1782333869.7874088,
+    "state": "36.9",
+    "last_updated_ts": 1782333789.2230792,
     "attributes": {
       "state_class": "measurement",
+      "spot": "Mudeford",
+      "sport": "surf",
+      "sport_label": "Surf",
+      "verdict": "marginal",
+      "suitable": false,
+      "factors": {
+        "wind": 71.2,
+        "gust": 100.0,
+        "wave": 23.3,
+        "swell": 0.0
+      },
+      "reasons": [
+        "1kn",
+        "flat (0.3m)",
+        "short-period swell (3s)"
+      ],
+      "completeness": {
+        "direction": "not_configured"
+      },
+      "nudges": [
+        "set offshore wind directions for sharper scoring",
+        "set swell directions for sharper surf scoring"
+      ],
+      "best_score": 47.8,
+      "best_in_hours": 19,
+      "best_verdict": "marginal",
+      "data_sources": {
+        "water": "open_meteo",
+        "wind": "open_meteo",
+        "air": "open_meteo",
+        "wave": "open_meteo"
+      },
+      "data_quality": {
+        "summary": "wind: open_meteo; swell: open_meteo",
+        "issues": [],
+        "grid_distance_km": 3.0
+      },
+      "unit_of_measurement": "%",
       "icon": "mdi:surfing",
-      "friendly_name": "Surf suitability",
-      "unit_of_measurement": "%"
+      "friendly_name": "Swelligence: Mudeford Surf suitability"
     }
   },
   "sensor.swelligence_mudeford_sup_suitability": {
@@ -156,13 +193,47 @@
     }
   },
   "sensor.swelligence_mudeford_wakeboard_inland_suitability": {
-    "state": "unavailable",
-    "last_updated_ts": 1782333869.7875466,
+    "state": "53.9",
+    "last_updated_ts": 1782333789.2237635,
     "attributes": {
       "state_class": "measurement",
+      "spot": "Mudeford",
+      "sport": "wakeboard_inland",
+      "sport_label": "Wakeboard (inland)",
+      "verdict": "marginal",
+      "suitable": false,
+      "factors": {
+        "wind": 78.7,
+        "gust": 100.0,
+        "wave": 11.1
+      },
+      "reasons": [
+        "1kn",
+        "choppy (0.3m)"
+      ],
+      "completeness": {
+        "direction": "not_configured"
+      },
+      "nudges": [
+        "set offshore wind directions for sharper scoring"
+      ],
+      "best_score": 94.0,
+      "best_in_hours": 20,
+      "best_verdict": "epic",
+      "data_sources": {
+        "water": "open_meteo",
+        "wind": "open_meteo",
+        "air": "open_meteo",
+        "wave": "open_meteo"
+      },
+      "data_quality": {
+        "summary": "wind: open_meteo; waves: open_meteo",
+        "issues": [],
+        "grid_distance_km": 3.0
+      },
+      "unit_of_measurement": "%",
       "icon": "mdi:ski-water",
-      "friendly_name": "Wakeboard (inland) suitability",
-      "unit_of_measurement": "%"
+      "friendly_name": "Swelligence: Mudeford Wakeboard (inland) suitability"
     }
   },
   "binary_sensor.swelligence_mudeford_kitesurf_suitable_now": {
@@ -182,11 +253,11 @@
     }
   },
   "binary_sensor.swelligence_mudeford_surf_suitable_now": {
-    "state": "unavailable",
-    "last_updated_ts": 1782333869.787759,
+    "state": "off",
+    "last_updated_ts": 1782333789.2249055,
     "attributes": {
       "icon": "mdi:surfing",
-      "friendly_name": "Surf suitable now"
+      "friendly_name": "Swelligence: Mudeford Surf suitable now"
     }
   },
   "binary_sensor.swelligence_mudeford_sup_suitable_now": {
@@ -198,11 +269,11 @@
     }
   },
   "binary_sensor.swelligence_mudeford_wakeboard_inland_suitable_now": {
-    "state": "unavailable",
-    "last_updated_ts": 1782333869.7878828,
+    "state": "off",
+    "last_updated_ts": 1782333789.2255638,
     "attributes": {
       "icon": "mdi:ski-water",
-      "friendly_name": "Wakeboard (inland) suitable now"
+      "friendly_name": "Swelligence: Mudeford Wakeboard (inland) suitable now"
     }
   }
 }
