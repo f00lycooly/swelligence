@@ -18,7 +18,7 @@ from .base import (
     TideProvider,
 )
 from .domains import assert_legal_domains
-from .open_meteo import OpenMeteoProvider
+from .open_meteo import OpenMeteoProvider, OpenMeteoTideProvider
 from .stormglass import StormglassProvider
 from .ukho import UKHOTideProvider
 
@@ -30,11 +30,13 @@ PROVIDERS: dict[str, type[ForecastProvider]] = {
     StormglassProvider.key: StormglassProvider,
 }
 
-# Registry of tide overlays. Stormglass doubles as a tide source (it implements
-# both ABCs); UKHO is a UK-only overlay.
+# Registry of tide overlays, resolved by region/priority (see authority.py).
+# UKHO (UK) and Stormglass (global, keyed) are authority sources; Open-Meteo's
+# modeled tide is the keyless priority-0 global fallback so every spot gets one.
 TIDE_PROVIDERS: dict[str, type[TideProvider]] = {
     UKHOTideProvider.key: UKHOTideProvider,
     StormglassProvider.key: StormglassProvider,
+    OpenMeteoTideProvider.key: OpenMeteoTideProvider,
 }
 
 # Legality gate (M-domains): every registered provider's domain-keyed
@@ -92,6 +94,7 @@ __all__ = [
     "TideEvent",
     "TideProvider",
     "OpenMeteoProvider",
+    "OpenMeteoTideProvider",
     "StormglassProvider",
     "UKHOTideProvider",
     "PROVIDERS",

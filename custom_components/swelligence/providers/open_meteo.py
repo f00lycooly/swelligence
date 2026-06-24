@@ -15,9 +15,11 @@ from __future__ import annotations
 import logging
 from datetime import datetime
 
+from datetime import timezone
+
 from ..geo import haversine_km
-from .base import ForecastPoint, ForecastProvider, SpotForecast
-from .domains import AIR, WATER, WAVE, WIND
+from .base import ForecastPoint, ForecastProvider, SpotForecast, TideEvent, TideProvider
+from .domains import AIR, TIDE, WATER, WAVE, WIND
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -187,6 +189,83 @@ class OpenMeteoProvider(ForecastProvider):
                 )
             )
         return points
+
+
+class OpenMeteoTideProvider(TideProvider):
+    """Keyless, global *modeled* tide fallback (priority 0).
+
+    The lowest-authority tide source: it derives high/low water from Open-Meteo's
+    modeled ``sea_level_height_msl`` series rather than harmonic predictions, so
+    it is *indicative*, not authority-grade — a regional authority (UKHO, NOAA
+    CO-OPS) outranks it wherever one covers the coordinate. Its value is being
+    keyless and global, so every tide-dependent spot gets *something* with no
+    config. As the priority-0 entry it is exactly the fallback the resolver lands
+    on when nothing better is available.
+    """
+
+    key = "open_meteo_tide"
+    label = "Open-Meteo (modeled tide, no key)"
+    requires_api_key = False
+    authority_rank = {TIDE: 0}
+
+    async def async_fetch_tides(
+        self,
+        latitude: float,
+        longitude: float,
+        *,
+        days: int = 7,
+    ) -> list[TideEvent]:
+        # Request in UTC (no timezone= -> GMT) so derived event times share the
+        # UTC basis the coordinator normalises against.
+        payload = await self._get(
+            _MARINE_URL,
+            {
+                "latitude": latitude,
+                "longitude": longitude,
+                "hourly": "sea_level_height_msl",
+                "forecast_days": days,
+            },
+            optional=True,
+        )
+        hourly = (payload or {}).get("hourly") or {}
+        return _derive_tide_extremes(
+            hourly.get("time") or [], hourly.get("sea_level_height_msl") or []
+        )
+
+    async def _get(self, url: str, params: dict, *, optional: bool = False):
+        try:
+            async with self._session.get(url, params=params, timeout=30) as resp:
+                resp.raise_for_status()
+                return await resp.json()
+        except Exception as err:  # noqa: BLE001 - tide fallback is best-effort
+            if optional:
+                _LOGGER.debug("Optional Open-Meteo tide call failed: %s", err)
+                return None
+            raise
+
+
+def _derive_tide_extremes(times: list, levels: list) -> list[TideEvent]:
+    """High/low water from a sea-level series: the turning points.
+
+    A timestep is a high when it is a local maximum (>= both hourly neighbours,
+    strictly greater than one), a low when a local minimum. Hourly sampling
+    resolves the ~6 h between extremes comfortably. Times are parsed as UTC (the
+    series was requested in GMT) so the coordinator's UTC normalisation aligns.
+    """
+    events: list[TideEvent] = []
+    for i in range(1, len(levels) - 1):
+        a, b, c = levels[i - 1], levels[i], levels[i + 1]
+        if a is None or b is None or c is None:
+            continue
+        if b >= a and b >= c and b > min(a, c):
+            kind = "high"
+        elif b <= a and b <= c and b < max(a, c):
+            kind = "low"
+        else:
+            continue
+        when = datetime.fromisoformat(times[i]).replace(tzinfo=timezone.utc)
+        events.append(TideEvent(time=when, kind=kind, height_m=round(b, 2)))
+    return events
 
 
 def _at(values: list, i: int | None):

@@ -127,6 +127,19 @@ def test_resolve_overlay_unranked_domain_is_none():
 
 
 def test_domain_ranking_is_priority_ordered_and_region_gated():
-    assert domain_ranking(TIDE, *UK) == ["ukho", "stormglass"]  # UK: both, UKHO first
-    assert domain_ranking(TIDE, *NZ) == ["stormglass"]  # NZ: UKHO gated out
+    # UK: UKHO (100) > Stormglass (50) > Open-Meteo modeled fallback (0).
+    assert domain_ranking(TIDE, *UK) == ["ukho", "stormglass", "open_meteo_tide"]
+    # NZ: UKHO gated out; global sources remain, fallback last.
+    assert domain_ranking(TIDE, *NZ) == ["stormglass", "open_meteo_tide"]
     assert domain_ranking(WAVE, *NZ) == ["stormglass", "open_meteo"]  # rank 50 > 0
+
+
+def test_modeled_tide_is_the_keyless_global_fallback():
+    # Nothing keyed available anywhere -> the priority-0 Open-Meteo modeled tide
+    # is the resolved source, so every spot gets indicative tides with no config.
+    assert resolve_overlay(TIDE, *NZ, available={"open_meteo_tide"}) == "open_meteo_tide"
+    assert resolve_overlay(TIDE, *UK, available={"open_meteo_tide"}) == "open_meteo_tide"
+    # But a configured regional authority still outranks it.
+    assert (
+        resolve_overlay(TIDE, *UK, available={"open_meteo_tide", "ukho"}) == "ukho"
+    )

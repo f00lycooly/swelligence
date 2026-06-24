@@ -9,7 +9,10 @@ from __future__ import annotations
 
 import pytest
 
+from datetime import timezone
+
 from swelligence.geo import haversine_km as _haversine
+from swelligence.providers.open_meteo import _derive_tide_extremes
 from swelligence.providers.stormglass import StormglassProvider
 from swelligence.providers.ukho import UKHOTideProvider
 
@@ -103,6 +106,33 @@ def test_ukho_parse_events():
     events = UKHOTideProvider._parse_events(UKHO_EVENTS)
     assert [e.kind for e in events] == ["high", "low"]
     assert events[0].height_m == 1.4
+
+
+# --- Open-Meteo modeled tide fallback ---------------------------------------
+
+_SEA_LEVEL_TIMES = [
+    "2026-06-24T00:00",
+    "2026-06-24T01:00",
+    "2026-06-24T02:00",
+    "2026-06-24T03:00",
+    "2026-06-24T04:00",
+]
+
+
+def test_derive_tide_extremes_finds_turning_points():
+    # rises to a high at 01:00, falls to a low at 03:00.
+    events = _derive_tide_extremes(_SEA_LEVEL_TIMES, [0.1, 0.6, 0.2, -0.4, 0.0])
+    assert [e.kind for e in events] == ["high", "low"]
+    assert events[0].height_m == 0.6
+    assert events[0].time.hour == 1 and events[0].time.tzinfo == timezone.utc
+    assert events[1].height_m == -0.4 and events[1].time.hour == 3
+
+
+def test_derive_tide_extremes_skips_nones_and_endpoints():
+    # A None in the series is skipped; endpoints are never turning points.
+    events = _derive_tide_extremes(_SEA_LEVEL_TIMES, [0.6, None, 0.2, -0.4, 0.0])
+    assert [e.kind for e in events] == ["low"]  # only the 03:00 trough survives
+    assert _derive_tide_extremes([], []) == []
 
 
 def test_haversine_known_distance():
