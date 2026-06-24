@@ -1,8 +1,12 @@
 {
   "domain": "swelligence",
   "name": "Swelligence",
-  "after_dependencies": ["ai_task"],
-  "codeowners": ["@foolycooly"],
+  "after_dependencies": [
+    "ai_task"
+  ],
+  "codeowners": [
+    "@foolycooly"
+  ],
   "config_flow": true,
   "dependencies": [],
   "documentation": "https://git.bagofholding.co.uk/foolycooly/swelligence",
