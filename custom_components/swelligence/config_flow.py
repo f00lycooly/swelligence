@@ -153,9 +153,13 @@ _PROVIDER_ROUTE_OPTIONS = [_INHERIT_OPTION] + _PROVIDER_OPTIONS
 # add_spot form keys that aren't persisted spot fields: the "enter coordinates
 # manually" escape hatch and the in-flight custom-name override carried between
 # the search step and location resolution.
-_MANUAL_COORDS = "manual_coords"
+# add_spot form key for the map picker, and in-flight state carried between the
+# search step and the map: the name override, the raw query, and the (lat, lon)
+# the map should centre on (from a geocode match; absent => centre on HA home).
+_LOCATION = "location"
 _NAME_OVERRIDE = "_name_override"
 _QUERY = "_query"
+_CENTRE = "_centre"
 
 
 def _slugify(name: str) -> str:
@@ -294,15 +298,15 @@ class SwelligenceOptionsFlow(OptionsFlow):
     async def async_step_add_spot(
         self, user_input: dict[str, Any] | None = None
     ) -> ConfigFlowResult:
-        """Add a spot by searching for a place name (primary path).
+        """Add a spot: capture its config + an optional search, then pick on a map.
 
-        Everything except the location is captured here; the location is then
-        resolved from the geocoder (``add_spot_pick`` when several places match)
-        or, for an unnamed break, entered directly (``add_spot_coords``).
+        The search (place name *or* UK postcode/outcode) only **centres** the map
+        — the exact location is always placed on the map in
+        ``add_spot_location``. So a spot the geocoder can't resolve (a surf break,
+        a postcode it misses) still works: the map just opens on the home location.
         """
-        errors: dict[str, str] = {}
         if user_input is not None:
-            # Carry the spot's config while we resolve its location.
+            # Carry the spot's config while we resolve its location on the map.
             self._pending_spot = {
                 CONF_WATER_TYPE: user_input[CONF_WATER_TYPE],
                 CONF_SPOT_SPORTS: user_input[CONF_SPOT_SPORTS],
@@ -310,30 +314,17 @@ class SwelligenceOptionsFlow(OptionsFlow):
                 CONF_TIDE_WINDOW_H: user_input.get(CONF_TIDE_WINDOW_H),
                 _NAME_OVERRIDE: (user_input.get(CONF_SPOT_NAME) or "").strip(),
             }
-            if user_input.get(_MANUAL_COORDS):
-                return await self.async_step_add_spot_coords()
             query = (user_input.get(CONF_PLACE_QUERY) or "").strip()
-            if not query:
-                errors["base"] = "geocode_query_required"
-            else:
+            self._pending_spot[_QUERY] = query
+            if query:
                 session = async_get_clientsession(self.hass)
                 results = await async_geocode(session, query)
-                if not results:
-                    errors["base"] = "geocode_no_results"
-                elif len(results) == 1:
-                    result, err = self._commit_spot(
-                        self._spot_name(results[0]),
-                        results[0].latitude,
-                        results[0].longitude,
-                    )
-                    if err:
-                        errors["base"] = err
-                    else:
-                        return result
-                else:
+                if len(results) > 1:
                     self._geocode_choices = results
-                    self._pending_spot[_QUERY] = query
                     return await self.async_step_add_spot_pick()
+                if len(results) == 1:
+                    self._set_centre(results[0])
+            return await self.async_step_add_spot_location()
 
         enabled = self.config_entry.options.get(CONF_SPORTS, list(SPORT_PROFILES))
         spot_sport_options = [
@@ -359,32 +350,21 @@ class SwelligenceOptionsFlow(OptionsFlow):
                     )
                 ),
                 **_tide_fields(),
-                vol.Optional(
-                    _MANUAL_COORDS, default=False
-                ): selector.BooleanSelector(),
             }
         )
-        return self.async_show_form(
-            step_id="add_spot", data_schema=schema, errors=errors
-        )
+        return self.async_show_form(step_id="add_spot", data_schema=schema)
 
     async def async_step_add_spot_pick(
         self, user_input: dict[str, Any] | None = None
     ) -> ConfigFlowResult:
-        """Disambiguate a place-name search that returned several matches."""
+        """Disambiguate a search that matched several places. The choice just
+        centres the map; the pin is still placed in ``add_spot_location``."""
         choices = self._geocode_choices or []
         if not choices or self._pending_spot is None:
             return await self.async_step_add_spot()
-        errors: dict[str, str] = {}
         if user_input is not None:
-            choice = choices[int(user_input["match"])]
-            result, err = self._commit_spot(
-                self._spot_name(choice), choice.latitude, choice.longitude
-            )
-            if err:
-                errors["base"] = err
-            else:
-                return result
+            self._set_centre(choices[int(user_input["match"])])
+            return await self.async_step_add_spot_location()
 
         options = [
             selector.SelectOptionDict(value=str(i), label=r.label)
@@ -400,33 +380,33 @@ class SwelligenceOptionsFlow(OptionsFlow):
         return self.async_show_form(
             step_id="add_spot_pick",
             data_schema=schema,
-            errors=errors,
             description_placeholders={
-                "name": self._pending_spot.get(_NAME_OVERRIDE)
-                or self._pending_spot.get(_QUERY)
-                or "your search"
+                "name": self._pending_spot.get(_QUERY) or "your search"
             },
         )
 
-    async def async_step_add_spot_coords(
+    async def async_step_add_spot_location(
         self, user_input: dict[str, Any] | None = None
     ) -> ConfigFlowResult:
-        """Fallback: enter coordinates directly for a break the geocoder can't
-        resolve. The rest of the spot config was captured in ``add_spot``."""
+        """Place the spot precisely on a map — centred on the search match when
+        there was one, otherwise on the Home Assistant location."""
         if self._pending_spot is None:
             return await self.async_step_add_spot()
         errors: dict[str, str] = {}
         if user_input is not None:
+            loc = user_input[_LOCATION]
             result, err = self._commit_spot(
-                user_input[CONF_SPOT_NAME],
-                user_input[CONF_LATITUDE],
-                user_input[CONF_LONGITUDE],
+                user_input[CONF_SPOT_NAME], loc["latitude"], loc["longitude"]
             )
             if err:
                 errors["base"] = err
             else:
                 return result
 
+        centre = self._pending_spot.get(_CENTRE) or (
+            self.hass.config.latitude,
+            self.hass.config.longitude,
+        )
         override = self._pending_spot.get(_NAME_OVERRIDE)
         name_key = (
             vol.Required(CONF_SPOT_NAME, default=override)
@@ -437,28 +417,25 @@ class SwelligenceOptionsFlow(OptionsFlow):
             {
                 name_key: selector.TextSelector(),
                 vol.Required(
-                    CONF_LATITUDE, default=self.hass.config.latitude
-                ): selector.NumberSelector(
-                    selector.NumberSelectorConfig(
-                        min=-90, max=90, step="any", mode="box"
-                    )
-                ),
-                vol.Required(
-                    CONF_LONGITUDE, default=self.hass.config.longitude
-                ): selector.NumberSelector(
-                    selector.NumberSelectorConfig(
-                        min=-180, max=180, step="any", mode="box"
-                    )
+                    _LOCATION,
+                    default={"latitude": centre[0], "longitude": centre[1]},
+                ): selector.LocationSelector(
+                    selector.LocationSelectorConfig(radius=False)
                 ),
             }
         )
         return self.async_show_form(
-            step_id="add_spot_coords", data_schema=schema, errors=errors
+            step_id="add_spot_location",
+            data_schema=schema,
+            errors=errors,
+            description_placeholders={"query": self._pending_spot.get(_QUERY) or ""},
         )
 
-    def _spot_name(self, result: GeocodeResult) -> str:
-        """Spot name: the user's override if given, else the matched place."""
-        return (self._pending_spot or {}).get(_NAME_OVERRIDE) or result.name
+    def _set_centre(self, result: GeocodeResult) -> None:
+        """Record a geocode match as the map centre + default spot name."""
+        self._pending_spot[_CENTRE] = (result.latitude, result.longitude)
+        if not self._pending_spot.get(_NAME_OVERRIDE):
+            self._pending_spot[_NAME_OVERRIDE] = result.name
 
     def _commit_spot(
         self, name: str, lat: float, lon: float

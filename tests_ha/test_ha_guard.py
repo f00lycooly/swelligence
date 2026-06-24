@@ -121,11 +121,11 @@ async def test_options_edit_spot_chain_renders(hass, options_entry) -> None:
     assert result["step_id"] == "edit_spot_fields"
 
 
-async def test_options_add_spot_search_chain(hass, options_entry) -> None:
-    """Search-first add-spot: query -> disambiguation pick -> save.
+async def test_options_add_spot_search_then_map(hass, options_entry) -> None:
+    """Search -> disambiguation pick (centres map) -> map -> save.
 
-    Geocoding is mocked (no network); the chosen match must supply the spot's
-    name and coordinates.
+    Geocoding is mocked (no network). The chosen match centres the map and
+    defaults the name; the pin placed on the map sets the final coordinates.
     """
     from unittest.mock import AsyncMock, patch
 
@@ -153,26 +153,32 @@ async def test_options_add_spot_search_chain(hass, options_entry) -> None:
     result = await hass.config_entries.options.async_configure(
         result["flow_id"], {"match": "0"}
     )
+    assert result["type"] == FlowResultType.FORM
+    assert result["step_id"] == "add_spot_location"
+    # Drop the pin slightly off the town centre (the actual break).
+    result = await hass.config_entries.options.async_configure(
+        result["flow_id"],
+        {"name": "Avon Beach", "location": {"latitude": 50.735, "longitude": -1.755}},
+    )
     assert result["type"] == FlowResultType.CREATE_ENTRY
-    new = [s for s in result["data"][CONF_SPOTS] if s["id"] == "christchurch"]
-    assert new and new[0]["latitude"] == 50.73 and new[0]["name"] == "Christchurch"
+    new = [s for s in result["data"][CONF_SPOTS] if s["id"] == "avon_beach"]
+    assert new and new[0]["latitude"] == 50.735 and new[0]["longitude"] == -1.755
 
 
-async def test_options_add_spot_manual_coords_chain(hass, options_entry) -> None:
-    """Manual fallback: toggle 'enter coordinates' -> coords step -> save."""
+async def test_options_add_spot_no_search_map(hass, options_entry) -> None:
+    """No search term -> map opens on the home location -> pin -> save."""
     result = await hass.config_entries.options.async_init(options_entry.entry_id)
     result = await hass.config_entries.options.async_configure(
         result["flow_id"], {"next_step_id": "add_spot"}
     )
     result = await hass.config_entries.options.async_configure(
-        result["flow_id"],
-        {"water_type": "sea", "sports": ["surf"], "manual_coords": True},
+        result["flow_id"], {"water_type": "sea", "sports": ["surf"]}
     )
     assert result["type"] == FlowResultType.FORM
-    assert result["step_id"] == "add_spot_coords"
+    assert result["step_id"] == "add_spot_location"
     result = await hass.config_entries.options.async_configure(
         result["flow_id"],
-        {"name": "Secret Reef", "latitude": 50.5, "longitude": -1.9},
+        {"name": "Secret Reef", "location": {"latitude": 50.5, "longitude": -1.9}},
     )
     assert result["type"] == FlowResultType.CREATE_ENTRY
     assert any(s["id"] == "secret_reef" for s in result["data"][CONF_SPOTS])
