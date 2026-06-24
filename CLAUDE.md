@@ -123,8 +123,64 @@ Releases are public and hard to unpublish — confirm the version first.
 
 ## Architecture Overview
 
-_Add a brief overview of your project architecture_
+Home Assistant custom integration that turns marine/weather forecasts into a
+0–100 **suitability score per (spot, sport)**. No build step; pure-Python logic
+with HA-only glue at the edges.
+
+**Data flow:** provider → normalised model → deterministic scorer → entities/LLM.
+
+- **Providers** (`providers/`) — turn a coordinate into a normalised
+  `SpotForecast` (list of `ForecastPoint`, plus `tide_events`). Two ABCs:
+  `ForecastProvider` (wind/wave/swell/temp) and `TideProvider` (high/low events,
+  an *overlay*). Registered in `PROVIDERS` / `TIDE_PROVIDERS` (`providers/__init__.py`).
+- **Single forecast source:** **Open-Meteo only** (`open_meteo.py`, keyless).
+  Stormglass and Windy were removed (epic `swelligence-48w`) — they repackaged
+  the same public wave models Open-Meteo serves free. Open-Meteo is fetched for
+  **all spots in two batched calls** via `OpenMeteoBatchLoader` (`batch.py`):
+  comma-separated coords, results index-matched, TTL-cached + lock-deduped so one
+  cycle of per-spot coordinators triggers a single fetch.
+- **Tides — region-resolved overlay.** Each `TideProvider` *declares* its region
+  (`covers(lat, lon)`) and `authority_rank`; `authority.resolve_overlay()` picks
+  the best available source per coordinate. Stack: **UKHO** (UK, keyed),
+  **NOAA CO-OPS** (US, keyless), **Open-Meteo modeled** (keyless, priority-0
+  global fallback so every spot gets indicative tides with zero config).
+- **Provider integration is a wiring point, not a rewrite.** Authority ranking is
+  *derived from provider metadata* (no central table); adding a tide source =
+  one leaf class declaring `covers()`/`authority_rank` + one registry line, with
+  no coordinator/authority/config-flow edits. Removing one = delete + unregister.
+- **Scoring** (`scoring.py` + `sports.py`) — deterministic, LLM-free. Full
+  breakdown in [`docs/scoring.md`](docs/scoring.md). The LLM (`llm.py`) only
+  *explains* the score; **never** let it silently override the deterministic result.
+- **Coordinator** (`coordinator.py`) — one `SpotCoordinator` per spot: fetch
+  (via batch loader) → water policy → tide gate → score each sport → optional LLM
+  enrich. Entities (`sensor.py`, `binary_sensor.py`) expose the suitability score
+  + `*_suitable`; raw values surface via the `get_forecast` service.
+- **Confidence** (`confidence.py`) — model-agreement signal, provider-agnostic.
+  Currently dormant (single source); to be re-sourced from Open-Meteo `models=`
+  (bead `swelligence-48w.1`).
+
+For the milestone history and module-level design, see [`docs/SCOPE.md`](docs/SCOPE.md).
 
 ## Conventions & Patterns
 
-_Add your project-specific conventions here_
+- **Pure logic, HA at the edges.** Scoring, sizing, tide, confidence, authority,
+  overlay, domains are pure (no `homeassistant` import) so the unit suite runs
+  without HA (`tests/`, stubbed via `tests/conftest.py`). HA-touching modules are
+  guarded by `tests_ha/test_ha_guard.py` — **add any new module to its import
+  list.**
+- **Domains are constants, and legality is enforced.** Use the `WIND/WAVE/WATER/
+  AIR/TIDE` constants from `providers/domains.py`, never bare strings. Anything
+  keyed by domain (`provides_domains`, `authority_rank`, the authority maps) is
+  validated by `assert_legal_domains` at the provider registry and at import —
+  an illegal domain fails loudly rather than silently misrouting.
+- **Normalised units:** speeds = **knots**, heights = **metres**, temps = **°C**,
+  directions = **degrees ("from")**. Providers convert at the edge (m/s, km/h,
+  Kelvin → these). Any field a provider can't supply is left `None` ("unknown",
+  never 0).
+- **Adding a provider** = a leaf class + a registry entry (+ `covers()`/
+  `authority_rank` for tide authorities). Don't add provider-specific branches to
+  the coordinator or authority.
+- **Changing scoring profiles/weights requires recalibration** — re-run
+  `validate_spots.py` + `analyze_history.py` (see the `sport-profiles…` bd memory).
+- Beads (`bd`) is the task tracker; `bd remember` for durable notes. Research and
+  design notes live under `mockups/research/` and `docs/`.

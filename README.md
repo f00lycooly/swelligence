@@ -35,7 +35,8 @@ Prior art that inspired / can complement this:
   water temperature).
 - 📊 **Deterministic scoring** — a transparent 0–100 suitability score per
   (spot × sport), with a factor breakdown, that works with **no API key and no
-  LLM**.
+  LLM**. See [`docs/scoring.md`](docs/scoring.md) for the full metric/decision
+  breakdown.
 - 🎯 **Forecast confidence** — the score's blind spot is *"is this forecast even
   trustworthy?"* Swelligence answers it from **model agreement**: tight agreement
   between independent models reads as high confidence, wide divergence as low.
