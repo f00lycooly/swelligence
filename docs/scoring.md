@@ -204,3 +204,34 @@ Spot offshore = N; conditions: wind 6 kn from N, gust 9 kn, wave 1.4 m, swell
 | temp | (none) | surf doesn't score temp | 0.2→n/a |
 
 Weighted mean ≈ `(0.92·0.6 + 1·0.3 + 1·0.8 + 0.97·1.0 + 0.99·0.7) / (0.6+0.3+0.8+1.0+0.7)` ≈ **0.96 → ~96/100 ("epic")**. No hard-fail, no tide gate ⇒ unchanged.
+
+---
+
+## 7. Known limitations & planned work
+
+A scoring/safety review (2026-06-24) flagged fairness gaps and a missing safety
+dimension, now tracked under epic **`swelligence-slh` (Scoring fairness + safety
+markers)**:
+
+- **Missing data is neutral → optimistic.** `None` factors drop from the
+  denominator, so an *essential* missing field (surf without swell quality, swim
+  without water temp) scores as if it didn't matter. Fix: factor **completeness
+  semantics** — distinguish *not-applicable* / *not-configured* / *missing
+  provider data*, and cap per sport when an essential field is missing
+  (`slh.1`).
+- **Untuned spots can score higher.** Direction only scores when `wind_dirs` /
+  `swell_dirs` are set, so an unconfigured spot escapes strictness a tuned one
+  gets. Treated as *not-configured* above, surfaced as a nudge (`slh.1`).
+- **Safety is not modelled.** Planned as a **separate first-class output**
+  (`safety_flags`), not another weight: offshore-wind risk (good for surf, unsafe
+  for SUP/swim), gust, extremes (the current hard-fails surfaced explicitly),
+  cold water, and *inferred* "elevated rip risk" (never "rip present"; currents
+  are model hints, not beach truth). Flags may cap score only where
+  sport-relevant (`slh.2`, with per-spot metadata `slh.3` and a strict tide gate
+  `slh.4`).
+- **Tide gate is soft** (floor 0.3, reached only after >2 windows) — weak for
+  tide-critical launches; needs per-spot strictness (`slh.4`).
+- **Calibration is narrow** (Christchurch only). Broader fixture matrix planned
+  (`slh.5`).
+- **Additional captured fields aren't scored yet** — peak period, wind-wave split,
+  secondary swell, currents, etc. (`swelligence-48w.7`).
