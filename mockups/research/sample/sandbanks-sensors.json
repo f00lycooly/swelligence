@@ -170,39 +170,114 @@
     }
   },
   "sensor.swelligence_sandbanks_surf_suitability": {
-    "state": "unavailable",
-    "last_updated_ts": 1782334274.763681,
+    "state": "40.3",
+    "last_updated_ts": 1782334212.5167308,
     "attributes": {
       "state_class": "measurement",
+      "spot": "Sandbanks",
+      "sport": "surf",
+      "sport_label": "Surf",
+      "verdict": "marginal",
+      "suitable": false,
+      "factors": {
+        "wind": 80.0,
+        "gust": 100.0,
+        "wave": 26.7,
+        "swell": 0.0
+      },
+      "reasons": [
+        "2kn",
+        "flat (0.3m)",
+        "short-period swell (3s)"
+      ],
+      "completeness": {
+        "direction": "not_configured"
+      },
+      "nudges": [
+        "set offshore wind directions for sharper scoring",
+        "set swell directions for sharper surf scoring"
+      ],
+      "best_score": 49.3,
+      "best_in_hours": 20,
+      "best_verdict": "marginal",
+      "data_sources": {
+        "water": "open_meteo",
+        "wind": "open_meteo",
+        "air": "open_meteo",
+        "wave": "open_meteo"
+      },
+      "data_quality": {
+        "summary": "wind: open_meteo; swell: open_meteo",
+        "issues": [
+          "grid cell ~8km from spot"
+        ],
+        "grid_distance_km": 8.2
+      },
+      "unit_of_measurement": "%",
       "icon": "mdi:surfing",
-      "friendly_name": "Surf suitability",
-      "unit_of_measurement": "%"
+      "friendly_name": "Swelligence: Sandbanks Surf suitability"
     }
   },
   "sensor.swelligence_sandbanks_wakeboard_inland_suitability": {
-    "state": "unavailable",
-    "last_updated_ts": 1782334274.7637851,
+    "state": "30.0",
+    "last_updated_ts": 1782334212.5172386,
     "attributes": {
       "state_class": "measurement",
+      "spot": "Sandbanks",
+      "sport": "wakeboard_inland",
+      "sport_label": "Wakeboard (inland)",
+      "verdict": "poor",
+      "suitable": false,
+      "factors": {
+        "wind": 93.3,
+        "gust": 100.0,
+        "wave": 0.0
+      },
+      "reasons": [
+        "2kn",
+        "too choppy (0.3m)"
+      ],
+      "completeness": {
+        "direction": "not_configured"
+      },
+      "nudges": [
+        "set offshore wind directions for sharper scoring"
+      ],
+      "best_score": 92.4,
+      "best_in_hours": 20,
+      "best_verdict": "epic",
+      "data_sources": {
+        "water": "open_meteo",
+        "wind": "open_meteo",
+        "air": "open_meteo",
+        "wave": "open_meteo"
+      },
+      "data_quality": {
+        "summary": "wind: open_meteo; waves: open_meteo",
+        "issues": [
+          "grid cell ~8km from spot"
+        ],
+        "grid_distance_km": 8.2
+      },
+      "unit_of_measurement": "%",
       "icon": "mdi:ski-water",
-      "friendly_name": "Wakeboard (inland) suitability",
-      "unit_of_measurement": "%"
+      "friendly_name": "Swelligence: Sandbanks Wakeboard (inland) suitability"
     }
   },
   "binary_sensor.swelligence_sandbanks_surf_suitable_now": {
-    "state": "unavailable",
-    "last_updated_ts": 1782334274.7641454,
+    "state": "off",
+    "last_updated_ts": 1782334212.5184212,
     "attributes": {
       "icon": "mdi:surfing",
-      "friendly_name": "Surf suitable now"
+      "friendly_name": "Swelligence: Sandbanks Surf suitable now"
     }
   },
   "binary_sensor.swelligence_sandbanks_wakeboard_inland_suitable_now": {
-    "state": "unavailable",
-    "last_updated_ts": 1782334274.764258,
+    "state": "off",
+    "last_updated_ts": 1782334212.5187893,
     "attributes": {
       "icon": "mdi:ski-water",
-      "friendly_name": "Wakeboard (inland) suitable now"
+      "friendly_name": "Swelligence: Sandbanks Wakeboard (inland) suitable now"
     }
   }
 }
