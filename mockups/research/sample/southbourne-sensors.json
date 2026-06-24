@@ -1,0 +1,221 @@
+{
+  "sensor.swelligence_southbourne_source_advice": {
+    "state": "0",
+    "last_updated_ts": 1782334357.8884087,
+    "attributes": {
+      "ok": true,
+      "summary": "On the best available source for every domain",
+      "recommendations": [],
+      "icon": "mdi:transit-connection-variant",
+      "friendly_name": "Swelligence: Southbourne Source advice"
+    }
+  },
+  "sensor.swelligence_southbourne_kitesurf_suitability": {
+    "state": "45.9",
+    "last_updated_ts": 1782334357.8887599,
+    "attributes": {
+      "state_class": "measurement",
+      "spot": "Southbourne",
+      "sport": "kitesurf",
+      "sport_label": "Kitesurf",
+      "verdict": "marginal",
+      "suitable": false,
+      "factors": {
+        "wind": 2.7,
+        "gust": 100.0,
+        "wave": 100.0
+      },
+      "reasons": [
+        "under-powered (1kn)"
+      ],
+      "completeness": {
+        "direction": "not_configured"
+      },
+      "nudges": [
+        "set offshore wind directions for sharper scoring"
+      ],
+      "best_score": 57.4,
+      "best_in_hours": 18,
+      "best_verdict": "good",
+      "data_sources": {
+        "water": "open_meteo",
+        "wind": "open_meteo",
+        "air": "open_meteo",
+        "wave": "open_meteo"
+      },
+      "data_quality": {
+        "summary": "wind: open_meteo; waves: open_meteo",
+        "issues": [],
+        "grid_distance_km": 1.3
+      },
+      "unit_of_measurement": "%",
+      "icon": "mdi:kitesurfing",
+      "friendly_name": "Swelligence: Southbourne Kitesurf suitability"
+    }
+  },
+  "sensor.swelligence_southbourne_wing_foil_suitability": {
+    "state": "46.2",
+    "last_updated_ts": 1782334357.8890984,
+    "attributes": {
+      "state_class": "measurement",
+      "spot": "Southbourne",
+      "sport": "wingfoil",
+      "sport_label": "Wing foil",
+      "verdict": "marginal",
+      "suitable": false,
+      "factors": {
+        "wind": 3.2,
+        "gust": 100.0,
+        "wave": 100.0
+      },
+      "reasons": [
+        "under-powered (1kn)"
+      ],
+      "completeness": {
+        "direction": "not_configured"
+      },
+      "nudges": [
+        "set offshore wind directions for sharper scoring"
+      ],
+      "best_score": 60.0,
+      "best_in_hours": 18,
+      "best_verdict": "good",
+      "data_sources": {
+        "water": "open_meteo",
+        "wind": "open_meteo",
+        "air": "open_meteo",
+        "wave": "open_meteo"
+      },
+      "data_quality": {
+        "summary": "wind: open_meteo; waves: open_meteo",
+        "issues": [],
+        "grid_distance_km": 1.3
+      },
+      "unit_of_measurement": "%",
+      "icon": "mdi:wind-power",
+      "friendly_name": "Swelligence: Southbourne Wing foil suitability"
+    }
+  },
+  "sensor.swelligence_southbourne_surf_suitability": {
+    "state": "35.8",
+    "last_updated_ts": 1782334357.889437,
+    "attributes": {
+      "state_class": "measurement",
+      "spot": "Southbourne",
+      "sport": "surf",
+      "sport_label": "Surf",
+      "verdict": "marginal",
+      "suitable": false,
+      "factors": {
+        "wind": 66.4,
+        "gust": 100.0,
+        "wave": 23.3,
+        "swell": 0.0
+      },
+      "reasons": [
+        "1kn",
+        "flat (0.3m)",
+        "short-period swell (3s)"
+      ],
+      "completeness": {
+        "direction": "not_configured"
+      },
+      "nudges": [
+        "set offshore wind directions for sharper scoring",
+        "set swell directions for sharper surf scoring"
+      ],
+      "best_score": 42.1,
+      "best_in_hours": 3,
+      "best_verdict": "marginal",
+      "data_sources": {
+        "water": "open_meteo",
+        "wind": "open_meteo",
+        "air": "open_meteo",
+        "wave": "open_meteo"
+      },
+      "data_quality": {
+        "summary": "wind: open_meteo; swell: open_meteo",
+        "issues": [],
+        "grid_distance_km": 1.3
+      },
+      "unit_of_measurement": "%",
+      "icon": "mdi:surfing",
+      "friendly_name": "Swelligence: Southbourne Surf suitability"
+    }
+  },
+  "sensor.swelligence_southbourne_sup_suitability": {
+    "state": "75.3",
+    "last_updated_ts": 1782334357.8897643,
+    "attributes": {
+      "state_class": "measurement",
+      "spot": "Southbourne",
+      "sport": "sup",
+      "sport_label": "SUP",
+      "verdict": "great",
+      "suitable": true,
+      "factors": {
+        "wind": 68.0,
+        "gust": 100.0,
+        "wave": 73.3
+      },
+      "reasons": [
+        "1kn"
+      ],
+      "completeness": {
+        "direction": "not_configured"
+      },
+      "nudges": [
+        "set offshore wind directions for sharper scoring"
+      ],
+      "best_score": 98.9,
+      "best_in_hours": 14,
+      "best_verdict": "epic",
+      "data_sources": {
+        "water": "open_meteo",
+        "wind": "open_meteo",
+        "air": "open_meteo",
+        "wave": "open_meteo"
+      },
+      "data_quality": {
+        "summary": "wind: open_meteo; waves: open_meteo",
+        "issues": [],
+        "grid_distance_km": 1.3
+      },
+      "unit_of_measurement": "%",
+      "icon": "mdi:rowing",
+      "friendly_name": "Swelligence: Southbourne SUP suitability"
+    }
+  },
+  "binary_sensor.swelligence_southbourne_kitesurf_suitable_now": {
+    "state": "off",
+    "last_updated_ts": 1782334357.8910131,
+    "attributes": {
+      "icon": "mdi:kitesurfing",
+      "friendly_name": "Swelligence: Southbourne Kitesurf suitable now"
+    }
+  },
+  "binary_sensor.swelligence_southbourne_wing_foil_suitable_now": {
+    "state": "off",
+    "last_updated_ts": 1782334357.8913028,
+    "attributes": {
+      "icon": "mdi:wind-power",
+      "friendly_name": "Swelligence: Southbourne Wing foil suitable now"
+    }
+  },
+  "binary_sensor.swelligence_southbourne_surf_suitable_now": {
+    "state": "off",
+    "last_updated_ts": 1782334357.8915799,
+    "attributes": {
+      "icon": "mdi:surfing",
+      "friendly_name": "Swelligence: Southbourne Surf suitable now"
+    }
+  },
+  "binary_sensor.swelligence_southbourne_sup_suitable_now": {
+    "state": "on",
+    "last_updated_ts": 1782334357.8918827,
+    "attributes": {
+      "icon": "mdi:rowing",
+      "friendly_name": "Swelligence: Southbourne SUP suitable now"
+    }
+  }
+}
