@@ -150,22 +150,30 @@ with open(path, "w") as f:
     f.write("\n")
 PY
 
-# Prepend a CHANGELOG section from the commit subjects in range.
+# Insert a new CHANGELOG section *below the pinned header* (not above the whole
+# file — that buries the title between versions). Layout stays:
+#   # Changelog \n <intro> \n ## vNEW \n ... \n ## vOLD \n ...
+# release.yml extracts a single "## vX.Y.Z" section as the GitHub Release body
+# (which HACS shows), so the header must never land inside a version section.
 date="$(git log -1 --format=%cs HEAD)"
-{
+header=$'# Changelog\n\nAll notable changes per release. Versions follow semver; tags are `vX.Y.Z`.'
+section="$(
   echo "## v$next — $date"
   echo
-  git log --format='- %s' $range 2>/dev/null | grep -vE '^- chore\(release\):' || true
-  echo
-  if [[ -f "$CHANGELOG" ]]; then echo; cat "$CHANGELOG"; fi
-} > "$CHANGELOG.tmp"
-if [[ ! -f "$CHANGELOG" ]]; then
-  printf '# Changelog\n\nAll notable changes per release. Versions follow semver; tags are `vX.Y.Z`.\n\n' \
-    | cat - "$CHANGELOG.tmp" > "$CHANGELOG"
-else
-  mv "$CHANGELOG.tmp" "$CHANGELOG"
-fi
-rm -f "$CHANGELOG.tmp"
+  # User-facing summary: drop release/bead bookkeeping and merge commits.
+  git log --format='- %s' $range 2>/dev/null \
+    | grep -vE '^- (chore\(release\)|chore\(beads\)|Merge (pull request|branch|remote))' \
+    || true
+)"
+# Existing version sections only (from the first "## v" onward); drops any old
+# header so it isn't duplicated, and self-heals a previously-misordered file.
+existing=""
+[[ -f "$CHANGELOG" ]] && existing="$(awk '/^## v[0-9]/{f=1} f{print}' "$CHANGELOG")"
+{
+  printf '%s\n\n' "$header"
+  printf '%s\n' "$section"
+  [[ -n "$existing" ]] && { printf '\n'; printf '%s\n' "$existing"; }
+} > "$CHANGELOG"
 
 git add "$MANIFEST" "$CHANGELOG"
 git commit -q -m "chore(release): v$next"

@@ -19,6 +19,8 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0   # full history + tags, for the prev-tag compare link
 
       - name: Tag must match manifest version
         run: |
@@ -58,8 +60,28 @@ jobs:
           # GitHub repo settings; those checks are intentionally NOT ignored.)
           ignore: brands
 
+      - name: Build release notes from CHANGELOG.md
+        # GitHub's generate_release_notes derives from GitHub *PRs*, but ours are
+        # merged on Forgejo and only mirrored here — so it emits just a compare
+        # link, which is all HACS would then show. Instead, publish this tag's
+        # CHANGELOG.md section (a real summary) as the body.
+        run: |
+          tag="${GITHUB_REF_NAME}"
+          awk -v hdr="## ${tag} " '
+            index($0, hdr) == 1 { f = 1; print; next }
+            f && /^## v[0-9]/   { exit }
+            f                   { print }
+          ' CHANGELOG.md > RELEASE_NOTES.md
+          if [ ! -s RELEASE_NOTES.md ]; then printf '## %s\n' "$tag" > RELEASE_NOTES.md; fi
+          prev="$(git describe --tags --abbrev=0 "${tag}^" 2>/dev/null || true)"
+          if [ -n "$prev" ]; then
+            printf '\n**Full Changelog**: %s/%s/compare/%s...%s\n' \
+              "${GITHUB_SERVER_URL}" "${GITHUB_REPOSITORY}" "$prev" "$tag" >> RELEASE_NOTES.md
+          fi
+          echo "----- release notes -----"; cat RELEASE_NOTES.md
+
       - name: Publish GitHub Release
         uses: softprops/action-gh-release@v2
         with:
-          generate_release_notes: true
+          body_path: RELEASE_NOTES.md
           name: ${{ github.ref_name }}
