@@ -3,7 +3,7 @@
 The suitability score says how good conditions are; it cannot say whether a spot
 is even *listening to the best source* for each domain. Some providers are
 authoritative for some data: UKHO Admiralty is the gold standard for UK tides;
-keyed marine models (Stormglass, Windy) resolve exposed-coast swell better than
+keyed marine models (Stormglass) resolve exposed-coast swell better than
 Open-Meteo's nearest-coastal grid; for wind, Open-Meteo is perfectly fine.
 
 This module encodes that ranking (some entries region- or water-type-gated),
@@ -58,7 +58,6 @@ class _Authority:
 DOMAIN_AUTHORITY: dict[str, tuple[_Authority, ...]] = {
     WAVE: (
         _Authority("stormglass", _sea_only),
-        _Authority("windy", _sea_only),
         _Authority("open_meteo", _sea_only),
     ),
     TIDE: (
@@ -80,7 +79,6 @@ _REASONS: dict[str, str] = {
 # Short, friendly names for the nudge text (the registry labels are verbose).
 _PROVIDER_NAMES: dict[str, str] = {
     "open_meteo": "Open-Meteo",
-    "windy": "Windy",
     "stormglass": "Stormglass",
     "ukho": "UKHO Admiralty",
 }

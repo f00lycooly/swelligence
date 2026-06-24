@@ -1,20 +1,17 @@
 """Unit tests for the keyed-provider normalisers (no network).
 
-Windy, Stormglass, and UKHO all factor their response parsing into pure static
-methods so the metres/second -> knots, Kelvin -> Celsius, u/v -> speed/dir, and
-nearest-station logic are testable without live (paid) API calls.
+Stormglass and UKHO factor their response parsing into pure static methods so the
+metres/second -> knots conversion and nearest-station logic are testable without
+live (paid) API calls.
 """
 
 from __future__ import annotations
-
-import math
 
 import pytest
 
 from swelligence.geo import haversine_km as _haversine
 from swelligence.providers.stormglass import StormglassProvider
 from swelligence.providers.ukho import UKHOTideProvider
-from swelligence.providers.windy import WindyProvider
 
 # --- Stormglass -------------------------------------------------------------
 
@@ -68,57 +65,6 @@ def test_stormglass_tides():
 def test_stormglass_empty():
     assert StormglassProvider._parse_weather(None) == []
     assert StormglassProvider._parse_tides({}) == []
-
-
-# --- Windy ------------------------------------------------------------------
-
-WINDY_WIND = {
-    "ts": [1_750_000_000_000, 1_750_003_600_000],
-    "wind_u-surface": [3.0, -4.0],
-    "wind_v-surface": [4.0, 0.0],
-    "gust-surface": [8.0, 9.0],
-    "temp-surface": [291.15, 293.15],  # Kelvin
-    "past3hprecip-surface": [0.0, 0.5],
-    "lclouds-surface": [10, 20],
-}
-WINDY_WAVE = {
-    "ts": [1_750_000_000_000, 1_750_003_600_000],
-    "waves_height-surface": [0.8, 1.2],
-    "waves_period-surface": [6.0, 7.0],
-    "waves_direction-surface": [180, 190],
-    "swell1_height-surface": [0.5, 0.7],
-    "swell1_period-surface": [9.0, 10.0],
-}
-
-
-def test_windy_uv_to_speed_and_direction():
-    pts = WindyProvider._parse(WINDY_WIND, WINDY_WAVE)
-    assert len(pts) == 2
-    # |(3,4)| = 5 m/s -> 9.7 kn
-    assert pts[0].wind_speed_kn == pytest.approx(5 * 1.94384, abs=0.05)
-    # from-direction of vector (u=3,v=4): 270 - deg(atan2(4,3))
-    expected = (270 - math.degrees(math.atan2(4, 3))) % 360
-    assert pts[0].wind_dir_deg == pytest.approx(expected, abs=0.1)
-    # Kelvin -> Celsius
-    assert pts[0].air_temp_c == pytest.approx(18.0, abs=0.05)
-    assert pts[0].cloud_pct == 10
-
-
-def test_windy_waves_merged_by_timestamp():
-    pts = WindyProvider._parse(WINDY_WIND, WINDY_WAVE)
-    assert pts[1].wave_height_m == 1.2
-    assert pts[1].swell_period_s == 10.0
-
-
-def test_windy_no_wave_model_leaves_marine_none():
-    pts = WindyProvider._parse(WINDY_WIND, None)
-    assert pts[0].wave_height_m is None
-    assert pts[0].wind_speed_kn is not None
-
-
-def test_windy_empty():
-    assert WindyProvider._parse(None, None) == []
-    assert WindyProvider._parse({}, None) == []
 
 
 # --- UKHO -------------------------------------------------------------------

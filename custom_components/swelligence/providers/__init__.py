@@ -20,14 +20,12 @@ from .base import (
 from .open_meteo import OpenMeteoProvider
 from .stormglass import StormglassProvider
 from .ukho import UKHOTideProvider
-from .windy import WindyProvider
 
 # Registry of available forecast providers, keyed by the value stored in config.
-# Open-Meteo is the keyless default that always works; Windy and Stormglass are
-# keyed (their API key is stored per-provider under CONF_PROVIDERS).
+# Open-Meteo is the keyless default that always works; Stormglass is keyed (its
+# API key is stored per-provider under CONF_PROVIDERS).
 PROVIDERS: dict[str, type[ForecastProvider]] = {
     OpenMeteoProvider.key: OpenMeteoProvider,
-    WindyProvider.key: WindyProvider,
     StormglassProvider.key: StormglassProvider,
 }
 
@@ -80,7 +78,6 @@ __all__ = [
     "TideEvent",
     "TideProvider",
     "OpenMeteoProvider",
-    "WindyProvider",
     "StormglassProvider",
     "UKHOTideProvider",
     "PROVIDERS",

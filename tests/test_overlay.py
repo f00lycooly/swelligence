@@ -69,5 +69,5 @@ def test_resolve_route_inherits_or_overrides():
     assert resolve_route("", "stormglass") == "stormglass"
     assert resolve_route("inherit", "stormglass") == "stormglass"
     # ...any real value overrides, including an explicit "none" (off).
-    assert resolve_route("windy", "stormglass") == "windy"
+    assert resolve_route("open_meteo", "stormglass") == "open_meteo"
     assert resolve_route("none", "stormglass") == "none"

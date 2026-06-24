@@ -82,8 +82,8 @@ class ForecastProvider:
     async def async_fetch(self, lat, lon, *, hours=48) -> SpotForecast: ...
 ```
 
-Adding Windy/Stormglass = implement this + register in `PROVIDERS`. Nothing in
-scoring or entities changes.
+Adding a provider (e.g. Stormglass) = implement this + register in `PROVIDERS`.
+Nothing in scoring or entities changes.
 
 ## Data model
 
@@ -162,7 +162,10 @@ one profile + quiver in config — so there's no per-rider entity multiplication
   per keyed provider auto-throttles polling to the provider's daily request
   budget (`free_tier_daily_requests`/`requests_per_fetch`, shared across spots on
   that provider) so a free plan can't be exhausted — Stormglass free = 10/day →
-  6 h min interval for one spot. Windy/UKHO live verification still pending keys.
+  6 h min interval for one spot. UKHO live verification still pending keys.
+  **Note:** the **Windy** provider was later removed in the single-source
+  simplification (epic `swelligence-48w`) — it served the same GFS/gfsWave models
+  Open-Meteo already provides keyless, while requiring a paid key.
 - **M5 — Tide awareness** *(done)*: per-spot tide preference (any/high/low/mid +
   window hours) gates the score via a precomputed `ForecastPoint.tide_factor`
   (pure `tide.py`), so it flows through now/best/forecast uniformly. Tides come

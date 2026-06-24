@@ -17,7 +17,6 @@ from swelligence.providers.domains import (
 )
 from swelligence.providers.open_meteo import OpenMeteoProvider
 from swelligence.providers.stormglass import StormglassProvider
-from swelligence.providers.windy import WindyProvider
 
 
 def _forecast(**kw) -> SpotForecast:
@@ -56,13 +55,6 @@ def test_open_meteo_inland_only_wind_air():
     fc = _forecast()
     p._stamp_sources(fc, marine=False)
     assert set(fc.source_meta["sources"]) == {WIND, AIR}
-
-
-def test_windy_never_claims_water_or_tide():
-    p = WindyProvider(None)
-    fc = _forecast()
-    p._stamp_sources(fc, marine=True)
-    assert set(fc.source_meta["sources"]) == {WIND, AIR, WAVE}
 
 
 def test_stormglass_claims_tide_only_with_events():

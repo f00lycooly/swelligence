@@ -54,15 +54,10 @@ def test_wave_nudge_suppressed_for_non_sea_spot():
     assert recs == []
 
 
-def test_windy_beats_open_meteo_but_loses_to_stormglass():
-    # Only Windy configured -> suggest Windy.
-    recs = _recs({WAVE: "open_meteo"}, available={"open_meteo", "windy"})
-    assert recs[0]["suggested"] == "windy"
-    # Both keyed configured -> Stormglass wins (higher authority).
-    recs2 = _recs(
-        {WAVE: "open_meteo"}, available={"open_meteo", "windy", "stormglass"}
-    )
-    assert recs2[0]["suggested"] == "stormglass"
+def test_stormglass_beats_open_meteo_for_waves():
+    # Stormglass configured on a sea spot routing waves to Open-Meteo -> suggest it.
+    recs = _recs({WAVE: "open_meteo"}, available={"open_meteo", "stormglass"})
+    assert recs[0]["suggested"] == "stormglass"
 
 
 def test_ukho_tide_nudge_only_in_uk():
@@ -78,7 +73,7 @@ def test_ukho_tide_nudge_only_in_uk():
 def test_wind_domain_never_nudges():
     recs = _recs(
         {WIND: "open_meteo", WAVE: "stormglass"},
-        available={"open_meteo", "stormglass", "windy"},
+        available={"open_meteo", "stormglass"},
     )
     assert all(r["domain"] != WIND for r in recs)
 

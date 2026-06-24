@@ -48,7 +48,6 @@ HA_MODULES = [
     "providers.base",
     "providers.domains",
     "providers.open_meteo",
-    "providers.windy",
     "providers.stormglass",
     "providers.ukho",
 ]

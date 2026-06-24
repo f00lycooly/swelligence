@@ -523,7 +523,7 @@ class SwelligenceOptionsFlow(OptionsFlow):
     async def async_step_providers(
         self, user_input: dict[str, Any] | None = None
     ) -> ConfigFlowResult:
-        """Enter API keys for keyed forecast providers (Windy, Stormglass)."""
+        """Enter API keys for keyed forecast providers (Stormglass)."""
         if not _KEYED_PROVIDERS:
             return self.async_abort(reason="no_keyed_providers")
         stored = dict(self.config_entry.options.get(CONF_PROVIDERS, {}) or {})
