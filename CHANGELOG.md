@@ -2,6 +2,11 @@
 
 All notable changes per release. Versions follow semver; tags are `vX.Y.Z`.
 
+## v0.1.2 — 2026-06-24
+
+- feat(config-flow): map picker + UK postcode search for add-spot
+- fix(release): publish CHANGELOG summary as the GitHub Release body (HACS notes)
+
 ## v0.1.1 — 2026-06-24
 
 - feat(config-flow): search-first add-spot (place-name geocoding primary)
