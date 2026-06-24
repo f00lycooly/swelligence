@@ -67,16 +67,15 @@
       },
       "add_spot": {
         "title": "Add a spot",
-        "description": "Type a place name to search for its coordinates, or leave it blank and enter coordinates directly (pre-filled from your Home Assistant location). The provider locks onto the nearest model grid automatically.",
+        "description": "Search for a place by name to set this spot's location — the matched place fills in the name and coordinates for you. The provider locks onto the nearest model grid automatically. For an unnamed break the search can't find, tick “Enter coordinates manually” instead.",
         "data": {
-          "name": "Spot name",
-          "place_query": "Search by place name (optional)",
-          "latitude": "Latitude (used if no place name)",
-          "longitude": "Longitude (used if no place name)",
+          "place_query": "Search for a place by name",
+          "name": "Custom spot name (optional — defaults to the matched place)",
           "water_type": "Water type",
           "sports": "Sports relevant at this spot",
           "tide_state": "Best tide state (tide-dependent spots)",
-          "tide_window_h": "Tide window (hours either side)"
+          "tide_window_h": "Tide window (hours either side)",
+          "manual_coords": "Enter coordinates manually instead (for an unnamed break)"
         }
       },
       "add_spot_pick": {
@@ -84,6 +83,15 @@
         "description": "Several places matched your search for {name}. Pick the right one.",
         "data": {
           "match": "Matching place"
+        }
+      },
+      "add_spot_coords": {
+        "title": "Enter coordinates",
+        "description": "Enter the spot's name and exact coordinates (pre-filled from your Home Assistant location). The provider locks onto the nearest model grid automatically.",
+        "data": {
+          "name": "Spot name",
+          "latitude": "Latitude",
+          "longitude": "Longitude"
         }
       },
       "edit_spot": {
@@ -128,7 +136,8 @@
     },
     "error": {
       "duplicate_spot": "A spot with that name already exists.",
-      "geocode_no_results": "No matching place found. Try a different name or enter coordinates directly."
+      "geocode_no_results": "No matching place found. Try a different name, or tick “Enter coordinates manually”.",
+      "geocode_query_required": "Enter a place name to search, or tick “Enter coordinates manually”."
     },
     "abort": {
       "no_spots": "Add a spot first before tuning preferences.",
