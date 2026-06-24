@@ -32,10 +32,31 @@ class ForecastPoint:
     swell_height_m: float | None = None
     swell_period_s: float | None = None
     swell_dir_deg: float | None = None
+    #: Peak (vs mean) swell period — the better surf-power proxy (long-period
+    #: groundswell vs short-period windsea).
+    swell_peak_period_s: float | None = None
+    #: Local wind-sea, separated from swell. High wind-wave + low swell = messy
+    #: onshore slop; clean swell + low wind-wave = quality surf.
+    wind_wave_height_m: float | None = None
+    wind_wave_period_s: float | None = None
+    #: Secondary (crossed) swell — flags confused/dangerous seas.
+    secondary_swell_height_m: float | None = None
+    secondary_swell_period_s: float | None = None
+    secondary_swell_dir_deg: float | None = None
     air_temp_c: float | None = None
+    #: "Feels-like" air temperature — informs wetsuit choice given wind chill.
+    apparent_temp_c: float | None = None
     water_temp_c: float | None = None
     precip_mm: float | None = None
     cloud_pct: float | None = None
+    #: UV index (exposure) and horizontal visibility (m, offshore safety).
+    uv_index: float | None = None
+    visibility_m: float | None = None
+    #: WMO weather code — compact condition for the card/LLM summary.
+    weather_code: int | None = None
+    #: Ocean surface current — rip/drift safety (speed in knots, "toward" bearing).
+    current_speed_kn: float | None = None
+    current_dir_deg: float | None = None
     #: Tidal sea level (metres, provider datum) at this timestep, if supplied.
     sea_level_m: float | None = None
     #: Precomputed tide-suitability multiplier (0..1) for the spot's tide

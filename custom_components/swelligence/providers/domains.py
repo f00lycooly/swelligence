@@ -31,9 +31,23 @@ DOMAIN_FIELDS: dict[str, tuple[str, ...]] = {
         "swell_height_m",
         "swell_period_s",
         "swell_dir_deg",
+        "swell_peak_period_s",
+        "wind_wave_height_m",
+        "wind_wave_period_s",
+        "secondary_swell_height_m",
+        "secondary_swell_period_s",
+        "secondary_swell_dir_deg",
     ),
-    WATER: ("water_temp_c", "sea_level_m"),
-    AIR: ("air_temp_c", "precip_mm", "cloud_pct"),
+    WATER: ("water_temp_c", "sea_level_m", "current_speed_kn", "current_dir_deg"),
+    AIR: (
+        "air_temp_c",
+        "apparent_temp_c",
+        "precip_mm",
+        "cloud_pct",
+        "uv_index",
+        "visibility_m",
+        "weather_code",
+    ),
 }
 
 # Marine-only domains — skipped for inland / no-marine spots.

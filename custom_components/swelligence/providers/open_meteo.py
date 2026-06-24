@@ -27,14 +27,19 @@ _FORECAST_URL = "https://api.open-meteo.com/v1/forecast"
 _MARINE_URL = "https://marine-api.open-meteo.com/v1/marine"
 
 _MS_TO_KN = 1.943_84
+_KMH_TO_KN = 0.539_957
 
 _FORECAST_HOURLY = [
     "wind_speed_10m",
     "wind_gusts_10m",
     "wind_direction_10m",
     "temperature_2m",
+    "apparent_temperature",
     "precipitation",
     "cloud_cover",
+    "uv_index",
+    "visibility",
+    "weather_code",
 ]
 _MARINE_HOURLY = [
     "wave_height",
@@ -43,6 +48,15 @@ _MARINE_HOURLY = [
     "swell_wave_height",
     "swell_wave_period",
     "swell_wave_direction",
+    "swell_wave_peak_period",
+    "wind_wave_height",
+    "wind_wave_period",
+    "secondary_swell_wave_height",
+    "secondary_swell_wave_period",
+    "secondary_swell_wave_direction",
+    "ocean_current_velocity",
+    "ocean_current_direction",
+    "sea_level_height_msl",
     "sea_surface_temperature",
 ]
 
@@ -167,6 +181,10 @@ class OpenMeteoProvider(ForecastProvider):
             v = _at(values, i)
             return round(v * _MS_TO_KN, 1) if v is not None else None
 
+        def kmh_kn(values: list, i: int | None) -> float | None:
+            v = _at(values, i)
+            return round(v * _KMH_TO_KN, 1) if v is not None else None
+
         points: list[ForecastPoint] = []
         for i, iso in enumerate(times):
             mi = m_index.get(iso)
@@ -177,14 +195,33 @@ class OpenMeteoProvider(ForecastProvider):
                     wind_gust_kn=kn(wh.get("wind_gusts_10m", []), i),
                     wind_dir_deg=_at(wh.get("wind_direction_10m", []), i),
                     air_temp_c=_at(wh.get("temperature_2m", []), i),
+                    apparent_temp_c=_at(wh.get("apparent_temperature", []), i),
                     precip_mm=_at(wh.get("precipitation", []), i),
                     cloud_pct=_at(wh.get("cloud_cover", []), i),
+                    uv_index=_at(wh.get("uv_index", []), i),
+                    visibility_m=_at(wh.get("visibility", []), i),
+                    weather_code=_at(wh.get("weather_code", []), i),
                     wave_height_m=_at(mh.get("wave_height", []), mi),
                     wave_period_s=_at(mh.get("wave_period", []), mi),
                     wave_dir_deg=_at(mh.get("wave_direction", []), mi),
                     swell_height_m=_at(mh.get("swell_wave_height", []), mi),
                     swell_period_s=_at(mh.get("swell_wave_period", []), mi),
                     swell_dir_deg=_at(mh.get("swell_wave_direction", []), mi),
+                    swell_peak_period_s=_at(mh.get("swell_wave_peak_period", []), mi),
+                    wind_wave_height_m=_at(mh.get("wind_wave_height", []), mi),
+                    wind_wave_period_s=_at(mh.get("wind_wave_period", []), mi),
+                    secondary_swell_height_m=_at(
+                        mh.get("secondary_swell_wave_height", []), mi
+                    ),
+                    secondary_swell_period_s=_at(
+                        mh.get("secondary_swell_wave_period", []), mi
+                    ),
+                    secondary_swell_dir_deg=_at(
+                        mh.get("secondary_swell_wave_direction", []), mi
+                    ),
+                    current_speed_kn=kmh_kn(mh.get("ocean_current_velocity", []), mi),
+                    current_dir_deg=_at(mh.get("ocean_current_direction", []), mi),
+                    sea_level_m=_at(mh.get("sea_level_height_msl", []), mi),
                     water_temp_c=_at(mh.get("sea_surface_temperature", []), mi),
                 )
             )
