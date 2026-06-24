@@ -100,6 +100,7 @@ class SpotCoordinator(DataUpdateCoordinator[SpotData]):
         api_key: str | None,
         profiles: dict[str, SportProfile],
         scan_interval_minutes: int | None = None,
+        batch_loader=None,
     ) -> None:
         interval = scan_interval_minutes or entry.options.get(
             CONF_SCAN_INTERVAL_MINUTES, DEFAULT_SCAN_INTERVAL_MINUTES
@@ -115,6 +116,9 @@ class SpotCoordinator(DataUpdateCoordinator[SpotData]):
         self._provider_key = provider_key
         self._api_key = api_key
         self._profiles = profiles
+        # Shared batched Open-Meteo loader (one fetch serves all spots); None
+        # falls back to a per-spot fetch.
+        self._batch_loader = batch_loader
         # (fetched_at, events) cache for the tide overlay.
         self._tide_cache: tuple[datetime | None, list] = (None, [])
         # provider_key -> (fetched_at, SpotForecast) cache for overlay fetches.
@@ -129,12 +133,22 @@ class SpotCoordinator(DataUpdateCoordinator[SpotData]):
         provider = provider_cls(session, self._api_key)
         water_type = self.spot.get("water_type", "sea")
         try:
-            forecast = await provider.async_fetch(
-                self.spot["latitude"],
-                self.spot["longitude"],
-                days=7,
-                marine=marine_wanted(water_type),
-            )
+            # When a shared batch loader is wired (Open-Meteo, the default), draw
+            # this spot's forecast from the one batched fetch that serves every
+            # spot; otherwise fall back to a per-spot fetch.
+            if self._batch_loader is not None:
+                forecast = await self._batch_loader.get(self.spot["id"])
+                if forecast is None:
+                    raise UpdateFailed("Batch fetch returned no data for this spot")
+            else:
+                forecast = await provider.async_fetch(
+                    self.spot["latitude"],
+                    self.spot["longitude"],
+                    days=7,
+                    marine=marine_wanted(water_type),
+                )
+        except UpdateFailed:
+            raise
         except Exception as err:  # noqa: BLE001
             raise UpdateFailed(f"Forecast fetch failed: {err}") from err
 

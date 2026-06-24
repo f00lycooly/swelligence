@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import asyncio
+
 import pytest
 
 from swelligence.providers.open_meteo import OpenMeteoProvider
@@ -121,6 +123,88 @@ def test_marine_time_misalignment_handled():
 def test_empty_wind_returns_no_points():
     assert OpenMeteoProvider._merge(None, None) == []
     assert OpenMeteoProvider._merge({}, None) == []
+
+
+# --- batched fetch (akc) ----------------------------------------------------
+
+
+def _wind_payload(speed_ms: float) -> dict:
+    return {
+        "latitude": 50.0,
+        "longitude": -1.0,
+        "utc_offset_seconds": 0,
+        "timezone_abbreviation": "GMT",
+        "hourly": {"time": ["2026-06-23T12:00"], "wind_speed_10m": [speed_ms]},
+    }
+
+
+def _marine_payload(wave_m: float) -> dict:
+    return {"hourly": {"time": ["2026-06-23T12:00"], "wave_height": [wave_m]}}
+
+
+class _StubProvider(OpenMeteoProvider):
+    """Open-Meteo provider with canned HTTP responses, recording call URLs."""
+
+    def __init__(self, forecast, marine):
+        super().__init__(None)
+        self._forecast, self._marine = forecast, marine
+        self.calls: list[str] = []
+
+    async def _get(self, url, params, *, optional=False):
+        self.calls.append(url)
+        return self._marine if "marine" in url else self._forecast
+
+
+def test_fetch_many_index_matches_and_two_calls():
+    # Two coords -> top-level arrays; results matched by index, two calls total.
+    p = _StubProvider(
+        forecast=[_wind_payload(5.0), _wind_payload(10.0)],
+        marine=[_marine_payload(0.8), _marine_payload(1.5)],
+    )
+    out = asyncio.run(
+        p.async_fetch_many([(50.0, -1.0, True), (51.0, -2.0, True)])
+    )
+    assert len(out) == 2
+    assert out[0].points[0].wind_speed_kn == pytest.approx(9.7, abs=0.05)
+    assert out[1].points[0].wind_speed_kn == pytest.approx(19.4, abs=0.05)
+    assert out[0].points[0].wave_height_m == 0.8
+    assert out[1].points[0].wave_height_m == 1.5
+    assert p.calls.count("https://api.open-meteo.com/v1/forecast") == 1
+    assert p.calls.count("https://marine-api.open-meteo.com/v1/marine") == 1
+
+
+def test_fetch_many_single_coord_object_response():
+    # One coord -> Open-Meteo returns top-level objects, not arrays.
+    p = _StubProvider(forecast=_wind_payload(5.0), marine=_marine_payload(0.8))
+    out = asyncio.run(p.async_fetch_many([(50.0, -1.0, True)]))
+    assert len(out) == 1
+    assert out[0].points[0].wave_height_m == 0.8
+
+
+def test_fetch_many_per_coord_marine_flag():
+    # First wants marine, second is inland -> still one marine call, but the
+    # inland spot gets no marine data and is marked skipped.
+    p = _StubProvider(
+        forecast=[_wind_payload(5.0), _wind_payload(6.0)],
+        marine=[_marine_payload(0.8), _marine_payload(1.5)],
+    )
+    out = asyncio.run(
+        p.async_fetch_many([(50.0, -1.0, True), (52.0, -1.5, False)])
+    )
+    assert out[0].points[0].wave_height_m == 0.8
+    assert out[1].points[0].wave_height_m is None
+    assert out[1].source_meta["marine"] == "skipped (inland spot)"
+
+
+def test_fetch_many_all_inland_skips_marine_call():
+    p = _StubProvider(forecast=[_wind_payload(5.0)], marine=None)
+    out = asyncio.run(p.async_fetch_many([(48.0, 2.0, False)]))
+    assert out[0].points[0].wind_speed_kn == pytest.approx(9.7, abs=0.05)
+    assert "marine-api.open-meteo.com/v1/marine" not in p.calls
+
+
+def test_fetch_many_empty():
+    assert asyncio.run(OpenMeteoProvider(None).async_fetch_many([])) == []
 
 
 def test_grid_distance_from_snapped_coords():

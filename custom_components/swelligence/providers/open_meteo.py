@@ -106,7 +106,74 @@ class OpenMeteoProvider(ForecastProvider):
                 },
                 optional=True,
             )
+        return self._build_forecast(latitude, longitude, wind, marine_data, marine)
 
+    async def async_fetch_many(
+        self, coords: list[tuple[float, float, bool]], *, days: int = 7
+    ) -> list[SpotForecast]:
+        """Fetch many coordinates in (at most) two batched calls.
+
+        ``coords`` is ``[(lat, lon, marine), ...]``. Open-Meteo accepts
+        comma-separated latitude/longitude lists and returns a JSON array of
+        per-location results (a single object when only one coord is requested).
+        One forecast call + one marine call cover *all* coords, replacing two
+        calls per spot. The marine call is made once for every coord (and skipped
+        entirely if no coord wants marine); its data is applied only to coords
+        whose ``marine`` flag is set, so inland spots stay marine-free. Results
+        are matched back to inputs by array index — snapped grid coords differ
+        from inputs and between the two grids, so equality matching would be
+        wrong. Returns one SpotForecast per input coord, in order.
+        """
+        if not coords:
+            return []
+        lats = ",".join(str(lat) for lat, _, _ in coords)
+        lons = ",".join(str(lon) for _, lon, _ in coords)
+        wind = await self._get(
+            _FORECAST_URL,
+            {
+                "latitude": lats,
+                "longitude": lons,
+                "hourly": ",".join(_FORECAST_HOURLY),
+                "daily": "sunrise,sunset",
+                "wind_speed_unit": "ms",
+                "forecast_days": days,
+                "timezone": "auto",
+            },
+        )
+        marine_data = None
+        if any(want_marine for _, _, want_marine in coords):
+            marine_data = await self._get(
+                _MARINE_URL,
+                {
+                    "latitude": lats,
+                    "longitude": lons,
+                    "hourly": ",".join(_MARINE_HOURLY),
+                    "forecast_days": days,
+                    "timezone": "auto",
+                },
+                optional=True,
+            )
+        winds = _as_list(wind)
+        marines = _as_list(marine_data)
+        out: list[SpotForecast] = []
+        for i, (lat, lon, want_marine) in enumerate(coords):
+            marine_i = _at(marines, i) if want_marine else None
+            out.append(self._build_forecast(lat, lon, _at(winds, i), marine_i, want_marine))
+        return out
+
+    def _build_forecast(
+        self,
+        latitude: float,
+        longitude: float,
+        wind: dict | None,
+        marine_data: dict | None,
+        marine: bool,
+    ) -> SpotForecast:
+        """Assemble a SpotForecast from a coord's wind + marine payloads.
+
+        Shared by the single-coord :meth:`async_fetch` and the batched
+        :meth:`async_fetch_many` so both normalise identically.
+        """
         points = self._merge(wind, marine_data)
         meta = {
             "model": (wind or {}).get("timezone_abbreviation", "open-meteo"),
@@ -303,6 +370,17 @@ def _derive_tide_extremes(times: list, levels: list) -> list[TideEvent]:
         when = datetime.fromisoformat(times[i]).replace(tzinfo=timezone.utc)
         events.append(TideEvent(time=when, kind=kind, height_m=round(b, 2)))
     return events
+
+
+def _as_list(payload) -> list:
+    """Normalise a batched Open-Meteo response to a per-location list.
+
+    A single comma-separated coordinate returns a top-level object; multiple
+    return a top-level array. ``None`` (failed/optional call) -> empty list.
+    """
+    if payload is None:
+        return []
+    return payload if isinstance(payload, list) else [payload]
 
 
 def _at(values: list, i: int | None):

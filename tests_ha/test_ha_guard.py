@@ -42,6 +42,7 @@ HA_MODULES = [
     "sizing",
     "sports",
     "tide",
+    "batch",
     "overlay",
     "geocoding",
     "providers",
