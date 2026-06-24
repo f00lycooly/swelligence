@@ -106,10 +106,26 @@ class ForecastProvider(ABC):
     #: Data domains (see :mod:`.domains`) this provider can supply. Drives
     #: per-domain source provenance and the composite-merge routing.
     provides_domains: frozenset[str] = frozenset()
+    #: Domains this provider is an *authority* for, mapped to a rank (higher =
+    #: more authoritative). Drives the metadata-derived "better source" nudges
+    #: and overlay resolution (:func:`..authority.resolve_overlay`). Empty = this
+    #: provider is never proposed as a better source and never auto-resolved —
+    #: which is why adding a provider is a declaration here, not a table edit.
+    authority_rank: dict[str, int] = {}
 
     def __init__(self, session: ClientSession, api_key: str | None = None) -> None:
         self._session = session
         self._api_key = api_key
+
+    @classmethod
+    def covers(cls, latitude: float, longitude: float) -> bool:
+        """Whether this provider is authoritative at a coordinate.
+
+        Region-gated providers (e.g. UKHO = UK) override this; the default is
+        global. Keeps region applicability *on the provider* so the resolver and
+        authority map never hardcode a provider's bounding box.
+        """
+        return True
 
     def _stamp_sources(self, forecast: SpotForecast, *, marine: bool) -> None:
         """Record this provider as the source of each domain it supplied.
@@ -158,10 +174,19 @@ class TideProvider(ABC):
     label: str = ""
     #: Whether this tide source needs an API key.
     requires_api_key: bool = False
+    #: Domains this source is an authority for, mapped to a rank (higher = more
+    #: authoritative). Tide sources declare ``{TIDE: rank}``; the resolver picks
+    #: the highest-ranked covering, available source. See :class:`ForecastProvider`.
+    authority_rank: dict[str, int] = {}
 
     def __init__(self, session: ClientSession, api_key: str | None = None) -> None:
         self._session = session
         self._api_key = api_key
+
+    @classmethod
+    def covers(cls, latitude: float, longitude: float) -> bool:
+        """Whether this tide source is authoritative at a coordinate (default global)."""
+        return True
 
     @abstractmethod
     async def async_fetch_tides(

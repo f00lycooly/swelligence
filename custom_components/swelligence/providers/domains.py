@@ -40,6 +40,22 @@ DOMAIN_FIELDS: dict[str, tuple[str, ...]] = {
 MARINE_DOMAINS: frozenset[str] = frozenset({WAVE, WATER, TIDE})
 
 
+def assert_legal_domains(keys, *, where: str = "") -> None:
+    """Raise if any of ``keys`` is not a legal domain.
+
+    The single legality checker for anything keyed by domain — provider
+    ``provides_domains`` / ``authority_rank``, the authority reason/label maps,
+    etc. Use the module constants (:data:`WIND`, :data:`TIDE`, …) rather than
+    bare strings; this guard exists to catch the times that doesn't happen.
+    """
+    illegal = sorted(k for k in keys if k not in DOMAINS)
+    if illegal:
+        ctx = f" in {where}" if where else ""
+        raise ValueError(
+            f"Illegal domain(s){ctx}: {illegal!r}. Legal domains: {list(DOMAINS)!r}"
+        )
+
+
 def stamp_sources(forecast, provider_key: str, domains) -> None:
     """Record ``provider_key`` as the source of each given domain.
 

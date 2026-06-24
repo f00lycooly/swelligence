@@ -17,6 +17,7 @@ from .base import (
     TideEvent,
     TideProvider,
 )
+from .domains import assert_legal_domains
 from .open_meteo import OpenMeteoProvider
 from .stormglass import StormglassProvider
 from .ukho import UKHOTideProvider
@@ -35,6 +36,19 @@ TIDE_PROVIDERS: dict[str, type[TideProvider]] = {
     UKHOTideProvider.key: UKHOTideProvider,
     StormglassProvider.key: StormglassProvider,
 }
+
+# Legality gate (M-domains): every registered provider's domain-keyed
+# declarations must reference only legal domains. Enforced here, at the registry
+# — the one place every provider passes through — so an illegal domain on a new
+# provider fails loudly at import rather than silently misrouting later.
+for _key, _cls in {**PROVIDERS, **TIDE_PROVIDERS}.items():
+    # provides_domains is a ForecastProvider attribute; tide-only providers
+    # (UKHO) lack it. authority_rank is on both ABCs.
+    assert_legal_domains(
+        getattr(_cls, "provides_domains", frozenset()),
+        where=f"{_key}.provides_domains",
+    )
+    assert_legal_domains(_cls.authority_rank, where=f"{_key}.authority_rank")
 
 
 def get_provider(key: str) -> type[ForecastProvider] | None:

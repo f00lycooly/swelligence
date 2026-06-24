@@ -1,4 +1,4 @@
-"""Per-domain provider authority and 'better source available' nudges.
+"""Provider authority resolution + 'better source available' nudges.
 
 The suitability score says how good conditions are; it cannot say whether a spot
 is even *listening to the best source* for each domain. Some providers are
@@ -6,11 +6,19 @@ authoritative for some data: UKHO Admiralty is the gold standard for UK tides;
 keyed marine models (Stormglass) resolve exposed-coast swell better than
 Open-Meteo's nearest-coastal grid; for wind, Open-Meteo is perfectly fine.
 
-This module encodes that ranking (some entries region- or water-type-gated),
-compares a spot's ACTUAL routing (``source_meta['sources']`` from al8.1/al8.4)
-against the best *available* (configured) source, and emits an actionable nudge
-only when a strictly better source is sitting unused — never noise when the spot
-is already on the best source it can reach.
+That ranking is **not** hardcoded here. Each provider *declares* the domains it
+is an authority for (``authority_rank``) and the region it covers (``covers``);
+this module just scans the registries and ranks. So adding a provider — UKHO,
+NOAA CO-OPS, WorldTides, a future swell service — is a declaration on the
+provider class plus a registry entry, never an edit to a table in this file.
+
+Two consumers share the derived ranking:
+
+* :func:`resolve_overlay` — pick the single best *available* source for a domain
+  at a coordinate (used by the coordinator to auto-attach the right tide source
+  by region, with no manual per-spot selection).
+* :func:`recommend_sources` — emit an actionable nudge when a strictly better,
+  configured source is sitting unused for a domain the spot already routes.
 
 Pure module (no Home Assistant / I/O) so the coordinator, the diagnostic sensor,
 the overview service, and the validation scripts share one implementation.
@@ -18,71 +26,91 @@ the overview service, and the validation scripts share one implementation.
 
 from __future__ import annotations
 
-from collections.abc import Callable
-from dataclasses import dataclass, field
+from .providers import PROVIDERS, TIDE_PROVIDERS
+from .providers.domains import DOMAINS, TIDE, WATER, WAVE, assert_legal_domains
 
-from .providers.domains import TIDE, WAVE
+# Domains whose source only matters on the open coast — sheltered/inland spots
+# have marine suppressed, so a swell/sea-temp source choice is moot there.
+_SEA_ONLY_DOMAINS = frozenset({WAVE, WATER})
 
-# UK bounding box for region-gated authorities (UKHO is UK-only).
-_UK_BBOX = (49.0, 61.0, -8.5, 2.0)  # lat_min, lat_max, lon_min, lon_max
-
-
-def _in_uk(lat: float, lon: float) -> bool:
-    la0, la1, lo0, lo1 = _UK_BBOX
-    return la0 <= lat <= la1 and lo0 <= lon <= lo1
-
-
-def _sea_only(water_type: str, lat: float, lon: float) -> bool:
-    # Swell-source quality only matters on the open coast; sheltered/inland
-    # spots have marine suppressed, so the routing choice is moot.
-    return water_type == "sea"
-
-
-def _uk_tide(water_type: str, lat: float, lon: float) -> bool:
-    return _in_uk(lat, lon)
-
-
-@dataclass(frozen=True)
-class _Authority:
-    """One ranked source for a domain, with an applicability predicate."""
-
-    provider: str
-    applies: Callable[[str, float, float], bool] = field(
-        default=lambda water_type, lat, lon: True
-    )
-
-
-# Best-first authority per domain. Domains absent here (wind, air) have no
-# meaningful source hierarchy — Open-Meteo is authoritative enough — so they
-# never raise a nudge.
-DOMAIN_AUTHORITY: dict[str, tuple[_Authority, ...]] = {
-    WAVE: (
-        _Authority("stormglass", _sea_only),
-        _Authority("open_meteo", _sea_only),
-    ),
-    TIDE: (
-        _Authority("ukho", _uk_tide),
-        _Authority("stormglass"),
-    ),
-}
-
-# Why a domain's nudge fires — surfaced verbatim to the user.
+# Why a domain's nudge fires — surfaced verbatim to the user. Keyed by domain
+# (not provider), so it needs no edit when providers are added.
 _REASONS: dict[str, str] = {
     WAVE: (
         "keyed marine models resolve exposed-coast swell better than "
         "Open-Meteo's nearest-coastal grid"
     ),
-    TIDE: "UKHO Admiralty is the authoritative source for UK tidal predictions",
+    TIDE: "a regional hydrographic authority predicts tides better than a model",
 }
 
-
-# Short, friendly names for the nudge text (the registry labels are verbose).
+# Short, friendly names for the nudge text. Optional: a provider absent here
+# falls back to its registry key, so this never blocks adding a provider.
 _PROVIDER_NAMES: dict[str, str] = {
     "open_meteo": "Open-Meteo",
     "stormglass": "Stormglass",
     "ukho": "UKHO Admiralty",
+    "noaa_coops": "NOAA CO-OPS",
+    "worldtides": "WorldTides",
 }
 _DOMAIN_LABELS: dict[str, str] = {WAVE: "Swell/waves", TIDE: "Tides"}
+
+# Legality guard for the domain-keyed maps in this module (catches bare-string
+# domain keys at import, the very mistake the constants exist to prevent).
+assert_legal_domains(_REASONS, where="authority._REASONS")
+assert_legal_domains(_DOMAIN_LABELS, where="authority._DOMAIN_LABELS")
+
+
+def _all_providers() -> dict[str, type]:
+    """Every registered provider class, keyed by registry key (deduped).
+
+    A class registered as both a forecast and a tide provider (Stormglass)
+    appears once. Reading from the live registries is what makes authority
+    self-updating as providers are registered or removed.
+    """
+    merged: dict[str, type] = {}
+    merged.update(TIDE_PROVIDERS)
+    merged.update(PROVIDERS)
+    return merged
+
+
+def domain_ranking(domain: str, latitude: float, longitude: float) -> list[str]:
+    """Provider keys that are an authority for ``domain`` at a coordinate.
+
+    Best-first by declared ``authority_rank[domain]``; region-gated by each
+    provider's ``covers``. Empty when no provider claims authority for the domain
+    there (e.g. wind/air, or tides outside any covered region).
+    """
+    cands: list[tuple[int, str]] = []
+    for key, cls in _all_providers().items():
+        rank = cls.authority_rank.get(domain)
+        if rank is None:
+            continue
+        if not cls.covers(latitude, longitude):
+            continue
+        cands.append((rank, key))
+    # rank desc; key as a stable tiebreak so output is deterministic.
+    cands.sort(key=lambda rk: (-rk[0], rk[1]))
+    return [key for _, key in cands]
+
+
+def resolve_overlay(
+    domain: str,
+    latitude: float,
+    longitude: float,
+    *,
+    available: set[str],
+) -> str | None:
+    """Best *available* source for a domain at a coordinate, or ``None``.
+
+    ``available`` is the set of provider keys usable here (keyless providers
+    always; keyed ones only when configured). This is the wiring point: the
+    coordinator calls it to attach the right tide source by region without any
+    hardcoded provider choice.
+    """
+    for key in domain_ranking(domain, latitude, longitude):
+        if key in available:
+            return key
+    return None
 
 
 def provider_name(key: str) -> str:
@@ -116,13 +144,13 @@ def recommend_sources(
     empty when every routed domain is already on the best source it can reach.
     """
     recs: list[dict] = []
-    for domain, ranks in DOMAIN_AUTHORITY.items():
+    for domain in DOMAINS:
         current = (sources or {}).get(domain)
         if not current:
             continue  # domain not supplied for this spot -> nothing to improve
-        order = [
-            a.provider for a in ranks if a.applies(water_type, latitude, longitude)
-        ]
+        if domain in _SEA_ONLY_DOMAINS and water_type != "sea":
+            continue  # swell/sea-temp source is moot off the open coast
+        order = domain_ranking(domain, latitude, longitude)
         if not order:
             continue
         best = next((p for p in order if p in available), None)

@@ -4,8 +4,10 @@ from __future__ import annotations
 
 from swelligence.authority import (
     advice_message,
+    domain_ranking,
     provider_name,
     recommend_sources,
+    resolve_overlay,
 )
 from swelligence.providers.domains import TIDE, WAVE, WIND
 
@@ -99,3 +101,32 @@ def test_advice_message_is_human_readable():
 def test_provider_name_falls_back_to_key():
     assert provider_name("stormglass") == "Stormglass"
     assert provider_name("mystery") == "mystery"
+
+
+# --- resolver (region/priority overlay resolution) --------------------------
+
+
+def test_resolve_overlay_picks_region_authority_then_falls_back():
+    avail = {"open_meteo", "stormglass", "ukho"}
+    # In the UK, UKHO (rank 100, UK-gated) wins for tides.
+    assert resolve_overlay(TIDE, *UK, available=avail) == "ukho"
+    # Outside the UK, UKHO doesn't cover -> global Stormglass (rank 50) wins.
+    assert resolve_overlay(TIDE, *NZ, available=avail) == "stormglass"
+
+
+def test_resolve_overlay_respects_availability():
+    # UKHO authoritative in the UK but not configured -> fall to Stormglass.
+    assert resolve_overlay(TIDE, *UK, available={"stormglass"}) == "stormglass"
+    # Nothing available -> None (no source to attach).
+    assert resolve_overlay(TIDE, *UK, available=set()) is None
+
+
+def test_resolve_overlay_unranked_domain_is_none():
+    # No provider declares wind authority -> nothing to resolve.
+    assert resolve_overlay(WIND, *UK, available={"open_meteo", "stormglass"}) is None
+
+
+def test_domain_ranking_is_priority_ordered_and_region_gated():
+    assert domain_ranking(TIDE, *UK) == ["ukho", "stormglass"]  # UK: both, UKHO first
+    assert domain_ranking(TIDE, *NZ) == ["stormglass"]  # NZ: UKHO gated out
+    assert domain_ranking(WAVE, *NZ) == ["stormglass", "open_meteo"]  # rank 50 > 0

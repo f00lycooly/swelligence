@@ -15,6 +15,7 @@ from datetime import datetime
 
 from ..geo import haversine_km
 from .base import TideEvent, TideProvider
+from .domains import TIDE
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -27,6 +28,16 @@ class UKHOTideProvider(TideProvider):
     key = "ukho"
     label = "UKHO Admiralty (UK tides, key required)"
     requires_api_key = True
+    # The authoritative UK tide source; region-gated to the UK bounding box.
+    authority_rank = {TIDE: 100}
+
+    # UK bounding box (lat_min, lat_max, lon_min, lon_max).
+    _UK_BBOX = (49.0, 61.0, -8.5, 2.0)
+
+    @classmethod
+    def covers(cls, latitude: float, longitude: float) -> bool:
+        la0, la1, lo0, lo1 = cls._UK_BBOX
+        return la0 <= latitude <= la1 and lo0 <= longitude <= lo1
 
     async def async_fetch_tides(
         self,

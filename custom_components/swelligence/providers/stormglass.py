@@ -64,6 +64,9 @@ class StormglassProvider(ForecastProvider, TideProvider):
     free_tier_daily_requests = 10  # Stormglass free plan: 10 requests/day
     requests_per_fetch = 2  # one weather/point call + one tide/extremes call
     provides_domains = frozenset({WIND, AIR, WAVE, WATER, TIDE})
+    # Keyed marine model (global): outranks Open-Meteo for swell, and a global
+    # tide source below region-specific authorities (UKHO, NOAA CO-OPS).
+    authority_rank = {WAVE: 50, TIDE: 50}
 
     async def async_fetch(
         self,

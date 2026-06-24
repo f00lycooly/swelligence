@@ -4,6 +4,9 @@ from __future__ import annotations
 
 from datetime import datetime
 
+import pytest
+
+from swelligence.providers import PROVIDERS, TIDE_PROVIDERS
 from swelligence.providers.base import SpotForecast, TideEvent
 from swelligence.providers.domains import (
     AIR,
@@ -13,6 +16,7 @@ from swelligence.providers.domains import (
     WATER,
     WAVE,
     WIND,
+    assert_legal_domains,
     stamp_sources,
 )
 from swelligence.providers.open_meteo import OpenMeteoProvider
@@ -34,6 +38,23 @@ def test_stamp_sources_overwrites_for_overlay():
     stamp_sources(fc, "open_meteo", {WIND, WAVE})
     stamp_sources(fc, "stormglass", {WAVE})  # an overlay re-stamps just waves
     assert fc.source_meta["sources"] == {"wind": "open_meteo", "wave": "stormglass"}
+
+
+def test_assert_legal_domains_accepts_legal_and_rejects_illegal():
+    assert_legal_domains([WIND, TIDE])  # no raise
+    assert_legal_domains({WAVE: 1, WATER: 2})  # dict keys are iterated
+    with pytest.raises(ValueError, match="tides"):  # bare-string typo for TIDE
+        assert_legal_domains(["wind", "tides"], where="oops")
+
+
+def test_every_registered_provider_declares_only_legal_domains():
+    # The legality gate enforced at the registry — assert it holds for all
+    # providers so a bad domain key on any provider fails this test, not prod.
+    for key, cls in {**PROVIDERS, **TIDE_PROVIDERS}.items():
+        assert_legal_domains(
+            getattr(cls, "provides_domains", frozenset()), where=f"{key}.provides_domains"
+        )
+        assert_legal_domains(cls.authority_rank, where=f"{key}.authority_rank")
 
 
 def test_domain_fields_cover_known_point_fields():

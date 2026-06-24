@@ -53,6 +53,9 @@ class OpenMeteoProvider(ForecastProvider):
     requires_api_key = False
     supports_marine = True
     provides_domains = frozenset({WIND, AIR, WAVE, WATER})
+    # Baseline marine authority: a valid swell source everywhere, but the lowest
+    # rank — a keyed model resolving exposed-coast swell outranks it.
+    authority_rank = {WAVE: 0}
 
     async def async_fetch(
         self,
