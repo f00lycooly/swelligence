@@ -51,6 +51,12 @@ jobs:
         uses: hacs/action@main
         with:
           category: integration
+          # `brands` validates the domain is registered in home-assistant/brands,
+          # which only applies to integrations submitted to the HACS default
+          # store. This is a self-hosted custom repository, so it's not — ignore
+          # it. (The repo still needs a description + topics, which are set in the
+          # GitHub repo settings; those checks are intentionally NOT ignored.)
+          ignore: brands
 
       - name: Publish GitHub Release
         uses: softprops/action-gh-release@v2
