@@ -25,8 +25,11 @@ the mirror strictly one-way so nothing has to be written back from GitHub.
    Mirror Settings → Add Push Mirror*:
    - Git Remote URL: `https://github.com/f00lycooly/swelligence.git`
    - Authorization: a GitHub **PAT** with `repo` + `workflow` scopes
-   - Tick **“Sync when new commits are pushed”** (and set a periodic interval,
-     e.g. 8h, as a backstop).
+   - **Leave “Sync when new commits are pushed” UNticked** — this mirror is
+     **sync-on-release**, not sync-on-commit. `scripts/release.sh` forces a
+     one-shot sync at release time (via the `push_mirrors-sync` API), so GitHub
+     only gets pushed when a release is cut. Keep a periodic interval (e.g. 8h)
+     as a harmless backstop.
    Push mirrors propagate **branches *and* tags**.
 3. **Enable GitHub Actions** on the mirror (Actions tab → enable workflows). The
    mirrored `.github/workflows/release.yml` runs there on tag pushes.
@@ -62,13 +65,16 @@ scripts/release.sh --as 0.1.0
 since the last `v*` tag (0.x-aware: pre-1.0 a breaking change bumps *minor*, a
 `feat` bumps *patch*), bumps `custom_components/swelligence/manifest.json`,
 prepends a `CHANGELOG.md` section, commits `chore(release): vX.Y.Z`, creates an
-annotated `vX.Y.Z` tag, and pushes to Forgejo `origin`. Overrides:
-`--as X.Y.Z` (explicit version), `--no-push` (local only), `--strict` (abort if
+annotated `vX.Y.Z` tag, pushes to Forgejo `origin`, **and forces a one-shot
+push-mirror sync so the tag reaches GitHub immediately**. Overrides:
+`--as X.Y.Z` (explicit version), `--no-push` (local only),
+`--no-mirror-sync` (push but don't force the mirror), `--strict` (abort if
 no release-worthy commits).
 
 Then the pipeline runs itself:
 
-1. The push mirror carries the tag to GitHub.
+1. The forced push-mirror sync carries the tag to GitHub (no waiting on the 8h
+   interval, since the mirror is sync-on-release).
 2. `release.yml` fires on the `v*` tag: asserts **tag == manifest version**, runs
    the tests + HA guard + hassfest + **`hacs/action`**, then publishes a GitHub
    **Release** with auto-generated notes.
