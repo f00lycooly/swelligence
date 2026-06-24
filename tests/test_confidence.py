@@ -11,7 +11,6 @@ from swelligence.confidence import (
     field_confidence,
 )
 from swelligence.providers.base import ForecastPoint
-from swelligence.providers.stormglass import StormglassProvider
 from swelligence.sports import SPORT_PROFILES
 
 
@@ -88,53 +87,6 @@ def test_aggregate_ignores_fields_the_sport_does_not_score():
 def test_aggregate_none_without_signal():
     assert aggregate_confidence(_point(None), SPORT_PROFILES["surf"]) is None
     assert aggregate_confidence(_point({}), SPORT_PROFILES["surf"]) is None
-
-
-# --- Stormglass integration -------------------------------------------------
-
-def test_stormglass_spread_excludes_sg_blend():
-    # sg is Stormglass's own blend of the others, not an independent model.
-    vals = StormglassProvider._spread(
-        {"sg": 1.5, "noaa": 1.4, "icon": 1.6}, is_wind=False
-    )
-    assert sorted(vals) == [1.4, 1.6]
-
-
-def test_stormglass_spread_converts_wind_to_knots():
-    vals = StormglassProvider._spread({"noaa": 10.0, "icon": 10.0}, is_wind=True)
-    assert all(v > 18 for v in vals)  # 10 m/s ~ 19.4 kn
-
-
-def test_stormglass_parse_populates_source_confidence():
-    payload = {
-        "hours": [
-            {
-                "time": "2026-06-23T09:00:00+00:00",
-                "waveHeight": {"sg": 1.5, "noaa": 1.5, "icon": 1.52},
-                "swellPeriod": {"sg": 11.0, "noaa": 7.0, "dwd": 13.0},
-            }
-        ]
-    }
-    points = StormglassProvider._parse_weather(payload)
-    assert len(points) == 1
-    conf = points[0].source_confidence
-    assert conf is not None
-    # Wave height: tight agreement -> high.
-    assert conf["wave_height_m"] > 0.85
-    # Swell period: 7..13s spread -> lower confidence than wave height.
-    assert conf["swell_period_s"] < conf["wave_height_m"]
-
-
-def test_stormglass_single_source_field_has_no_confidence():
-    payload = {
-        "hours": [
-            {"time": "2026-06-23T09:00:00+00:00", "waveHeight": {"sg": 1.5}}
-        ]
-    }
-    points = StormglassProvider._parse_weather(payload)
-    # Only sg present -> nothing independent to compare -> no confidence at all.
-    assert points[0].source_confidence is None
-    assert points[0].wave_height_m == 1.5
 
 
 def test_every_scale_field_is_a_known_point_field():

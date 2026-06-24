@@ -17,26 +17,39 @@ from .base import (
     TideEvent,
     TideProvider,
 )
-from .open_meteo import OpenMeteoProvider
-from .stormglass import StormglassProvider
+from .domains import assert_legal_domains
+from .noaa_coops import NOAACoopsTideProvider
+from .open_meteo import OpenMeteoProvider, OpenMeteoTideProvider
 from .ukho import UKHOTideProvider
-from .windy import WindyProvider
 
 # Registry of available forecast providers, keyed by the value stored in config.
-# Open-Meteo is the keyless default that always works; Windy and Stormglass are
-# keyed (their API key is stored per-provider under CONF_PROVIDERS).
+# Open-Meteo is the keyless default and (since the single-source simplification)
+# the only forecast provider.
 PROVIDERS: dict[str, type[ForecastProvider]] = {
     OpenMeteoProvider.key: OpenMeteoProvider,
-    WindyProvider.key: WindyProvider,
-    StormglassProvider.key: StormglassProvider,
 }
 
-# Registry of tide overlays. Stormglass doubles as a tide source (it implements
-# both ABCs); UKHO is a UK-only overlay.
+# Registry of tide overlays, resolved by region/priority (see authority.py).
+# UKHO (UK) and NOAA CO-OPS (US) are regional authorities; Open-Meteo's modeled
+# tide is the keyless priority-0 global fallback so every spot gets one.
 TIDE_PROVIDERS: dict[str, type[TideProvider]] = {
     UKHOTideProvider.key: UKHOTideProvider,
-    StormglassProvider.key: StormglassProvider,
+    NOAACoopsTideProvider.key: NOAACoopsTideProvider,
+    OpenMeteoTideProvider.key: OpenMeteoTideProvider,
 }
+
+# Legality gate (M-domains): every registered provider's domain-keyed
+# declarations must reference only legal domains. Enforced here, at the registry
+# — the one place every provider passes through — so an illegal domain on a new
+# provider fails loudly at import rather than silently misrouting later.
+for _key, _cls in {**PROVIDERS, **TIDE_PROVIDERS}.items():
+    # provides_domains is a ForecastProvider attribute; tide-only providers
+    # (UKHO) lack it. authority_rank is on both ABCs.
+    assert_legal_domains(
+        getattr(_cls, "provides_domains", frozenset()),
+        where=f"{_key}.provides_domains",
+    )
+    assert_legal_domains(_cls.authority_rank, where=f"{_key}.authority_rank")
 
 
 def get_provider(key: str) -> type[ForecastProvider] | None:
@@ -79,9 +92,9 @@ __all__ = [
     "SpotForecast",
     "TideEvent",
     "TideProvider",
+    "NOAACoopsTideProvider",
     "OpenMeteoProvider",
-    "WindyProvider",
-    "StormglassProvider",
+    "OpenMeteoTideProvider",
     "UKHOTideProvider",
     "PROVIDERS",
     "TIDE_PROVIDERS",

@@ -31,13 +31,43 @@ DOMAIN_FIELDS: dict[str, tuple[str, ...]] = {
         "swell_height_m",
         "swell_period_s",
         "swell_dir_deg",
+        "swell_peak_period_s",
+        "wind_wave_height_m",
+        "wind_wave_period_s",
+        "secondary_swell_height_m",
+        "secondary_swell_period_s",
+        "secondary_swell_dir_deg",
     ),
-    WATER: ("water_temp_c", "sea_level_m"),
-    AIR: ("air_temp_c", "precip_mm", "cloud_pct"),
+    WATER: ("water_temp_c", "sea_level_m", "current_speed_kn", "current_dir_deg"),
+    AIR: (
+        "air_temp_c",
+        "apparent_temp_c",
+        "precip_mm",
+        "cloud_pct",
+        "uv_index",
+        "visibility_m",
+        "weather_code",
+    ),
 }
 
 # Marine-only domains — skipped for inland / no-marine spots.
 MARINE_DOMAINS: frozenset[str] = frozenset({WAVE, WATER, TIDE})
+
+
+def assert_legal_domains(keys, *, where: str = "") -> None:
+    """Raise if any of ``keys`` is not a legal domain.
+
+    The single legality checker for anything keyed by domain — provider
+    ``provides_domains`` / ``authority_rank``, the authority reason/label maps,
+    etc. Use the module constants (:data:`WIND`, :data:`TIDE`, …) rather than
+    bare strings; this guard exists to catch the times that doesn't happen.
+    """
+    illegal = sorted(k for k in keys if k not in DOMAINS)
+    if illegal:
+        ctx = f" in {where}" if where else ""
+        raise ValueError(
+            f"Illegal domain(s){ctx}: {illegal!r}. Legal domains: {list(DOMAINS)!r}"
+        )
 
 
 def stamp_sources(forecast, provider_key: str, domains) -> None:

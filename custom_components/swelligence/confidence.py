@@ -6,10 +6,9 @@ provider-agnostic pieces:
 
 * :func:`field_confidence` — map the *spread* of a field's per-model source
   values to a 0..1 confidence, using a per-field physical uncertainty scale.
-  Providers that retain their multi-source spread (Stormglass's discarded
-  ``{sg, noaa, icon, ...}`` values in o07.2; a cross-provider ensemble in o07.3)
-  call this once per field and stash the result in
-  ``ForecastPoint.source_confidence``.
+  Providers that retain a multi-source spread for a field (e.g. Open-Meteo's
+  multi-model ``models=`` request) call this once per field and stash the result
+  in ``ForecastPoint.source_confidence``.
 * :func:`aggregate_confidence` — collapse those per-field confidences into a
   single, *sport-aware* signal for one timestep, weighting each field by how
   much that sport's score leans on it.

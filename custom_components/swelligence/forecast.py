@@ -55,7 +55,15 @@ def _slot(
         "wind_gust_kn": point.wind_gust_kn,
         "wind_bearing": point.wind_dir_deg,
         "wave_height_m": point.wave_height_m,
+        "swell_height_m": point.swell_height_m,
+        "swell_period_s": point.swell_period_s,
+        "swell_peak_period_s": point.swell_peak_period_s,
+        "wind_wave_height_m": point.wind_wave_height_m,
+        "current_speed_kn": point.current_speed_kn,
+        "sea_level_m": point.sea_level_m,
         "water_temp_c": point.water_temp_c,
+        "apparent_temp_c": point.apparent_temp_c,
+        "weather_code": point.weather_code,
     }
     if kit is not None:
         slot["kit_ideal_m2"] = kit.ideal_size_m2

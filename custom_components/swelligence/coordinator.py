@@ -39,12 +39,17 @@ from .const import (
 )
 from .forecast import daily_forecast, hourly_forecast
 from .llm import async_semantic_verdict
-from .authority import recommend_sources
+from .authority import recommend_sources, resolve_overlay
 from .overlay import ensemble_marine, filled_domains, merge_marine, resolve_route
 from .policy import apply_water_policy, marine_wanted
-from .providers import free_tier_min_interval_minutes, get_provider, get_tide_provider
+from .providers import (
+    TIDE_PROVIDERS,
+    free_tier_min_interval_minutes,
+    get_provider,
+    get_tide_provider,
+)
 from .providers.base import SpotForecast, TideEvent
-from .providers.domains import stamp_sources
+from .providers.domains import TIDE, stamp_sources
 from .scoring import ScoreResult, best_window, blend_kit, score_point
 from .sizing import POWER_NA, KitRecommendation, recommend_kit
 from .sports import SportProfile
@@ -95,6 +100,7 @@ class SpotCoordinator(DataUpdateCoordinator[SpotData]):
         api_key: str | None,
         profiles: dict[str, SportProfile],
         scan_interval_minutes: int | None = None,
+        batch_loader=None,
     ) -> None:
         interval = scan_interval_minutes or entry.options.get(
             CONF_SCAN_INTERVAL_MINUTES, DEFAULT_SCAN_INTERVAL_MINUTES
@@ -110,6 +116,9 @@ class SpotCoordinator(DataUpdateCoordinator[SpotData]):
         self._provider_key = provider_key
         self._api_key = api_key
         self._profiles = profiles
+        # Shared batched Open-Meteo loader (one fetch serves all spots); None
+        # falls back to a per-spot fetch.
+        self._batch_loader = batch_loader
         # (fetched_at, events) cache for the tide overlay.
         self._tide_cache: tuple[datetime | None, list] = (None, [])
         # provider_key -> (fetched_at, SpotForecast) cache for overlay fetches.
@@ -124,12 +133,22 @@ class SpotCoordinator(DataUpdateCoordinator[SpotData]):
         provider = provider_cls(session, self._api_key)
         water_type = self.spot.get("water_type", "sea")
         try:
-            forecast = await provider.async_fetch(
-                self.spot["latitude"],
-                self.spot["longitude"],
-                days=7,
-                marine=marine_wanted(water_type),
-            )
+            # When a shared batch loader is wired (Open-Meteo, the default), draw
+            # this spot's forecast from the one batched fetch that serves every
+            # spot; otherwise fall back to a per-spot fetch.
+            if self._batch_loader is not None:
+                forecast = await self._batch_loader.get(self.spot["id"])
+                if forecast is None:
+                    raise UpdateFailed("Batch fetch returned no data for this spot")
+            else:
+                forecast = await provider.async_fetch(
+                    self.spot["latitude"],
+                    self.spot["longitude"],
+                    days=7,
+                    marine=marine_wanted(water_type),
+                )
+        except UpdateFailed:
+            raise
         except Exception as err:  # noqa: BLE001
             raise UpdateFailed(f"Forecast fetch failed: {err}") from err
 
@@ -317,9 +336,9 @@ class SpotCoordinator(DataUpdateCoordinator[SpotData]):
         """Stamp each point's tide_factor for a tide-dependent spot.
 
         Tide-dependence is a per-spot setting (CONF_TIDE_STATE). Inland spots and
-        spots set to ``any`` are skipped. Tide events come from the forecast
-        provider when it supplies them (Stormglass); otherwise a configured tide
-        overlay (UKHO / Stormglass) is fetched and cached.
+        spots set to ``any`` are skipped. Tide events come from the region-resolved
+        tide overlay (UKHO / NOAA CO-OPS / Open-Meteo modeled fallback), fetched
+        and cached.
         """
         if water_type == WATER_TYPE_INLAND:
             return
@@ -358,16 +377,40 @@ class SpotCoordinator(DataUpdateCoordinator[SpotData]):
                 return forecast.tide_events
         return []
 
+    def _resolve_tide_source(self) -> str | None:
+        """The tide source for this spot: explicit override, else auto-resolved.
+
+        An explicit per-spot/entry ``CONF_TIDE_SOURCE`` wins (``"none"`` disables
+        tides). When unset, the region/priority resolver picks the best available
+        source for the coordinate — UKHO in the UK, etc. — with no manual choice.
+        Availability = keyless sources always, keyed ones only when configured.
+        """
+        source = resolve_route(
+            self.spot.get(CONF_TIDE_SOURCE), self.entry.options.get(CONF_TIDE_SOURCE)
+        )
+        if source == "none":
+            return None
+        if source:
+            return source
+        providers_cfg = self.entry.options.get(CONF_PROVIDERS, {}) or {}
+        available = {
+            key
+            for key, cls in TIDE_PROVIDERS.items()
+            if not cls.requires_api_key
+            or (providers_cfg.get(key, {}) or {}).get(CONF_API_KEY)
+        }
+        return resolve_overlay(
+            TIDE, self.spot["latitude"], self.spot["longitude"], available=available
+        )
+
     async def _tide_overlay_events(self, session) -> list:
         """Fetch tide events from the configured overlay, cached by TTL.
 
         Tide extremes for the week change slowly, so we refetch at most every
         ``_TIDE_REFRESH_MINUTES`` to stay well inside any overlay free-tier quota.
         """
-        source = resolve_route(
-            self.spot.get(CONF_TIDE_SOURCE), self.entry.options.get(CONF_TIDE_SOURCE)
-        )
-        if not source or source == "none":
+        source = self._resolve_tide_source()
+        if not source:
             return []
         now = datetime.now(timezone.utc)
         cached_at, cached = self._tide_cache

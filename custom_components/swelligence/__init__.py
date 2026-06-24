@@ -24,10 +24,14 @@ from .const import (
     DOMAIN,
     PLATFORMS,
 )
+from homeassistant.helpers.aiohttp_client import async_get_clientsession
+
 from .authority import advice_message
+from .batch import OpenMeteoBatchLoader
 from .confidence import aggregate_confidence
 from .coordinator import SpotCoordinator
 from .overview import build_podium, build_sessions
+from .policy import marine_wanted
 from .providers import free_tier_min_interval_minutes, get_provider
 from .sports import SPORT_PROFILES, SportProfile, apply_overrides
 
@@ -122,6 +126,22 @@ async def async_setup_entry(
     base_interval = entry.options.get(
         CONF_SCAN_INTERVAL_MINUTES, DEFAULT_SCAN_INTERVAL_MINUTES
     )
+    # Shared batched loader for all Open-Meteo spots: one forecast + one marine
+    # call per cycle serve every spot, instead of two calls each. TTL ties to the
+    # base interval so a cycle of coordinators triggers a single batch fetch.
+    om_spots = [s for s in spots if s.get("provider", default_provider) == "open_meteo"]
+    batch_loader = None
+    if om_spots:
+        batch_loader = OpenMeteoBatchLoader(
+            async_get_clientsession(hass),
+            {
+                s["id"]: (s["latitude"], s["longitude"], marine_wanted(
+                    s.get("water_type", "sea")
+                ))
+                for s in om_spots
+            },
+            ttl_minutes=base_interval,
+        )
     for spot in spots:
         provider_key = spot.get("provider", default_provider)
         provider_cfg = providers_cfg.get(provider_key, {}) or {}
@@ -137,6 +157,7 @@ async def async_setup_entry(
             api_key=api_key,
             profiles=_profiles_for_spot(spot, enabled),
             scan_interval_minutes=interval,
+            batch_loader=batch_loader if provider_key == "open_meteo" else None,
         )
         await coordinator.async_config_entry_first_refresh()
         runtime.coordinators[spot["id"]] = coordinator

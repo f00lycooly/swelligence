@@ -42,15 +42,15 @@ HA_MODULES = [
     "sizing",
     "sports",
     "tide",
+    "batch",
     "overlay",
     "geocoding",
     "providers",
     "providers.base",
     "providers.domains",
     "providers.open_meteo",
-    "providers.windy",
-    "providers.stormglass",
     "providers.ukho",
+    "providers.noaa_coops",
 ]
 
 

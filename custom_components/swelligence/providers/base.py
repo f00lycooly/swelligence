@@ -32,10 +32,31 @@ class ForecastPoint:
     swell_height_m: float | None = None
     swell_period_s: float | None = None
     swell_dir_deg: float | None = None
+    #: Peak (vs mean) swell period — the better surf-power proxy (long-period
+    #: groundswell vs short-period windsea).
+    swell_peak_period_s: float | None = None
+    #: Local wind-sea, separated from swell. High wind-wave + low swell = messy
+    #: onshore slop; clean swell + low wind-wave = quality surf.
+    wind_wave_height_m: float | None = None
+    wind_wave_period_s: float | None = None
+    #: Secondary (crossed) swell — flags confused/dangerous seas.
+    secondary_swell_height_m: float | None = None
+    secondary_swell_period_s: float | None = None
+    secondary_swell_dir_deg: float | None = None
     air_temp_c: float | None = None
+    #: "Feels-like" air temperature — informs wetsuit choice given wind chill.
+    apparent_temp_c: float | None = None
     water_temp_c: float | None = None
     precip_mm: float | None = None
     cloud_pct: float | None = None
+    #: UV index (exposure) and horizontal visibility (m, offshore safety).
+    uv_index: float | None = None
+    visibility_m: float | None = None
+    #: WMO weather code — compact condition for the card/LLM summary.
+    weather_code: int | None = None
+    #: Ocean surface current — rip/drift safety (speed in knots, "toward" bearing).
+    current_speed_kn: float | None = None
+    current_dir_deg: float | None = None
     #: Tidal sea level (metres, provider datum) at this timestep, if supplied.
     sea_level_m: float | None = None
     #: Precomputed tide-suitability multiplier (0..1) for the spot's tide
@@ -44,9 +65,9 @@ class ForecastPoint:
     tide_factor: float | None = None
     #: Per-field model-agreement confidence (0..1), keyed by ForecastPoint field
     #: name (e.g. ``"wave_height_m"``). Populated when a provider retains the
-    #: spread across multiple source models for a field (Stormglass intra-model,
-    #: o07.2; cross-provider ensemble, o07.3). ``None``/absent = single source,
-    #: no agreement signal. Tight agreement -> high; wide divergence -> low.
+    #: spread across multiple source models for a field (e.g. Open-Meteo's
+    #: multi-model ``models=`` request). ``None``/absent = single source, no
+    #: agreement signal. Tight agreement -> high; wide divergence -> low.
     source_confidence: dict[str, float] | None = None
 
 
@@ -54,7 +75,7 @@ class ForecastPoint:
 class TideEvent:
     """A predicted tidal extreme (high or low water).
 
-    Populated by tide-capable providers/overlays (Stormglass, UKHO). The
+    Populated by tide overlays (UKHO, NOAA CO-OPS, Open-Meteo modeled). The
     deterministic scorer's tide awareness (M5) consumes this list; until then it
     is carried through untouched on :class:`SpotForecast`.
     """
@@ -106,10 +127,26 @@ class ForecastProvider(ABC):
     #: Data domains (see :mod:`.domains`) this provider can supply. Drives
     #: per-domain source provenance and the composite-merge routing.
     provides_domains: frozenset[str] = frozenset()
+    #: Domains this provider is an *authority* for, mapped to a rank (higher =
+    #: more authoritative). Drives the metadata-derived "better source" nudges
+    #: and overlay resolution (:func:`..authority.resolve_overlay`). Empty = this
+    #: provider is never proposed as a better source and never auto-resolved —
+    #: which is why adding a provider is a declaration here, not a table edit.
+    authority_rank: dict[str, int] = {}
 
     def __init__(self, session: ClientSession, api_key: str | None = None) -> None:
         self._session = session
         self._api_key = api_key
+
+    @classmethod
+    def covers(cls, latitude: float, longitude: float) -> bool:
+        """Whether this provider is authoritative at a coordinate.
+
+        Region-gated providers (e.g. UKHO = UK) override this; the default is
+        global. Keeps region applicability *on the provider* so the resolver and
+        authority map never hardcode a provider's bounding box.
+        """
+        return True
 
     def _stamp_sources(self, forecast: SpotForecast, *, marine: bool) -> None:
         """Record this provider as the source of each domain it supplied.
@@ -147,9 +184,10 @@ class TideProvider(ABC):
 
     Tide is an *overlay*: it does not produce a full forecast, only a list of
     high/low water events that augment a :class:`SpotForecast` from any
-    :class:`ForecastProvider`. UK-only sources (UKHO) and global ones
-    (Stormglass) implement this same shape so the coordinator can attach tides
-    independently of the wind/wave provider in use.
+    :class:`ForecastProvider`. Region authorities (UKHO for the UK, NOAA CO-OPS
+    for the US) and the keyless global modeled fallback implement this same shape
+    so the coordinator can attach tides independently of the wind/wave provider,
+    resolved by region/priority (see :func:`..authority.resolve_overlay`).
     """
 
     #: Registry key stored in config (e.g. ``"ukho"``).
@@ -158,10 +196,19 @@ class TideProvider(ABC):
     label: str = ""
     #: Whether this tide source needs an API key.
     requires_api_key: bool = False
+    #: Domains this source is an authority for, mapped to a rank (higher = more
+    #: authoritative). Tide sources declare ``{TIDE: rank}``; the resolver picks
+    #: the highest-ranked covering, available source. See :class:`ForecastProvider`.
+    authority_rank: dict[str, int] = {}
 
     def __init__(self, session: ClientSession, api_key: str | None = None) -> None:
         self._session = session
         self._api_key = api_key
+
+    @classmethod
+    def covers(cls, latitude: float, longitude: float) -> bool:
+        """Whether this tide source is authoritative at a coordinate (default global)."""
+        return True
 
     @abstractmethod
     async def async_fetch_tides(

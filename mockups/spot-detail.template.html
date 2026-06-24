@@ -1,0 +1,393 @@
+<!-- @dsCard group="Spot detail" -->
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Swelligence · Spot Detail</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,400..600;1,9..144,400..600&family=Hanken+Grotesk:wght@400;500;600;700;800&family=Spline+Sans+Mono:wght@400;500;600&display=swap" rel="stylesheet" />
+<style>
+:root{
+  --abyss:#05121a; --deep:#08202b; --panel:#0b2935; --panel-2:#0e323f;
+  --ink:#eaf4f5; --ink-dim:#a7c2c7; --muted:#6f8f99; --faint:#4a6b75;
+  --line:rgba(150,200,210,.13); --line-bright:rgba(150,210,220,.28);
+  --cyan:#36c9d6; --cyan-bright:#5fe3ee; --amber:#f3b65c; --amber-bright:#ffce7a;
+  --kelp:#2f8f7e; --coral:#e8825b;
+  --v-epic:#5fe3c2; --v-great:#7ed98a; --v-good:#b6d75f; --v-marginal:#f3b65c; --v-poor:#6c8a96;
+  --shadow:0 24px 60px -28px rgba(0,0,0,.75);
+  --r:18px;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+html{-webkit-text-size-adjust:100%}
+body{
+  font-family:'Hanken Grotesk',system-ui,sans-serif;
+  background:var(--abyss); color:var(--ink);
+  line-height:1.5; min-height:100vh;
+  -webkit-font-smoothing:antialiased; overflow-x:hidden;
+  background-image:
+    radial-gradient(120% 80% at 78% -8%, rgba(54,201,214,.14), transparent 55%),
+    radial-gradient(90% 70% at 8% 108%, rgba(47,143,126,.16), transparent 60%),
+    radial-gradient(70% 50% at 50% 50%, rgba(14,50,63,.5), transparent 80%);
+}
+/* depth grain + faint contour atmosphere */
+body::before{
+  content:"";position:fixed;inset:0;pointer-events:none;z-index:0;opacity:.5;
+  background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.85' numOctaves='2'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='.035'/%3E%3C/svg%3E");
+  mix-blend-mode:overlay;
+}
+.wrap{position:relative;z-index:1;max-width:1180px;margin:0 auto;padding:30px clamp(16px,4vw,40px) 80px}
+
+/* ---- masthead ---- */
+.brand{display:flex;align-items:baseline;gap:12px;margin-bottom:22px;flex-wrap:wrap}
+.brand .mark{font-family:'Fraunces',serif;font-style:italic;font-weight:500;font-size:24px;letter-spacing:.2px;color:var(--ink)}
+.brand .mark b{color:var(--cyan-bright);font-style:normal;font-weight:600}
+.brand .tag{font-size:11px;letter-spacing:.32em;text-transform:uppercase;color:var(--faint);font-weight:600}
+.brand .stamp{margin-left:auto;font-family:'Spline Sans Mono',monospace;font-size:11px;color:var(--muted);letter-spacing:.04em}
+
+/* ---- spot selector ---- */
+.selector{display:flex;gap:8px;overflow-x:auto;padding-bottom:8px;margin-bottom:26px;scrollbar-width:thin}
+.selector::-webkit-scrollbar{height:5px}
+.selector::-webkit-scrollbar-thumb{background:var(--line-bright);border-radius:3px}
+.pill{
+  flex:0 0 auto;display:flex;flex-direction:column;gap:2px;padding:9px 15px;border-radius:13px;
+  border:1px solid var(--line);background:rgba(11,41,53,.55);cursor:pointer;
+  transition:all .25s cubic-bezier(.2,.7,.3,1);white-space:nowrap;color:var(--ink-dim)}
+.pill:hover{border-color:var(--line-bright);transform:translateY(-2px)}
+.pill .pn{font-weight:700;font-size:13.5px;letter-spacing:.01em}
+.pill .pw{font-size:10px;letter-spacing:.18em;text-transform:uppercase;color:var(--faint)}
+.pill.active{background:linear-gradient(160deg,var(--panel-2),var(--panel));border-color:var(--cyan);color:var(--ink);box-shadow:0 0 0 1px rgba(54,201,214,.3),0 10px 30px -16px rgba(54,201,214,.6)}
+.pill.active .pw{color:var(--cyan-bright)}
+
+/* ---- header ---- */
+.head{display:grid;grid-template-columns:1.4fr .9fr;gap:18px;margin-bottom:18px}
+@media(max-width:780px){.head{grid-template-columns:1fr}}
+.title-card{
+  position:relative;border-radius:var(--r);padding:26px 28px;overflow:hidden;
+  background:linear-gradient(150deg,var(--panel-2),var(--deep) 80%);border:1px solid var(--line);box-shadow:var(--shadow)}
+.title-card::after{content:"";position:absolute;right:-40px;top:-40px;width:220px;height:220px;border-radius:50%;
+  background:radial-gradient(circle,rgba(54,201,214,.18),transparent 65%);pointer-events:none}
+.wt-chip{display:inline-flex;align-items:center;gap:7px;font-size:11px;font-weight:700;letter-spacing:.16em;
+  text-transform:uppercase;color:var(--cyan-bright);background:rgba(54,201,214,.1);border:1px solid rgba(54,201,214,.3);
+  padding:5px 11px;border-radius:99px;margin-bottom:14px}
+.wt-chip .dot{width:6px;height:6px;border-radius:50%;background:var(--cyan-bright);box-shadow:0 0 8px var(--cyan)}
+h1{font-family:'Fraunces',serif;font-weight:500;font-size:clamp(30px,4.6vw,46px);line-height:1.02;letter-spacing:-.01em}
+.coords{font-family:'Spline Sans Mono',monospace;font-size:12.5px;color:var(--muted);margin-top:10px;letter-spacing:.02em}
+
+/* provider chain */
+.chain-card{border-radius:var(--r);padding:20px 22px;background:var(--panel);border:1px solid var(--line);display:flex;flex-direction:column;justify-content:center}
+.chain-label{font-size:10.5px;letter-spacing:.26em;text-transform:uppercase;color:var(--faint);font-weight:700;margin-bottom:14px}
+.chain{display:flex;align-items:center;gap:9px;flex-wrap:wrap}
+.node{font-family:'Spline Sans Mono',monospace;font-size:12px;font-weight:500;padding:7px 12px;border-radius:10px;
+  background:rgba(14,50,63,.7);border:1px solid var(--line-bright);color:var(--ink)}
+.node.key{border-color:rgba(243,182,92,.4);color:var(--amber-bright);background:rgba(243,182,92,.07)}
+.arrow{color:var(--cyan);font-size:15px}
+.chain-note{margin-top:13px;font-size:12px;color:var(--ink-dim)}
+.chain-note b{color:var(--amber-bright);font-weight:600}
+
+/* ---- section scaffolding ---- */
+.section{margin-top:30px}
+.sec-h{display:flex;align-items:center;gap:12px;margin-bottom:16px}
+.sec-h .idx{font-family:'Spline Sans Mono',monospace;font-size:11px;color:var(--cyan);border:1px solid var(--line-bright);border-radius:6px;padding:2px 7px}
+.sec-h h2{font-family:'Fraunces',serif;font-weight:500;font-size:21px;letter-spacing:.01em}
+.sec-h .rule{flex:1;height:1px;background:linear-gradient(90deg,var(--line-bright),transparent)}
+
+/* ---- conditions instruments ---- */
+.instruments{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:12px}
+.inst{position:relative;border-radius:14px;padding:16px 17px;background:var(--panel);border:1px solid var(--line);overflow:hidden}
+.inst .k{font-size:10.5px;letter-spacing:.18em;text-transform:uppercase;color:var(--faint);font-weight:700}
+.inst .v{font-family:'Spline Sans Mono',monospace;font-weight:600;font-size:30px;line-height:1.1;margin-top:9px;color:var(--ink)}
+.inst .v small{font-size:14px;color:var(--muted);font-weight:400}
+.inst .sub{font-size:11.5px;color:var(--ink-dim);margin-top:5px}
+.inst.compass .v{display:flex;align-items:center;gap:12px}
+.rose{width:42px;height:42px;flex:0 0 auto;position:relative}
+.rose svg{width:100%;height:100%}
+.inst .needle{transform-origin:50% 50%;transition:transform 1s cubic-bezier(.2,.8,.2,1)}
+
+/* ---- confidence / agreement (signature) ---- */
+.conf-wrap{border-radius:var(--r);background:linear-gradient(165deg,var(--panel-2),var(--deep));border:1px solid var(--line);box-shadow:var(--shadow);overflow:hidden}
+.conf-top{display:flex;align-items:center;gap:22px;padding:22px 24px;border-bottom:1px solid var(--line);flex-wrap:wrap}
+.gauge{--p:0;position:relative;width:108px;height:108px;flex:0 0 auto}
+.gauge svg{width:100%;height:100%;transform:rotate(-90deg)}
+.gauge .track{fill:none;stroke:rgba(255,255,255,.06);stroke-width:9}
+.gauge .arc{fill:none;stroke-width:9;stroke-linecap:round;transition:stroke-dashoffset 1.2s cubic-bezier(.2,.8,.2,1)}
+.gauge .lbl{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center}
+.gauge .lbl .pct{font-family:'Spline Sans Mono',monospace;font-size:26px;font-weight:600;line-height:1}
+.gauge .lbl .word{font-size:9.5px;letter-spacing:.2em;text-transform:uppercase;color:var(--ink-dim);margin-top:3px}
+.conf-blurb{flex:1;min-width:220px}
+.conf-blurb h3{font-family:'Fraunces',serif;font-weight:500;font-size:19px;margin-bottom:6px}
+.conf-blurb p{font-size:13px;color:var(--ink-dim);max-width:46ch}
+.conf-blurb .src{font-family:'Spline Sans Mono',monospace;font-size:10.5px;color:var(--faint);margin-top:9px;line-height:1.5}
+
+.spreads{padding:18px 24px 24px;display:flex;flex-direction:column;gap:14px}
+.spread{display:grid;grid-template-columns:118px 1fr 86px;align-items:center;gap:14px}
+@media(max-width:620px){.spread{grid-template-columns:96px 1fr 64px;gap:9px}}
+.spread .fk{font-size:12px;color:var(--ink-dim);font-weight:600}
+.spread .fk small{display:block;font-family:'Spline Sans Mono',monospace;font-size:10px;color:var(--faint);font-weight:400}
+.track-wrap{position:relative;height:34px;border-radius:9px;background:rgba(0,0,0,.22);border:1px solid var(--line);overflow:hidden}
+.band{position:absolute;top:0;bottom:0;background:linear-gradient(90deg,rgba(54,201,214,.0),rgba(54,201,214,.22),rgba(54,201,214,0));border-left:1px solid rgba(54,201,214,.35);border-right:1px solid rgba(54,201,214,.35)}
+.mdot{position:absolute;top:50%;width:11px;height:11px;border-radius:50%;transform:translate(-50%,-50%);
+  background:var(--amber-bright);box-shadow:0 0 0 3px rgba(243,182,92,.18),0 0 10px rgba(243,182,92,.5);transition:left 1s cubic-bezier(.2,.8,.2,1)}
+.mdot .mt{position:absolute;bottom:14px;left:50%;transform:translateX(-50%);font-family:'Spline Sans Mono',monospace;font-size:8.5px;color:var(--amber-bright);white-space:nowrap;opacity:0;transition:opacity .2s}
+.mdot:hover .mt{opacity:1}
+.spread .fc{text-align:right;font-family:'Spline Sans Mono',monospace}
+.spread .fc .n{font-size:18px;font-weight:600}
+.spread .fc .b{font-size:9.5px;letter-spacing:.14em;text-transform:uppercase;color:var(--faint)}
+
+/* ---- source intelligence ---- */
+.si-grid{display:grid;grid-template-columns:1fr 1fr;gap:14px}
+@media(max-width:780px){.si-grid{grid-template-columns:1fr}}
+.prov-card,.advice-card{border-radius:var(--r);padding:20px 22px;background:var(--panel);border:1px solid var(--line)}
+.prov-card h3,.advice-card h3{font-size:11px;letter-spacing:.2em;text-transform:uppercase;color:var(--faint);font-weight:700;margin-bottom:15px}
+.prov-row{display:flex;align-items:center;justify-content:space-between;padding:9px 0;border-bottom:1px dashed var(--line)}
+.prov-row:last-child{border-bottom:0}
+.prov-row .d{font-size:13px;color:var(--ink-dim);text-transform:capitalize;font-weight:500}
+.prov-row .s{font-family:'Spline Sans Mono',monospace;font-size:12px;color:var(--ink);background:rgba(14,50,63,.7);padding:4px 9px;border-radius:7px;border:1px solid var(--line-bright)}
+.grid-tag{margin-top:14px;font-size:11.5px;color:var(--muted);display:flex;align-items:center;gap:7px}
+.grid-tag .gv{font-family:'Spline Sans Mono',monospace;color:var(--cyan-bright)}
+
+.advice-card.nudge{border-color:rgba(243,182,92,.34);background:linear-gradient(160deg,rgba(243,182,92,.07),var(--panel))}
+.advice-item{display:flex;gap:13px;align-items:flex-start}
+.advice-item .ic{flex:0 0 auto;width:34px;height:34px;border-radius:10px;display:grid;place-items:center;background:rgba(243,182,92,.13);border:1px solid rgba(243,182,92,.34);color:var(--amber-bright);font-size:17px}
+.advice-item .tx{font-size:13px;color:var(--ink);line-height:1.55}
+.advice-item .tx b{color:var(--amber-bright);font-weight:600}
+.advice-empty{display:flex;align-items:center;gap:11px;color:var(--ink-dim);font-size:13px}
+.advice-empty .ic{width:34px;height:34px;border-radius:10px;display:grid;place-items:center;background:rgba(126,217,138,.12);border:1px solid rgba(126,217,138,.32);color:var(--v-great);font-size:16px;flex:0 0 auto}
+
+/* ---- sports ---- */
+.sports{display:grid;grid-template-columns:repeat(auto-fill,minmax(264px,1fr));gap:14px}
+.sport{position:relative;border-radius:var(--r);padding:19px 20px;background:var(--panel);border:1px solid var(--line);overflow:hidden;transition:transform .25s,border-color .25s}
+.sport:hover{transform:translateY(-3px);border-color:var(--line-bright)}
+.sport .top{display:flex;align-items:center;gap:13px;margin-bottom:15px}
+.ring{--p:0;--c:var(--v-good);position:relative;width:56px;height:56px;flex:0 0 auto}
+.ring svg{width:100%;height:100%;transform:rotate(-90deg)}
+.ring .rt{fill:none;stroke:rgba(255,255,255,.07);stroke-width:6}
+.ring .ra{fill:none;stroke:var(--c);stroke-width:6;stroke-linecap:round;transition:stroke-dashoffset 1.1s cubic-bezier(.2,.8,.2,1)}
+.ring .rn{position:absolute;inset:0;display:grid;place-items:center;font-family:'Spline Sans Mono',monospace;font-weight:600;font-size:17px}
+.sport .nm{font-weight:700;font-size:16px}
+.sport .vd{font-size:11px;letter-spacing:.14em;text-transform:uppercase;font-weight:700;margin-top:2px}
+.factors{display:flex;flex-direction:column;gap:7px;margin:14px 0}
+.fac{display:grid;grid-template-columns:60px 1fr;align-items:center;gap:9px}
+.fac .fl{font-size:10.5px;letter-spacing:.1em;text-transform:uppercase;color:var(--muted);text-align:right}
+.fac .fb{height:6px;border-radius:3px;background:rgba(255,255,255,.07);overflow:hidden}
+.fac .fb i{display:block;height:100%;border-radius:3px;background:linear-gradient(90deg,var(--kelp),var(--cyan));transition:width .9s cubic-bezier(.2,.8,.2,1)}
+.sport .foot{display:flex;align-items:center;justify-content:space-between;margin-top:14px;padding-top:13px;border-top:1px solid var(--line)}
+.cf-chip{display:inline-flex;align-items:center;gap:6px;font-size:11px;font-weight:600;padding:4px 9px;border-radius:99px}
+.cf-chip .d{width:6px;height:6px;border-radius:50%}
+.cf-high{color:var(--v-great);background:rgba(126,217,138,.1)}.cf-high .d{background:var(--v-great)}
+.cf-moderate{color:var(--amber-bright);background:rgba(243,182,92,.1)}.cf-moderate .d{background:var(--amber-bright)}
+.cf-low{color:var(--coral);background:rgba(232,130,91,.1)}.cf-low .d{background:var(--coral)}
+.cf-none{color:var(--muted);background:rgba(120,150,160,.08)}.cf-none .d{background:var(--muted)}
+.best{font-size:11px;color:var(--ink-dim);text-align:right;font-family:'Spline Sans Mono',monospace}
+.best b{color:var(--cyan-bright)}
+.reasons{display:flex;flex-wrap:wrap;gap:6px;margin-top:11px}
+.reasons span{font-size:10.5px;color:var(--ink-dim);background:rgba(14,50,63,.6);border:1px solid var(--line);padding:3px 8px;border-radius:7px}
+
+/* entrance */
+@keyframes rise{from{opacity:0;transform:translateY(14px)}to{opacity:1;transform:none}}
+.anim{opacity:0;animation:rise .7s cubic-bezier(.2,.8,.2,1) forwards}
+footer{margin-top:40px;text-align:center;font-size:11px;color:var(--faint);font-family:'Spline Sans Mono',monospace;letter-spacing:.04em}
+@media(prefers-reduced-motion:reduce){.anim{animation:none;opacity:1}*{transition:none!important}}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="brand">
+    <span class="mark"><b>swell</b>igence</span>
+    <span class="tag">spot console</span>
+    <span class="stamp" id="stamp"></span>
+  </div>
+
+  <div class="selector" id="selector"></div>
+  <div id="view"></div>
+
+  <footer id="footer"></footer>
+</div>
+
+<script>
+const DATA = /*__DATA__*/{}/*__END__*/;
+const VERDICT_C = {epic:'var(--v-epic)',great:'var(--v-great)',good:'var(--v-good)',marginal:'var(--v-marginal)',poor:'var(--v-poor)'};
+const PROV_NAME = {open_meteo:'Open-Meteo',stormglass:'Stormglass',windy:'Windy',ukho:'UKHO'};
+const ICONS = {kitesurf:'🪁',wingfoil:'🪽',surf:'🏄',sup:'🛶',wakeboard_inland:'🎿',wakeboard_sea:'🎿',windsurf:'⛵',sailing:'⛵',seaswim:'🏊'};
+let active = 1; // default Avon Beach
+
+function compassRose(deg){
+  return `<div class="rose"><svg viewBox="0 0 44 44">
+    <circle cx="22" cy="22" r="20" fill="none" stroke="rgba(150,200,210,.18)"/>
+    <circle cx="22" cy="22" r="2" fill="var(--cyan-bright)"/>
+    <g class="needle" style="transform:rotate(${(deg||0)}deg)">
+      <path d="M22 5 L25.5 22 L22 18 L18.5 22 Z" fill="var(--amber-bright)"/>
+      <path d="M22 39 L18.5 22 L22 26 L25.5 22 Z" fill="rgba(150,200,210,.4)"/>
+    </g></svg></div>`;
+}
+function dirCard(deg){
+  if(deg==null) return '';
+  const d=['N','NE','E','SE','S','SW','W','NW'][Math.round(((deg%360)/45))%8];
+  return d+' · '+Math.round(deg)+'°';
+}
+function fmt(v,suf='',dp=1){ return v==null?'—':(typeof v==='number'?(Number.isInteger(v)?v:v.toFixed(dp)):v)+suf; }
+
+function arc(p,c,r=46){
+  const circ=2*Math.PI*r, off=circ*(1-p);
+  return {circ,off,r};
+}
+
+function gauge(conf){
+  const p = conf? conf.value : 0;
+  const word = conf? conf.label : 'no signal';
+  const col = conf? (conf.label==='high'?'var(--v-great)':conf.label==='moderate'?'var(--amber-bright)':'var(--coral)') : 'var(--muted)';
+  const r=46, circ=2*Math.PI*r, off=circ*(1-p);
+  return `<div class="gauge"><svg viewBox="0 0 108 108">
+      <circle class="track" cx="54" cy="54" r="${r}"/>
+      <circle class="arc" cx="54" cy="54" r="${r}" stroke="${col}" stroke-dasharray="${circ}" stroke-dashoffset="${circ}" data-off="${off}"/>
+    </svg>
+    <div class="lbl"><span class="pct" style="color:${col}">${conf?Math.round(p*100):'—'}</span><span class="word">${word}</span></div>
+  </div>`;
+}
+
+function spreadRow(field, s){
+  const vals = Object.entries(s.models);
+  const nums = vals.map(v=>v[1]);
+  let lo=Math.min(...nums), hi=Math.max(...nums);
+  const isDir = field.includes('dir');
+  if(isDir){ lo=0; hi=360; }
+  const pad=(hi-lo)*0.12||1; const min=isDir?0:lo-pad, max=isDir?360:hi+pad;
+  const pos=v=> max>min? ((v-min)/(max-min))*100 : 50;
+  const bandL=pos(Math.min(...nums)), bandR=pos(Math.max(...nums));
+  const c = s.confidence;
+  const col = c==null?'var(--muted)': c>=0.7?'var(--v-great)': c>=0.45?'var(--amber-bright)':'var(--coral)';
+  const dots = vals.map(([m,v])=>`<div class="mdot" style="left:${pos(v)}%;background:${col};box-shadow:0 0 0 3px ${col}22,0 0 10px ${col}88"><span class="mt">${m.replace(/_seamless|_ifs025|_wave/,'')} ${fmt(v)}</span></div>`).join('');
+  const unit = field.includes('_kn')?'kn':field.includes('_m')&&!field.includes('dir')?'m':field.includes('_s')?'s':field.includes('dir')?'°':'';
+  return `<div class="spread">
+    <div class="fk">${s.label}<small>${vals.length} models · ${unit||'·'}</small></div>
+    <div class="track-wrap">
+      <div class="band" style="left:${bandL}%;width:${Math.max(bandR-bandL,1.5)}%"></div>
+      ${dots}
+    </div>
+    <div class="fc"><div class="n" style="color:${col}">${c==null?'—':Math.round(c*100)}</div><div class="b">agree</div></div>
+  </div>`;
+}
+
+function render(){
+  const s = DATA.spots[active];
+  document.getElementById('stamp').textContent = 'captured ' + (DATA.spots[1].current.time||'').replace('T',' ').slice(0,16) + ' UTC';
+  // selector
+  document.getElementById('selector').innerHTML = DATA.spots.map((sp,i)=>
+    `<div class="pill ${i===active?'active':''}" onclick="active=${i};render()">
+      <span class="pn">${sp.name}</span><span class="pw">${sp.water_type}</span></div>`).join('');
+
+  const c = s.current;
+  const sources = s.sources||{};
+  const provNote = s.marine_ensemble
+    ? `Marine <b>ensemble</b> active — agreement measured across providers.`
+    : (s.water_type==='sea'? `Marine source idle — confidence falls back to multi-model.` : `Inland / sheltered — no marine layer.`);
+
+  // instruments
+  const inst = [];
+  if(c.wind_kn!=null) inst.push(`<div class="inst compass"><div class="k">Wind</div><div class="v">${compassRose(c.wind_dir)}<span>${fmt(c.wind_kn)}<small>kn</small></span></div><div class="sub">gust ${fmt(c.gust_kn)}kn · ${dirCard(c.wind_dir)}</div></div>`);
+  if(c.wave_m!=null) inst.push(`<div class="inst"><div class="k">Wave</div><div class="v">${fmt(c.wave_m)}<small>m</small></div><div class="sub">period ${fmt(c.wave_period_s)}s</div></div>`);
+  if(c.swell_m!=null) inst.push(`<div class="inst"><div class="k">Swell</div><div class="v">${fmt(c.swell_m)}<small>m</small></div><div class="sub">${fmt(c.swell_period_s)}s · ${dirCard(c.swell_dir)}</div></div>`);
+  if(c.water_temp_c!=null) inst.push(`<div class="inst"><div class="k">Water</div><div class="v">${fmt(c.water_temp_c)}<small>°C</small></div><div class="sub">air ${fmt(c.air_temp_c)}°C</div></div>`);
+  else if(c.air_temp_c!=null) inst.push(`<div class="inst"><div class="k">Air</div><div class="v">${fmt(c.air_temp_c)}<small>°C</small></div><div class="sub">no sea-temp grid</div></div>`);
+
+  // confidence spreads
+  const spreadFields = Object.entries(s.model_spread||{});
+  const repConf = s.sports.find(x=>x.confidence)?.confidence;
+
+  // source intelligence
+  const provRows = Object.entries(sources).map(([d,p])=>`<div class="prov-row"><span class="d">${d}</span><span class="s">${PROV_NAME[p]||p}</span></div>`).join('');
+  const advice = (s.source_advice&&s.source_advice.length)
+    ? s.source_advice.map(a=>`<div class="advice-item"><div class="ic">⤴</div><div class="tx">${a.message.replace(/(Stormglass|UKHO|Windy)/g,'<b>$1</b>')}</div></div>`).join('')
+    : `<div class="advice-empty"><div class="ic">✓</div><div>On the best available source for every domain.</div></div>`;
+
+  // sports
+  const sports = s.sports.map(sp=>{
+    const col=VERDICT_C[sp.verdict]||'var(--v-good)';
+    const r=24,circ=2*Math.PI*r,off=circ*(1-sp.score/100);
+    const cf=sp.confidence;
+    const cfCls=cf?('cf-'+cf.label):'cf-none';
+    const cfTxt=cf?`${cf.label} ${Math.round(cf.value*100)}%`:'single source';
+    const facOrder=['wind','gust','direction','wave','swell','temp','tide','kit'];
+    const facs=facOrder.filter(f=>sp.factors[f]!=null).map(f=>`<div class="fac"><span class="fl">${f}</span><span class="fb"><i style="width:${sp.factors[f]}%"></i></span></div>`).join('');
+    const best=sp.best_in_h!=null?`<span class="best">best <b>+${sp.best_in_h}h</b> · ${Math.round(sp.best_score)}</span>`:'';
+    const reasons=(sp.reasons||[]).slice(0,4).map(x=>`<span>${x}</span>`).join('');
+    return `<div class="sport">
+      <div class="top">
+        <div class="ring" style="--c:${col}"><svg viewBox="0 0 56 56"><circle class="rt" cx="28" cy="28" r="${r}"/><circle class="ra" cx="28" cy="28" r="${r}" stroke="${col}" stroke-dasharray="${circ}" stroke-dashoffset="${circ}" data-off="${off}"/></svg><div class="rn" style="color:${col}">${Math.round(sp.score)}</div></div>
+        <div><div class="nm">${ICONS[sp.sport]||''} ${sp.label}</div><div class="vd" style="color:${col}">${sp.verdict}</div></div>
+      </div>
+      <div class="factors">${facs}</div>
+      ${reasons?`<div class="reasons">${reasons}</div>`:''}
+      <div class="foot"><span class="cf-chip ${cfCls}"><span class="d"></span>${cfTxt}</span>${best}</div>
+    </div>`;
+  }).join('');
+
+  document.getElementById('view').innerHTML = `
+    <div class="head">
+      <div class="title-card anim">
+        <span class="wt-chip"><span class="dot"></span>${s.water_type}</span>
+        <h1>${s.name}</h1>
+        <div class="coords">${s.lat.toFixed(3)}, ${s.lon.toFixed(3)} · ${s.sports.length} sports tracked</div>
+      </div>
+      <div class="chain-card anim" style="animation-delay:.06s">
+        <div class="chain-label">Source chain</div>
+        <div class="chain">
+          <span class="node">Open-Meteo</span>
+          ${s.water_type==='sea'?`<span class="arrow">→</span><span class="node key">Stormglass${DATA.providers.ensemble?' ⚖':''}</span>`:''}
+        </div>
+        <div class="chain-note">${provNote}</div>
+      </div>
+    </div>
+
+    <div class="section anim" style="animation-delay:.1s">
+      <div class="sec-h"><span class="idx">01</span><h2>Conditions now</h2><span class="rule"></span></div>
+      <div class="instruments">${inst.join('')}</div>
+    </div>
+
+    ${spreadFields.length?`<div class="section anim" style="animation-delay:.16s">
+      <div class="sec-h"><span class="idx">02</span><h2>Model agreement</h2><span class="rule"></span></div>
+      <div class="conf-wrap">
+        <div class="conf-top">
+          ${gauge(repConf)}
+          <div class="conf-blurb">
+            <h3>${repConf?(repConf.label==='high'?'Models broadly agree':repConf.label==='moderate'?'Partial agreement':'Models diverge — hedge'):'No agreement signal'}</h3>
+            <p>Confidence is how tightly independent models converge on each field. Wide scatter on a dial below means the forecast for that variable is genuinely uncertain.</p>
+            <div class="src">spread → confidence · ${DATA.confidence_source}</div>
+          </div>
+        </div>
+        <div class="spreads">${spreadFields.map(([f,sp])=>spreadRow(f,sp)).join('')}</div>
+      </div>
+    </div>`:''}
+
+    <div class="section anim" style="animation-delay:.2s">
+      <div class="sec-h"><span class="idx">${spreadFields.length?'03':'02'}</span><h2>Source intelligence</h2><span class="rule"></span></div>
+      <div class="si-grid">
+        <div class="prov-card">
+          <h3>Per-domain provenance</h3>
+          ${provRows||'<div class="advice-empty"><div>No marine domains for this spot.</div></div>'}
+          ${s.grid_distance_km!=null?`<div class="grid-tag">◎ nearest model cell <span class="gv">${s.grid_distance_km} km</span> from spot</div>`:''}
+        </div>
+        <div class="advice-card ${s.source_advice&&s.source_advice.length?'nudge':''}">
+          <h3>Better source available</h3>
+          ${advice}
+        </div>
+      </div>
+    </div>
+
+    <div class="section anim" style="animation-delay:.26s">
+      <div class="sec-h"><span class="idx">${spreadFields.length?'04':'03'}</span><h2>By sport</h2><span class="rule"></span></div>
+      <div class="sports">${sports}</div>
+    </div>
+  `;
+  document.getElementById('footer').textContent = 'Swelligence · deterministic score × model-agreement confidence × source provenance';
+
+  // animate arcs after paint
+  requestAnimationFrame(()=>requestAnimationFrame(()=>{
+    document.querySelectorAll('.arc,.ra').forEach(a=>{a.style.strokeDashoffset=a.dataset.off;});
+  }));
+}
+render();
+</script>
+</body>
+</html>

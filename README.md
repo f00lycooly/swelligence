@@ -35,7 +35,8 @@ Prior art that inspired / can complement this:
   water temperature).
 - 📊 **Deterministic scoring** — a transparent 0–100 suitability score per
   (spot × sport), with a factor breakdown, that works with **no API key and no
-  LLM**.
+  LLM**. See [`docs/scoring.md`](docs/scoring.md) for the full metric/decision
+  breakdown.
 - 🎯 **Forecast confidence** — the score's blind spot is *"is this forecast even
   trustworthy?"* Swelligence answers it from **model agreement**: tight agreement
   between independent models reads as high confidence, wide divergence as low.
@@ -58,11 +59,11 @@ Prior art that inspired / can complement this:
   one-line "should I go?" summary, layered on top of the numbers. The verdict is
   fed the model agreement + data sources, so it can hedge in plain language
   (*"models split on swell size — I'd wait for the next run"*).
-- 🔌 **Pluggable providers** — Open-Meteo (free, no key) is the default; Windy
-  and Stormglass (keyed) slot into the same interface, with a UKHO tide overlay
-  for UK spots. Per-spot, per-domain source routing and a budget-aware
-  cross-provider ensemble layer on top. Add provider API keys from the
-  integration's options.
+- 🔌 **Pluggable providers** — Open-Meteo (free, no key) is the forecast source.
+  Tides resolve by region behind a single interface: UKHO Admiralty (UK) and
+  NOAA CO-OPS (US) where a key/coverage applies, falling back to a keyless
+  Open-Meteo modeled tide everywhere else. Adding a tide authority is a leaf
+  provider class; keys (e.g. UKHO) are entered in the integration's options.
 - 🔔 **Automations** — score sensors + `suitable now` binary sensors per
   (spot × sport) drive any notification/automation you like.
 

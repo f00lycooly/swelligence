@@ -75,7 +75,8 @@ from .tide import TIDE_STATE_ANY, TIDE_STATES
 
 # Keyed providers needing an API key entry in the providers settings step.
 _KEYED_PROVIDERS = {k: cls for k, cls in PROVIDERS.items() if cls.requires_api_key}
-# Tide overlays needing an API key (UKHO); Stormglass reuses its forecast key.
+# Tide overlays needing an API key (e.g. UKHO). Keyless tide sources
+# (NOAA CO-OPS, Open-Meteo modeled) need no entry.
 _KEYED_TIDE_PROVIDERS = {
     k: cls
     for k, cls in TIDE_PROVIDERS.items()
@@ -523,8 +524,8 @@ class SwelligenceOptionsFlow(OptionsFlow):
     async def async_step_providers(
         self, user_input: dict[str, Any] | None = None
     ) -> ConfigFlowResult:
-        """Enter API keys for keyed forecast providers (Windy, Stormglass)."""
-        if not _KEYED_PROVIDERS:
+        """Enter API keys for keyed providers (e.g. UKHO tides)."""
+        if not _KEYED_PROVIDERS and not _KEYED_TIDE_PROVIDERS:
             return self.async_abort(reason="no_keyed_providers")
         stored = dict(self.config_entry.options.get(CONF_PROVIDERS, {}) or {})
         if user_input is not None:
@@ -577,8 +578,8 @@ class SwelligenceOptionsFlow(OptionsFlow):
             ] = selector.TextSelector(
                 selector.TextSelectorConfig(type=selector.TextSelectorType.PASSWORD)
             )
-        # Tide overlay source — supplies tides for tide-dependent spots whose
-        # forecast provider doesn't (UKHO for UK, or Stormglass).
+        # Tide overlay source — supplies tides for tide-dependent spots. Usually
+        # left unset: the region resolver auto-picks (UKHO/CO-OPS/modeled).
         opts = self.config_entry.options
         fields[
             vol.Optional(

@@ -15,7 +15,7 @@ def base_pt(hour: int, **kw) -> ForecastPoint:
 
 
 def ov_pt(hour: int, **kw) -> ForecastPoint:
-    # Stormglass style: aware UTC time.
+    # Overlay style: aware UTC time.
     return ForecastPoint(time=datetime(2026, 6, 23, hour, tzinfo=timezone.utc), **kw)
 
 
@@ -65,9 +65,9 @@ def test_filled_domains_mapping():
 
 def test_resolve_route_inherits_or_overrides():
     # inherit sentinels fall back to the entry-level value...
-    assert resolve_route(None, "stormglass") == "stormglass"
-    assert resolve_route("", "stormglass") == "stormglass"
-    assert resolve_route("inherit", "stormglass") == "stormglass"
+    assert resolve_route(None, "ukho") == "ukho"
+    assert resolve_route("", "ukho") == "ukho"
+    assert resolve_route("inherit", "ukho") == "ukho"
     # ...any real value overrides, including an explicit "none" (off).
-    assert resolve_route("windy", "stormglass") == "windy"
-    assert resolve_route("none", "stormglass") == "none"
+    assert resolve_route("open_meteo_tide", "ukho") == "open_meteo_tide"
+    assert resolve_route("none", "ukho") == "none"

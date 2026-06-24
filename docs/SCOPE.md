@@ -82,8 +82,8 @@ class ForecastProvider:
     async def async_fetch(self, lat, lon, *, hours=48) -> SpotForecast: ...
 ```
 
-Adding Windy/Stormglass = implement this + register in `PROVIDERS`. Nothing in
-scoring or entities changes.
+Adding a provider (e.g. a tide authority) = implement this + register in the
+relevant registry. Nothing in scoring or entities changes.
 
 ## Data model
 
@@ -162,12 +162,17 @@ one profile + quiver in config — so there's no per-rider entity multiplication
   per keyed provider auto-throttles polling to the provider's daily request
   budget (`free_tier_daily_requests`/`requests_per_fetch`, shared across spots on
   that provider) so a free plan can't be exhausted — Stormglass free = 10/day →
-  6 h min interval for one spot. Windy/UKHO live verification still pending keys.
+  6 h min interval for one spot. UKHO live verification still pending keys.
+  **Note:** the **Windy** and **Stormglass** providers were later removed in the
+  single-source simplification (epic `swelligence-48w`) — they served the same
+  public wave models Open-Meteo already provides keyless, while requiring a paid
+  key. Tides moved to a region-resolved overlay (UKHO/NOAA CO-OPS/Open-Meteo
+  modeled fallback); the free-tier throttle is now dormant (no metered provider).
 - **M5 — Tide awareness** *(done)*: per-spot tide preference (any/high/low/mid +
   window hours) gates the score via a precomputed `ForecastPoint.tide_factor`
   (pure `tide.py`), so it flows through now/best/forecast uniformly. Tides come
-  from the forecast provider (Stormglass) or a configured tide overlay (UKHO /
-  Stormglass) attached by the coordinator with a 12 h TTL cache (budget-safe).
+  from a region-resolved tide overlay (UKHO / NOAA CO-OPS / Open-Meteo modeled
+  fallback) attached by the coordinator with a 12 h TTL cache (budget-safe).
   Point (naive-local) and event (UTC) times are reconciled to one UTC basis.
   This coordinator overlay-attach is the shared wiring al8.2 reuses for marine.
 - **M6 — Notification blueprint**: "tell me when <spot> is good for <sport>".

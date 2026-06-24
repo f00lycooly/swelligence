@@ -1,124 +1,20 @@
-"""Unit tests for the keyed-provider normalisers (no network).
+"""Unit tests for the tide-provider normalisers (no network).
 
-Windy, Stormglass, and UKHO all factor their response parsing into pure static
-methods so the metres/second -> knots, Kelvin -> Celsius, u/v -> speed/dir, and
-nearest-station logic are testable without live (paid) API calls.
+UKHO, NOAA CO-OPS, and the Open-Meteo modeled fallback factor their parsing into
+pure static helpers so nearest-station logic and event derivation are testable
+without live API calls.
 """
 
 from __future__ import annotations
 
-import math
-
 import pytest
 
+from datetime import timezone
+
 from swelligence.geo import haversine_km as _haversine
-from swelligence.providers.stormglass import StormglassProvider
+from swelligence.providers.noaa_coops import NOAACoopsTideProvider
+from swelligence.providers.open_meteo import _derive_tide_extremes
 from swelligence.providers.ukho import UKHOTideProvider
-from swelligence.providers.windy import WindyProvider
-
-# --- Stormglass -------------------------------------------------------------
-
-SG_WEATHER = {
-    "hours": [
-        {
-            "time": "2026-06-23T12:00:00+00:00",
-            "windSpeed": {"sg": 5.0, "noaa": 4.0},
-            "gust": {"sg": 8.0},
-            "windDirection": {"sg": 200.0},
-            "waveHeight": {"sg": 0.8},
-            "airTemperature": {"noaa": 18.0},  # no 'sg' -> falls back to noaa
-            "waterTemperature": {"sg": 17.0},
-        },
-        {"time": "2026-06-23T13:00:00+00:00", "windSpeed": {"sg": 10.0}},
-    ]
-}
-SG_TIDES = {
-    "data": [
-        {"time": "2026-06-23T06:30:00+00:00", "type": "high", "height": 1.4},
-        {"time": "2026-06-23T12:45:00+00:00", "type": "low", "height": -0.2},
-    ]
-}
-
-
-def test_stormglass_wind_ms_to_knots_and_source_pick():
-    pts = StormglassProvider._parse_weather(SG_WEATHER)
-    assert len(pts) == 2
-    assert pts[0].wind_speed_kn == pytest.approx(9.7, abs=0.05)
-    assert pts[0].wind_gust_kn == pytest.approx(15.6, abs=0.05)
-    # windDirection is not a speed -> not converted.
-    assert pts[0].wind_dir_deg == 200.0
-    # airTemperature falls back to 'noaa' when 'sg' absent.
-    assert pts[0].air_temp_c == 18.0
-    assert pts[1].wind_speed_kn == pytest.approx(19.4, abs=0.05)
-
-
-def test_stormglass_missing_params_left_none():
-    pts = StormglassProvider._parse_weather(SG_WEATHER)
-    assert pts[1].wave_height_m is None
-    assert pts[1].air_temp_c is None
-
-
-def test_stormglass_tides():
-    events = StormglassProvider._parse_tides(SG_TIDES)
-    assert [e.kind for e in events] == ["high", "low"]
-    assert events[0].height_m == 1.4
-    assert events[1].height_m == -0.2
-
-
-def test_stormglass_empty():
-    assert StormglassProvider._parse_weather(None) == []
-    assert StormglassProvider._parse_tides({}) == []
-
-
-# --- Windy ------------------------------------------------------------------
-
-WINDY_WIND = {
-    "ts": [1_750_000_000_000, 1_750_003_600_000],
-    "wind_u-surface": [3.0, -4.0],
-    "wind_v-surface": [4.0, 0.0],
-    "gust-surface": [8.0, 9.0],
-    "temp-surface": [291.15, 293.15],  # Kelvin
-    "past3hprecip-surface": [0.0, 0.5],
-    "lclouds-surface": [10, 20],
-}
-WINDY_WAVE = {
-    "ts": [1_750_000_000_000, 1_750_003_600_000],
-    "waves_height-surface": [0.8, 1.2],
-    "waves_period-surface": [6.0, 7.0],
-    "waves_direction-surface": [180, 190],
-    "swell1_height-surface": [0.5, 0.7],
-    "swell1_period-surface": [9.0, 10.0],
-}
-
-
-def test_windy_uv_to_speed_and_direction():
-    pts = WindyProvider._parse(WINDY_WIND, WINDY_WAVE)
-    assert len(pts) == 2
-    # |(3,4)| = 5 m/s -> 9.7 kn
-    assert pts[0].wind_speed_kn == pytest.approx(5 * 1.94384, abs=0.05)
-    # from-direction of vector (u=3,v=4): 270 - deg(atan2(4,3))
-    expected = (270 - math.degrees(math.atan2(4, 3))) % 360
-    assert pts[0].wind_dir_deg == pytest.approx(expected, abs=0.1)
-    # Kelvin -> Celsius
-    assert pts[0].air_temp_c == pytest.approx(18.0, abs=0.05)
-    assert pts[0].cloud_pct == 10
-
-
-def test_windy_waves_merged_by_timestamp():
-    pts = WindyProvider._parse(WINDY_WIND, WINDY_WAVE)
-    assert pts[1].wave_height_m == 1.2
-    assert pts[1].swell_period_s == 10.0
-
-
-def test_windy_no_wave_model_leaves_marine_none():
-    pts = WindyProvider._parse(WINDY_WIND, None)
-    assert pts[0].wave_height_m is None
-    assert pts[0].wind_speed_kn is not None
-
-
-def test_windy_empty():
-    assert WindyProvider._parse(None, None) == []
-    assert WindyProvider._parse({}, None) == []
 
 
 # --- UKHO -------------------------------------------------------------------
@@ -157,6 +53,76 @@ def test_ukho_parse_events():
     events = UKHOTideProvider._parse_events(UKHO_EVENTS)
     assert [e.kind for e in events] == ["high", "low"]
     assert events[0].height_m == 1.4
+
+
+# --- NOAA CO-OPS ------------------------------------------------------------
+
+COOPS_STATIONS = {
+    "stations": [
+        {"id": "8443970", "name": "Boston", "lat": 42.354, "lng": -71.050},
+        {"id": "9410230", "name": "La Jolla", "lat": 32.867, "lng": -117.257},
+    ]
+}
+COOPS_PREDICTIONS = {
+    "predictions": [
+        {"t": "2026-06-24 05:30", "v": "1.234", "type": "H"},
+        {"t": "2026-06-24 11:45", "v": "-0.150", "type": "L"},
+    ]
+}
+
+
+def test_coops_nearest_station():
+    # Near San Diego -> La Jolla; near Massachusetts -> Boston.
+    assert NOAACoopsTideProvider._nearest_station(COOPS_STATIONS, 32.7, -117.2) == "9410230"
+    assert NOAACoopsTideProvider._nearest_station(COOPS_STATIONS, 42.3, -71.0) == "8443970"
+    assert NOAACoopsTideProvider._nearest_station({"stations": []}, 0, 0) is None
+    assert NOAACoopsTideProvider._nearest_station(None, 0, 0) is None
+
+
+def test_coops_parse_predictions():
+    events = NOAACoopsTideProvider._parse_predictions(COOPS_PREDICTIONS)
+    assert [e.kind for e in events] == ["high", "low"]
+    assert events[0].height_m == 1.234
+    assert events[0].time.hour == 5 and events[0].time.tzinfo == timezone.utc
+    assert events[1].height_m == -0.15
+    assert NOAACoopsTideProvider._parse_predictions(None) == []
+    # An error payload (no 'predictions') yields no events, not a crash.
+    assert NOAACoopsTideProvider._parse_predictions({"error": {"message": "x"}}) == []
+
+
+def test_coops_covers_us_only():
+    assert NOAACoopsTideProvider.covers(32.7, -117.2)  # San Diego
+    assert NOAACoopsTideProvider.covers(21.3, -157.8)  # Honolulu
+    assert NOAACoopsTideProvider.covers(61.2, -149.9)  # Anchorage
+    assert not NOAACoopsTideProvider.covers(50.74, -1.78)  # UK
+    assert not NOAACoopsTideProvider.covers(-43.5, 172.7)  # NZ
+
+
+# --- Open-Meteo modeled tide fallback ---------------------------------------
+
+_SEA_LEVEL_TIMES = [
+    "2026-06-24T00:00",
+    "2026-06-24T01:00",
+    "2026-06-24T02:00",
+    "2026-06-24T03:00",
+    "2026-06-24T04:00",
+]
+
+
+def test_derive_tide_extremes_finds_turning_points():
+    # rises to a high at 01:00, falls to a low at 03:00.
+    events = _derive_tide_extremes(_SEA_LEVEL_TIMES, [0.1, 0.6, 0.2, -0.4, 0.0])
+    assert [e.kind for e in events] == ["high", "low"]
+    assert events[0].height_m == 0.6
+    assert events[0].time.hour == 1 and events[0].time.tzinfo == timezone.utc
+    assert events[1].height_m == -0.4 and events[1].time.hour == 3
+
+
+def test_derive_tide_extremes_skips_nones_and_endpoints():
+    # A None in the series is skipped; endpoints are never turning points.
+    events = _derive_tide_extremes(_SEA_LEVEL_TIMES, [0.6, None, 0.2, -0.4, 0.0])
+    assert [e.kind for e in events] == ["low"]  # only the 03:00 trough survives
+    assert _derive_tide_extremes([], []) == []
 
 
 def test_haversine_known_distance():

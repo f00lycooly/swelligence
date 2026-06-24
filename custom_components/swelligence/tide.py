@@ -7,7 +7,7 @@ turns a spot's tide preference + the forecast's high/low water events into a
 0..1 suitability multiplier per timestep, which the scorer folds into the score.
 
 Timezone note: Open-Meteo point times are naive *local* wall-clock, while tide
-events (Stormglass/UKHO) are UTC. :func:`to_utc_naive` collapses both to a
+events (UKHO/CO-OPS/modeled) are UTC. :func:`to_utc_naive` collapses both to a
 single UTC-naive basis so the hour arithmetic is correct — callers must convert
 both sides before calling :func:`tide_factor`.
 """
