@@ -1,0 +1,208 @@
+{
+  "sensor.swelligence_mudeford_source_advice": {
+    "state": "0",
+    "last_updated_ts": 1782334357.8842962,
+    "attributes": {
+      "ok": true,
+      "summary": "On the best available source for every domain",
+      "recommendations": [],
+      "icon": "mdi:transit-connection-variant",
+      "friendly_name": "Swelligence: Mudeford Source advice"
+    }
+  },
+  "sensor.swelligence_mudeford_kitesurf_suitability": {
+    "state": "26.7",
+    "last_updated_ts": 1782334357.8845708,
+    "attributes": {
+      "state_class": "measurement",
+      "spot": "Mudeford",
+      "sport": "kitesurf",
+      "sport_label": "Kitesurf",
+      "verdict": "poor",
+      "suitable": false,
+      "factors": {
+        "wind": 4.7,
+        "gust": 100.0
+      },
+      "reasons": [
+        "under-powered (1kn)"
+      ],
+      "completeness": {
+        "direction": "not_configured",
+        "wave": "missing_data"
+      },
+      "nudges": [
+        "set offshore wind directions for sharper scoring"
+      ],
+      "best_score": 39.5,
+      "best_in_hours": 17,
+      "best_verdict": "marginal",
+      "data_sources": {
+        "water": "open_meteo",
+        "wind": "open_meteo",
+        "air": "open_meteo",
+        "wave": "open_meteo"
+      },
+      "data_quality": {
+        "summary": "wind: open_meteo; waves: sheltered: waves suppressed, temp kept",
+        "issues": [
+          "no wave data"
+        ],
+        "grid_distance_km": 3.0
+      },
+      "unit_of_measurement": "%",
+      "icon": "mdi:kitesurfing",
+      "friendly_name": "Swelligence: Mudeford Kitesurf suitability"
+    }
+  },
+  "sensor.swelligence_mudeford_wing_foil_suitability": {
+    "state": "27.4",
+    "last_updated_ts": 1782334357.8847842,
+    "attributes": {
+      "state_class": "measurement",
+      "spot": "Mudeford",
+      "sport": "wingfoil",
+      "sport_label": "Wing foil",
+      "verdict": "poor",
+      "suitable": false,
+      "factors": {
+        "wind": 5.6,
+        "gust": 100.0
+      },
+      "reasons": [
+        "under-powered (1kn)"
+      ],
+      "completeness": {
+        "direction": "not_configured",
+        "wave": "missing_data"
+      },
+      "nudges": [
+        "set offshore wind directions for sharper scoring"
+      ],
+      "best_score": 42.8,
+      "best_in_hours": 17,
+      "best_verdict": "marginal",
+      "data_sources": {
+        "water": "open_meteo",
+        "wind": "open_meteo",
+        "air": "open_meteo",
+        "wave": "open_meteo"
+      },
+      "data_quality": {
+        "summary": "wind: open_meteo; waves: sheltered: waves suppressed, temp kept",
+        "issues": [
+          "no wave data"
+        ],
+        "grid_distance_km": 3.0
+      },
+      "unit_of_measurement": "%",
+      "icon": "mdi:wind-power",
+      "friendly_name": "Swelligence: Mudeford Wing foil suitability"
+    }
+  },
+  "sensor.swelligence_mudeford_surf_suitability": {
+    "state": "unavailable",
+    "last_updated_ts": 1782333869.7874088,
+    "attributes": {
+      "state_class": "measurement",
+      "icon": "mdi:surfing",
+      "friendly_name": "Surf suitability",
+      "unit_of_measurement": "%"
+    }
+  },
+  "sensor.swelligence_mudeford_sup_suitability": {
+    "state": "81.1",
+    "last_updated_ts": 1782334357.8872375,
+    "attributes": {
+      "state_class": "measurement",
+      "spot": "Mudeford",
+      "sport": "sup",
+      "sport_label": "SUP",
+      "verdict": "great",
+      "suitable": true,
+      "factors": {
+        "wind": 74.0,
+        "gust": 100.0
+      },
+      "reasons": [
+        "1kn"
+      ],
+      "completeness": {
+        "direction": "not_configured",
+        "wave": "missing_data"
+      },
+      "nudges": [
+        "set offshore wind directions for sharper scoring"
+      ],
+      "best_score": 99.3,
+      "best_in_hours": 4,
+      "best_verdict": "epic",
+      "data_sources": {
+        "water": "open_meteo",
+        "wind": "open_meteo",
+        "air": "open_meteo",
+        "wave": "open_meteo"
+      },
+      "data_quality": {
+        "summary": "wind: open_meteo; waves: sheltered: waves suppressed, temp kept",
+        "issues": [
+          "no wave data"
+        ],
+        "grid_distance_km": 3.0
+      },
+      "unit_of_measurement": "%",
+      "icon": "mdi:rowing",
+      "friendly_name": "Swelligence: Mudeford SUP suitability"
+    }
+  },
+  "sensor.swelligence_mudeford_wakeboard_inland_suitability": {
+    "state": "unavailable",
+    "last_updated_ts": 1782333869.7875466,
+    "attributes": {
+      "state_class": "measurement",
+      "icon": "mdi:ski-water",
+      "friendly_name": "Wakeboard (inland) suitability",
+      "unit_of_measurement": "%"
+    }
+  },
+  "binary_sensor.swelligence_mudeford_kitesurf_suitable_now": {
+    "state": "off",
+    "last_updated_ts": 1782334357.8902147,
+    "attributes": {
+      "icon": "mdi:kitesurfing",
+      "friendly_name": "Swelligence: Mudeford Kitesurf suitable now"
+    }
+  },
+  "binary_sensor.swelligence_mudeford_wing_foil_suitable_now": {
+    "state": "off",
+    "last_updated_ts": 1782334357.8903468,
+    "attributes": {
+      "icon": "mdi:wind-power",
+      "friendly_name": "Swelligence: Mudeford Wing foil suitable now"
+    }
+  },
+  "binary_sensor.swelligence_mudeford_surf_suitable_now": {
+    "state": "unavailable",
+    "last_updated_ts": 1782333869.787759,
+    "attributes": {
+      "icon": "mdi:surfing",
+      "friendly_name": "Surf suitable now"
+    }
+  },
+  "binary_sensor.swelligence_mudeford_sup_suitable_now": {
+    "state": "on",
+    "last_updated_ts": 1782334357.8904593,
+    "attributes": {
+      "icon": "mdi:rowing",
+      "friendly_name": "Swelligence: Mudeford SUP suitable now"
+    }
+  },
+  "binary_sensor.swelligence_mudeford_wakeboard_inland_suitable_now": {
+    "state": "unavailable",
+    "last_updated_ts": 1782333869.7878828,
+    "attributes": {
+      "icon": "mdi:ski-water",
+      "friendly_name": "Wakeboard (inland) suitable now"
+    }
+  }
+}

@@ -1,0 +1,208 @@
+{
+  "sensor.swelligence_sandbanks_kitesurf_suitability": {
+    "state": "49.1",
+    "last_updated_ts": 1782334357.8876085,
+    "attributes": {
+      "state_class": "measurement",
+      "spot": "Sandbanks",
+      "sport": "kitesurf",
+      "sport_label": "Kitesurf",
+      "verdict": "marginal",
+      "suitable": false,
+      "factors": {
+        "wind": 8.3,
+        "gust": 100.0,
+        "wave": 100.0
+      },
+      "reasons": [
+        "under-powered (2kn)"
+      ],
+      "completeness": {
+        "direction": "not_configured"
+      },
+      "nudges": [
+        "set offshore wind directions for sharper scoring"
+      ],
+      "best_score": 55.6,
+      "best_in_hours": 8,
+      "best_verdict": "good",
+      "data_sources": {
+        "water": "open_meteo",
+        "wind": "open_meteo",
+        "air": "open_meteo",
+        "wave": "open_meteo"
+      },
+      "data_quality": {
+        "summary": "wind: open_meteo; waves: open_meteo",
+        "issues": [
+          "grid cell ~8km from spot"
+        ],
+        "grid_distance_km": 8.2
+      },
+      "unit_of_measurement": "%",
+      "icon": "mdi:kitesurfing",
+      "friendly_name": "Swelligence: Sandbanks Kitesurf suitability"
+    }
+  },
+  "sensor.swelligence_sandbanks_wing_foil_suitability": {
+    "state": "50.0",
+    "last_updated_ts": 1782334357.887782,
+    "attributes": {
+      "state_class": "measurement",
+      "spot": "Sandbanks",
+      "sport": "wingfoil",
+      "sport_label": "Wing foil",
+      "verdict": "marginal",
+      "suitable": false,
+      "factors": {
+        "wind": 10.0,
+        "gust": 100.0,
+        "wave": 100.0
+      },
+      "reasons": [
+        "under-powered (2kn)"
+      ],
+      "completeness": {
+        "direction": "not_configured"
+      },
+      "nudges": [
+        "set offshore wind directions for sharper scoring"
+      ],
+      "best_score": 57.8,
+      "best_in_hours": 8,
+      "best_verdict": "good",
+      "data_sources": {
+        "water": "open_meteo",
+        "wind": "open_meteo",
+        "air": "open_meteo",
+        "wave": "open_meteo"
+      },
+      "data_quality": {
+        "summary": "wind: open_meteo; waves: open_meteo",
+        "issues": [
+          "grid cell ~8km from spot"
+        ],
+        "grid_distance_km": 8.2
+      },
+      "unit_of_measurement": "%",
+      "icon": "mdi:wind-power",
+      "friendly_name": "Swelligence: Sandbanks Wing foil suitability"
+    }
+  },
+  "binary_sensor.swelligence_sandbanks_kitesurf_suitable_now": {
+    "state": "off",
+    "last_updated_ts": 1782334357.8905773,
+    "attributes": {
+      "icon": "mdi:kitesurfing",
+      "friendly_name": "Swelligence: Sandbanks Kitesurf suitable now"
+    }
+  },
+  "binary_sensor.swelligence_sandbanks_wing_foil_suitable_now": {
+    "state": "off",
+    "last_updated_ts": 1782334357.8906968,
+    "attributes": {
+      "icon": "mdi:wind-power",
+      "friendly_name": "Swelligence: Sandbanks Wing foil suitable now"
+    }
+  },
+  "sensor.swelligence_sandbanks_sup_suitability": {
+    "state": "76.8",
+    "last_updated_ts": 1782334357.887953,
+    "attributes": {
+      "state_class": "measurement",
+      "spot": "Sandbanks",
+      "sport": "sup",
+      "sport_label": "SUP",
+      "verdict": "great",
+      "suitable": true,
+      "factors": {
+        "wind": 85.0,
+        "gust": 100.0,
+        "wave": 60.0
+      },
+      "reasons": [
+        "2kn"
+      ],
+      "completeness": {
+        "direction": "not_configured"
+      },
+      "nudges": [
+        "set offshore wind directions for sharper scoring"
+      ],
+      "best_score": 98.9,
+      "best_in_hours": 20,
+      "best_verdict": "epic",
+      "data_sources": {
+        "water": "open_meteo",
+        "wind": "open_meteo",
+        "air": "open_meteo",
+        "wave": "open_meteo"
+      },
+      "data_quality": {
+        "summary": "wind: open_meteo; waves: open_meteo",
+        "issues": [
+          "grid cell ~8km from spot"
+        ],
+        "grid_distance_km": 8.2
+      },
+      "unit_of_measurement": "%",
+      "icon": "mdi:rowing",
+      "friendly_name": "Swelligence: Sandbanks SUP suitability"
+    }
+  },
+  "binary_sensor.swelligence_sandbanks_sup_suitable_now": {
+    "state": "on",
+    "last_updated_ts": 1782334357.8908234,
+    "attributes": {
+      "icon": "mdi:rowing",
+      "friendly_name": "Swelligence: Sandbanks SUP suitable now"
+    }
+  },
+  "sensor.swelligence_sandbanks_source_advice": {
+    "state": "0",
+    "last_updated_ts": 1782334357.8874314,
+    "attributes": {
+      "ok": true,
+      "summary": "On the best available source for every domain",
+      "recommendations": [],
+      "icon": "mdi:transit-connection-variant",
+      "friendly_name": "Swelligence: Sandbanks Source advice"
+    }
+  },
+  "sensor.swelligence_sandbanks_surf_suitability": {
+    "state": "unavailable",
+    "last_updated_ts": 1782334274.763681,
+    "attributes": {
+      "state_class": "measurement",
+      "icon": "mdi:surfing",
+      "friendly_name": "Surf suitability",
+      "unit_of_measurement": "%"
+    }
+  },
+  "sensor.swelligence_sandbanks_wakeboard_inland_suitability": {
+    "state": "unavailable",
+    "last_updated_ts": 1782334274.7637851,
+    "attributes": {
+      "state_class": "measurement",
+      "icon": "mdi:ski-water",
+      "friendly_name": "Wakeboard (inland) suitability",
+      "unit_of_measurement": "%"
+    }
+  },
+  "binary_sensor.swelligence_sandbanks_surf_suitable_now": {
+    "state": "unavailable",
+    "last_updated_ts": 1782334274.7641454,
+    "attributes": {
+      "icon": "mdi:surfing",
+      "friendly_name": "Surf suitable now"
+    }
+  },
+  "binary_sensor.swelligence_sandbanks_wakeboard_inland_suitable_now": {
+    "state": "unavailable",
+    "last_updated_ts": 1782334274.764258,
+    "attributes": {
+      "icon": "mdi:ski-water",
+      "friendly_name": "Wakeboard (inland) suitable now"
+    }
+  }
+}
