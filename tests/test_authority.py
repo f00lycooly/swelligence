@@ -11,9 +11,10 @@ from swelligence.authority import (
 )
 from swelligence.providers.domains import TIDE, WAVE, WIND
 
-# Christchurch, NZ (not UK) and Avon Beach, UK — to exercise region gating.
+# Christchurch NZ (neither), Avon Beach UK, San Diego US — to exercise gating.
 NZ = (-43.5, 172.7)
 UK = (50.74, -1.78)
+US = (32.7, -117.2)
 
 
 def _recs(sources, *, water_type="sea", coord=NZ, available):
@@ -132,6 +133,20 @@ def test_domain_ranking_is_priority_ordered_and_region_gated():
     # NZ: UKHO gated out; global sources remain, fallback last.
     assert domain_ranking(TIDE, *NZ) == ["stormglass", "open_meteo_tide"]
     assert domain_ranking(WAVE, *NZ) == ["stormglass", "open_meteo"]  # rank 50 > 0
+
+
+def test_noaa_coops_is_the_us_tide_authority():
+    # In US waters, CO-OPS (keyless, rank 100, US-gated) wins over the global
+    # modeled fallback with no key needed — a pure wiring-point addition.
+    assert (
+        resolve_overlay(TIDE, *US, available={"open_meteo_tide", "noaa_coops"})
+        == "noaa_coops"
+    )
+    # Outside the US it doesn't apply, even if somehow listed available.
+    assert (
+        resolve_overlay(TIDE, *NZ, available={"open_meteo_tide", "noaa_coops"})
+        == "open_meteo_tide"
+    )
 
 
 def test_modeled_tide_is_the_keyless_global_fallback():

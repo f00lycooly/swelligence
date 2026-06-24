@@ -18,6 +18,7 @@ from .base import (
     TideProvider,
 )
 from .domains import assert_legal_domains
+from .noaa_coops import NOAACoopsTideProvider
 from .open_meteo import OpenMeteoProvider, OpenMeteoTideProvider
 from .stormglass import StormglassProvider
 from .ukho import UKHOTideProvider
@@ -35,6 +36,7 @@ PROVIDERS: dict[str, type[ForecastProvider]] = {
 # modeled tide is the keyless priority-0 global fallback so every spot gets one.
 TIDE_PROVIDERS: dict[str, type[TideProvider]] = {
     UKHOTideProvider.key: UKHOTideProvider,
+    NOAACoopsTideProvider.key: NOAACoopsTideProvider,
     StormglassProvider.key: StormglassProvider,
     OpenMeteoTideProvider.key: OpenMeteoTideProvider,
 }
@@ -93,6 +95,7 @@ __all__ = [
     "SpotForecast",
     "TideEvent",
     "TideProvider",
+    "NOAACoopsTideProvider",
     "OpenMeteoProvider",
     "OpenMeteoTideProvider",
     "StormglassProvider",

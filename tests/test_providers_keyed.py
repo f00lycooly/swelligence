@@ -12,6 +12,7 @@ import pytest
 from datetime import timezone
 
 from swelligence.geo import haversine_km as _haversine
+from swelligence.providers.noaa_coops import NOAACoopsTideProvider
 from swelligence.providers.open_meteo import _derive_tide_extremes
 from swelligence.providers.stormglass import StormglassProvider
 from swelligence.providers.ukho import UKHOTideProvider
@@ -106,6 +107,49 @@ def test_ukho_parse_events():
     events = UKHOTideProvider._parse_events(UKHO_EVENTS)
     assert [e.kind for e in events] == ["high", "low"]
     assert events[0].height_m == 1.4
+
+
+# --- NOAA CO-OPS ------------------------------------------------------------
+
+COOPS_STATIONS = {
+    "stations": [
+        {"id": "8443970", "name": "Boston", "lat": 42.354, "lng": -71.050},
+        {"id": "9410230", "name": "La Jolla", "lat": 32.867, "lng": -117.257},
+    ]
+}
+COOPS_PREDICTIONS = {
+    "predictions": [
+        {"t": "2026-06-24 05:30", "v": "1.234", "type": "H"},
+        {"t": "2026-06-24 11:45", "v": "-0.150", "type": "L"},
+    ]
+}
+
+
+def test_coops_nearest_station():
+    # Near San Diego -> La Jolla; near Massachusetts -> Boston.
+    assert NOAACoopsTideProvider._nearest_station(COOPS_STATIONS, 32.7, -117.2) == "9410230"
+    assert NOAACoopsTideProvider._nearest_station(COOPS_STATIONS, 42.3, -71.0) == "8443970"
+    assert NOAACoopsTideProvider._nearest_station({"stations": []}, 0, 0) is None
+    assert NOAACoopsTideProvider._nearest_station(None, 0, 0) is None
+
+
+def test_coops_parse_predictions():
+    events = NOAACoopsTideProvider._parse_predictions(COOPS_PREDICTIONS)
+    assert [e.kind for e in events] == ["high", "low"]
+    assert events[0].height_m == 1.234
+    assert events[0].time.hour == 5 and events[0].time.tzinfo == timezone.utc
+    assert events[1].height_m == -0.15
+    assert NOAACoopsTideProvider._parse_predictions(None) == []
+    # An error payload (no 'predictions') yields no events, not a crash.
+    assert NOAACoopsTideProvider._parse_predictions({"error": {"message": "x"}}) == []
+
+
+def test_coops_covers_us_only():
+    assert NOAACoopsTideProvider.covers(32.7, -117.2)  # San Diego
+    assert NOAACoopsTideProvider.covers(21.3, -157.8)  # Honolulu
+    assert NOAACoopsTideProvider.covers(61.2, -149.9)  # Anchorage
+    assert not NOAACoopsTideProvider.covers(50.74, -1.78)  # UK
+    assert not NOAACoopsTideProvider.covers(-43.5, 172.7)  # NZ
 
 
 # --- Open-Meteo modeled tide fallback ---------------------------------------

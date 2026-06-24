@@ -50,6 +50,7 @@ HA_MODULES = [
     "providers.open_meteo",
     "providers.stormglass",
     "providers.ukho",
+    "providers.noaa_coops",
 ]
 
 
