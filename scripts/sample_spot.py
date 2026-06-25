@@ -89,8 +89,15 @@ def main() -> int:
         name, lat, lon, water = "Southbourne", 50.718, -1.7825, "sea"
         sports = ["surf", "kitesurf", "wingfoil", "sup"]
 
-    forecast = fetch(lat, lon, water)
-    now = forecast.points[0]
+    forecast = fetch(lat, lon, water, days=7)
+    # Anchor "now" at local mid-day (12:00) rather than the series' midnight start
+    # — a daytime snapshot reads far more naturally on the card/panel. The emitted
+    # series runs from this point forward, so the consumers' "series[0] == now"
+    # invariant holds (now / next hours / rest-of-week all flow from here).
+    pts = forecast.points
+    now_index = next((i for i, p in enumerate(pts) if p.time.hour == 12), 0)
+    forward = pts[now_index:]
+    now = forward[0]
 
     sample: dict = {
         "spot": {"name": name, "latitude": lat, "longitude": lon, "water_type": water},
@@ -103,7 +110,7 @@ def main() -> int:
         if not profile:
             continue
         res = score_point(now, profile)
-        bw = best_window(forecast.points, profile, horizon=24)
+        bw = best_window(forward, profile, horizon=24)
         sample["scores"][sport] = {
             "score": res.score,
             "verdict": res.verdict,
@@ -116,9 +123,11 @@ def main() -> int:
             if bw
             else None,
         }
-        # 24h get_forecast-style hourly slots for this sport.
+        # Full forward get_forecast-style hourly slots (now → +7d) for this sport;
+        # consumers slice the near-term for the timeline and aggregate per-day for
+        # the weekly outlook.
         sample["forecast"][sport] = [
-            _slot(p, profile, sport, 0, None) for p in forecast.points[:24]
+            _slot(p, profile, sport, 0, None) for p in forward
         ]
 
     json.dump(sample, sys.stdout, indent=2)

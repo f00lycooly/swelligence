@@ -31,6 +31,13 @@ SPOTS = [
 ]
 SPORT_ORDER = ["surf", "kitesurf", "wingfoil", "sup", "wakeboard_inland"]
 
+# Fallback labels when the recorder capture doesn't carry sport_label.
+_SPORT_META = {
+    "surf": ("Surf",), "kitesurf": ("Kitesurf",), "wingfoil": ("Wingfoil",),
+    "sup": ("SUP",), "wakeboard_inland": ("Wake",), "windsurf": ("Windsurf",),
+    "sailing": ("Sailing",), "seaswim": ("Sea swim",),
+}
+
 
 def _sport_key(entity_id: str, slug: str) -> str:
     # sensor.swelligence_<slug>_<sport>_suitability ; sport slug uses wing_foil
@@ -40,6 +47,39 @@ def _sport_key(entity_id: str, slug: str) -> str:
 
 # Verdict → compact code for the hourly timeline (keeps DATA small).
 _VCODE = {"poor": 0, "marginal": 1, "good": 2, "great": 3, "epic": 4}
+# Near-term hourly horizon embedded for the suitability timeline + tide curve
+# (the full multi-day series is aggregated to daily peaks for the weekly strip).
+_NEAR_H = 24
+
+
+def _daily(pts: list, today: str) -> list:
+    """Aggregate a sport's full forward hourly series into one entry per calendar
+    day: the day's PEAK suitability + the hour it occurs. Feeds the weekly strip."""
+    from datetime import date as _date
+
+    days: dict[str, dict] = {}
+    order: list[str] = []
+    for p in pts:
+        d = p["datetime"][:10]
+        sc = p.get("score")
+        if sc is None:
+            continue
+        if d not in days:
+            days[d] = {"date": d, "s": sc, "v": p.get("verdict"), "t": p["datetime"][11:16]}
+            order.append(d)
+        elif sc > days[d]["s"]:
+            days[d].update(s=sc, v=p.get("verdict"), t=p["datetime"][11:16])
+    out = []
+    for d in order:
+        e = days[d]
+        out.append({
+            "d": "Today" if d == today else _date.fromisoformat(d).strftime("%a"),
+            "date": d,
+            "s": round(e["s"]),
+            "v": _VCODE.get(e["v"], 1),
+            "t": e["t"],
+        })
+    return out
 
 
 def _derive_tide(hours: list, levels: list) -> dict | None:
@@ -97,23 +137,27 @@ def build() -> dict:
         # sport's series. Per-sport score series feeds the suitability timeline.
         fseries = fc.get("forecast", {})
         env = next((v for v in fseries.values() if isinstance(v, list) and v), [])
-        hours = [p["datetime"][11:16] for p in env]
-        now_time = (nr.get("time") or (env[0]["datetime"] if env else "")).replace("T", " ")[11:16]
-        tide = _derive_tide(hours, [p.get("sea_level_m") for p in env]) if env else None
-        # Compact per-sport hourly [score, vcode] for the timeline.
-        series_by_sport = {}
+        near = env[:_NEAR_H]
+        hours = [p["datetime"][11:16] for p in near]
+        now_iso = nr.get("time") or (env[0]["datetime"] if env else "")
+        now_time = now_iso.replace("T", " ")[11:16]
+        today = now_iso[:10]
+        tide = _derive_tide(hours, [p.get("sea_level_m") for p in near]) if near else None
+        # Compact per-sport near-term hourly [score, vcode] (timeline) + daily peaks (week).
+        series_by_sport, daily_by_sport = {}, {}
         for sk, pts in fseries.items():
             if isinstance(pts, list):
                 series_by_sport[sk] = [
                     [round(p["score"]) if p.get("score") is not None else None,
                      _VCODE.get(p.get("verdict"), 1)]
-                    for p in pts
+                    for p in pts[:_NEAR_H]
                 ]
+                daily_by_sport[sk] = _daily(pts, today)
 
-        # Per-sport from the authoritative recorder attributes.
-        sports = {}
-        advice = []
-        grid = None
+        # Time-invariant presentation/quality metadata from the recorder capture
+        # (sport label/icon, model grid distance, per-domain sources, advice).
+        # These don't change with time of day, so a prior capture is fine.
+        meta_by_sport, advice, grid = {}, [], None
         sources: dict = {}
         for eid, rec in sensors.items():
             a = rec.get("attributes", {})
@@ -123,32 +167,36 @@ def build() -> dict:
             if "_suitability" not in eid:
                 continue
             sk = _sport_key(eid, slug)
-            try:
-                score = round(float(rec["state"]), 1)
-            except (TypeError, ValueError):
-                score = None  # unknown/unavailable (e.g. captured mid-restart)
-            dq = a.get("data_quality", {})
-            grid = dq.get("grid_distance_km", grid)
+            meta_by_sport[sk] = {"label": a.get("sport_label"), "icon": a.get("icon", "")}
+            grid = a.get("data_quality", {}).get("grid_distance_km", grid)
             sources = a.get("data_sources", sources) or sources
+
+        # SCORING is single-sourced from the freshly-fetched midday forecast so the
+        # "now" gauge, the timeline (series[0]) and the weekly peaks all agree.
+        # (The recorder sensors.json was a midnight capture; using it for scores
+        # here would make now ≠ series[0]. See mockups/research/sample/README.)
+        sports = {}
+        for sk, sc in (fc.get("scores") or {}).items():
+            best = sc.get("best") or {}
+            bih = best.get("in_hours")
+            lab = (meta_by_sport.get(sk) or {}).get("label") or _SPORT_META.get(sk, (sk.title(),))[0]
             sports[sk] = {
                 "sport": sk,
-                "label": a.get("sport_label", sk),
-                "icon": a.get("icon", ""),
-                "score": score,
-                "verdict": a.get("verdict"),
-                "suitable": a.get("suitable"),
-                "factors": a.get("factors", {}),
-                "reasons": a.get("reasons", []),
-                "completeness": a.get("completeness", {}),
-                "nudges": a.get("nudges", []),
-                "best_score": a.get("best_score"),
-                "best_in_h": a.get("best_in_hours"),
-                "best_verdict": a.get("best_verdict"),
-                "best_time": (hours[a["best_in_hours"]]
-                              if a.get("best_in_hours") is not None
-                              and a["best_in_hours"] < len(hours) else None),
+                "label": lab,
+                "icon": (meta_by_sport.get(sk) or {}).get("icon", ""),
+                "score": round(sc["score"], 1) if sc.get("score") is not None else None,
+                "verdict": sc.get("verdict"),
+                "suitable": sc.get("suitable"),
+                "factors": sc.get("factors", {}),
+                "reasons": sc.get("reasons", []),
+                "completeness": sc.get("completeness", {}),
+                "nudges": sc.get("nudges", []),
+                "best_score": best.get("score"),
+                "best_in_h": bih,
+                "best_verdict": best.get("verdict"),
+                "best_time": hours[bih] if bih is not None and bih < len(hours) else None,
                 "series": series_by_sport.get(sk),
-                "data_quality": dq,
+                "daily": daily_by_sport.get(sk),
             }
         ordered = [sports[k] for k in SPORT_ORDER if k in sports]
         ordered += [v for k, v in sports.items() if k not in SPORT_ORDER]

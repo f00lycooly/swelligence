@@ -177,6 +177,22 @@ body{
 .tl .tlh .k{font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.14em;color:var(--muted)}
 .tl .tlh .span{font-size:9.5px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:var(--dim);
   border:1px solid var(--line);border-radius:6px;padding:2px 7px}
+/* 24h ⇄ Week toggle (touch) */
+.tl .seg{display:flex;gap:0;border:1px solid var(--line-2);border-radius:9px;overflow:hidden}
+.tl .seg button{cursor:pointer;font-family:inherit;border:0;background:transparent;color:var(--muted);
+  font-size:10px;font-weight:800;letter-spacing:.08em;text-transform:uppercase;padding:7px 13px;min-height:32px}
+.tl .seg button:active{background:var(--press)}
+.tl .seg button.on{background:var(--teal);color:#04201c}
+/* weekly bars */
+.wk{display:flex;gap:6px;height:78px}
+.wd{flex:1;display:flex;flex-direction:column;align-items:center;gap:3px;min-width:0}
+.wd .num{font-size:11px;font-weight:800;font-variant-numeric:tabular-nums;line-height:1}
+.wd .num .star{color:var(--amber)}
+.wd .track{flex:1;width:100%;display:flex;align-items:flex-end;background:rgba(150,178,198,.12);border-radius:6px;overflow:hidden}
+.wd .fill{width:100%;border-radius:6px 6px 0 0;min-height:3px}
+.wd .dow{font-size:9.5px;font-weight:700;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:100%}
+.wd.today .dow{color:var(--teal)}
+.wd .bt{font-size:8px;color:var(--dim);font-variant-numeric:tabular-nums}
 .tl .bars{display:flex;align-items:flex-end;gap:2px;height:78px}
 .tl .b{flex:1;position:relative;border-radius:3px 3px 0 0;min-height:3px;align-self:flex-end}
 .tl .b.now::after{content:"NOW";position:absolute;top:-13px;left:50%;transform:translateX(-50%);
@@ -283,17 +299,33 @@ function tideModule(s){
   </div>`;
 }
 
-// Suitability timeline — hourly score for the selected sport, anchored at NOW.
-function timeline(sp,s){
-  const ser=sp.series;
-  if(!ser||!ser.length) return `<div class="tl"><div class="tlh"><span class="k">Outlook</span></div><div class="none">no hourly forecast for this sport</div></div>`;
+// Suitability outlook for the selected sport — toggles between the next-24h
+// hourly timeline (anchored at NOW) and the 7-day weekly peaks. LVGL: a tab
+// view (lv_tabview) or a checked button pair swapping the lv_chart series.
+let tlMode='hours';
+function setTL(m){ tlMode=m; render(); }
+function outlook(sp,s){
+  const ser=sp.series, daily=sp.daily;
+  const toggle=`<div class="seg">
+    <button class="${tlMode==='hours'?'on':''}" onclick="setTL('hours')">24h</button>
+    <button class="${tlMode==='week'?'on':''}" onclick="setTL('week')">Week</button></div>`;
+  if(tlMode==='week'){
+    if(!daily||!daily.length) return `<div class="tl"><div class="tlh"><span class="k">Outlook</span>${toggle}</div><div class="none">no daily forecast</div></div>`;
+    const peak=Math.max(...daily.map(e=>e.s));
+    const bars=daily.map(e=>`<div class="wd ${e.d==='Today'?'today':''}">
+        <div class="num">${e.s===peak?'<span class="star">★</span>':''}${e.s}</div>
+        <div class="track"><div class="fill" style="height:${Math.max(4,e.s)}%;background:${VC[e.v]}"></div></div>
+        <div class="dow">${e.d}</div><div class="bt">${e.t}</div></div>`).join('');
+    return `<div class="tl"><div class="tlh"><span class="k">Outlook · daily peak</span>${toggle}</div><div class="wk">${bars}</div></div>`;
+  }
+  if(!ser||!ser.length) return `<div class="tl"><div class="tlh"><span class="k">Outlook</span>${toggle}</div><div class="none">no hourly forecast for this sport</div></div>`;
   const n=ser.length, bestI=sp.best_in_h;
-  const bars=ser.map((p,i)=>{const sc=p[0]==null?0:p[0],col=VC[p[1]];
-    return `<div class="b ${i===0?'now':''} ${i===bestI?'best':''}" style="height:${Math.max(6,sc)}%;background:${col}" title="${s.hours[i]} · ${sc}"></div>`;}).join('');
+  const bars=ser.map((p,i)=>{const sc=p[0]==null?0:p[0];
+    return `<div class="b ${i===0?'now':''} ${i===bestI?'best':''}" style="height:${Math.max(6,sc)}%;background:${VC[p[1]]}" title="${s.hours[i]} · ${sc}"></div>`;}).join('');
   let axis='';
   for(let i=0;i<n;i++){ axis+=`<div class="x">${i%6===0?(s.hours[i]||''):''}</div>`; }
   return `<div class="tl">
-    <div class="tlh"><span class="k">Outlook · suitability</span><span class="span">next ${n-1}h</span></div>
+    <div class="tlh"><span class="k">Outlook · suitability</span>${toggle}</div>
     <div class="bars">${bars}</div>
     <div class="axis">${axis}</div>
   </div>`;
@@ -340,10 +372,10 @@ function render(){
         <div class="sel">
           <div class="gauge">${ring(sp.score,col,80,8)}<div class="gn"><b style="color:${col}">${sp.score==null?'—':Math.round(sp.score)}</b><i>now</i></div></div>
           <div><div class="nm">${sp.label}</div><div class="vd" style="color:${col}">${sp.verdict||'—'}</div></div>
-          <div class="best"><div class="bk">Best window</div><div class="bt">${bestT}</div><div class="bs">${sp.best_score!=null?Math.round(sp.best_score)+' · '+(sp.best_verdict||''):''}</div></div>
+          <div class="best"><div class="bk">Best · next 24h</div><div class="bt">${bestT}</div><div class="bs">${sp.best_score!=null?Math.round(sp.best_score)+' · '+(sp.best_verdict||''):''}</div></div>
         </div>
 
-        ${timeline(sp,s)}
+        ${outlook(sp,s)}
         <div class="now-strip">${nowStrip(c)}</div>
         <div class="facs">${facs}</div>
       </div>
