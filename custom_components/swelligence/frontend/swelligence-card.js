@@ -689,8 +689,10 @@ const EDITOR_CSS = `
 .spr-rk{font-size:.8rem;font-weight:700;color:var(--secondary-text-color,#999);min-width:1.2em;text-align:center;}
 `;
 
-customElements.define("swelligence-card", SwelligenceCard);
-customElements.define("swelligence-card-editor", SwelligenceCardEditor);
+// Guarded so a stale manual `/local/…` resource loading alongside the bundled
+// copy can't crash with "already defined" during migration.
+if (!customElements.get("swelligence-card")) customElements.define("swelligence-card", SwelligenceCard);
+if (!customElements.get("swelligence-card-editor")) customElements.define("swelligence-card-editor", SwelligenceCardEditor);
 window.customCards = window.customCards || [];
 window.customCards.push({
   type: "swelligence-card",
@@ -699,4 +701,4 @@ window.customCards.push({
   preview: true,
   documentationURL: "https://git.bagofholding.co.uk/foolycooly/swelligence",
 });
-console.info("%c SWELLIGENCE-CARD ", "background:#1f9d57;color:#fff", "v11 loaded (spot-detail now/week mode)");
+console.info("%c SWELLIGENCE-CARD ", "background:#1f9d57;color:#fff", "v12 loaded (bundled with integration)");

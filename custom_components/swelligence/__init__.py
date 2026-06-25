@@ -5,11 +5,15 @@ from __future__ import annotations
 import logging
 from collections import Counter
 from datetime import datetime
+from pathlib import Path
 
 import voluptuous as vol
+from homeassistant.components.frontend import add_extra_js_url
+from homeassistant.components.http import StaticPathConfig
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant, ServiceCall, SupportsResponse
 from homeassistant.helpers import config_validation as cv
+from homeassistant.loader import async_get_integration
 
 from .const import (
     CONF_API_KEY,
@@ -180,7 +184,29 @@ async def async_setup_entry(
     _async_register_forecast_service(hass)
     _async_register_overview_service(hass)
     _async_register_spot_detail_service(hass)
+    await _async_register_card(hass)
     return True
+
+
+# Frontend URL the bundled Lovelace card is served from (static path).
+_CARD_URL = "/swelligence_frontend/swelligence-card.js"
+_CARD_REGISTERED = f"{DOMAIN}_card_registered"
+
+
+async def _async_register_card(hass: HomeAssistant) -> None:
+    """Serve + auto-load the bundled Lovelace card so it travels with the
+    integration (one HACS install, no manual resource). The ``?v=<version>``
+    query busts the browser cache on every release. Registered once per HA run;
+    not cleared on unload so reloads don't re-register the static path."""
+    if hass.data.get(_CARD_REGISTERED):
+        return
+    hass.data[_CARD_REGISTERED] = True
+    card_path = Path(__file__).parent / "frontend" / "swelligence-card.js"
+    await hass.http.async_register_static_paths(
+        [StaticPathConfig(_CARD_URL, str(card_path), False)]
+    )
+    integration = await async_get_integration(hass, DOMAIN)
+    add_extra_js_url(hass, f"{_CARD_URL}?v={integration.version}")
 
 
 def _spot_detail(coordinator, data, sports_f: set) -> dict:

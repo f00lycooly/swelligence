@@ -67,7 +67,11 @@ pytest tests_ha -o asyncio_mode=auto   # real-HA import + flow-schema guard
 
 CI (`.github/workflows/validate.yml`) runs `pytest`, the HA guard, and hassfest
 on every push/PR. There is no compile/bundle step for the integration; the
-Lovelace card (`www/swelligence-card.js`) is dependency-free vanilla JS.
+Lovelace card (`custom_components/swelligence/frontend/swelligence-card.js`) is
+dependency-free vanilla JS, **bundled with the integration** — `async_setup_entry`
+serves it from `/swelligence_frontend/swelligence-card.js` and `add_extra_js_url`s
+it (with `?v=<manifest version>` for cache-busting), so it ships and updates with
+the integration (no separate copy, no manual Lovelace resource).
 
 ## Deployment
 
@@ -92,8 +96,10 @@ rsync -a --delete --exclude='__pycache__' \
 rm -rf /appdata/homeassistant/custom_components/swelligence/__pycache__ \
        /appdata/homeassistant/custom_components/swelligence/providers/__pycache__
 
-# The Lovelace card is separate; only copy when www/swelligence-card.js changed:
-# cp www/swelligence-card.js /appdata/homeassistant/www/swelligence-card.js
+# The Lovelace card now ships INSIDE custom_components/swelligence/frontend/ and
+# auto-registers, so the rsync above already deploys it — no separate copy, and
+# the old /appdata/homeassistant/www/swelligence-card.js + /local/ resource can
+# be removed.
 ```
 
 Then **verify**: `diff -rq custom_components/swelligence <dest>` (ignoring
