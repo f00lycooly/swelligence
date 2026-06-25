@@ -286,7 +286,7 @@ function tideModule(s){
   let labs='';
   for(let i=0;i<n;i+=6){ labs+=`<text class="clab" x="${X(i)+2}" y="${H-1}">${s.hours[i]||''}</text>`; }
   return `<div class="tide ${t.state}">
-    <div class="th"><span class="k">Tide</span><span class="model">modelled</span></div>
+    <div class="th"><span class="k">Tide</span><span class="model">${t.source||'modelled'}</span></div>
     <div class="state"><span class="arrow">${arrow}</span><span class="word">${t.state}</span></div>
     <div class="nxt">${nx?`next <b>${nx.type}</b> at <b>${nx.time}</b> <span style="color:var(--dim)">(+${nx.in_h}h · ${fmt(nx.level,2)}m)</span>`:'between turning points'}</div>
     <div class="curve"><svg viewBox="0 0 ${W} ${H}" preserveAspectRatio="none">

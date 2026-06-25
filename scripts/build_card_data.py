@@ -47,81 +47,30 @@ def _sport_key(entity_id: str, slug: str) -> str:
 
 # Verdict → compact code for the hourly timeline (keeps DATA small).
 _VCODE = {"poor": 0, "marginal": 1, "good": 2, "great": 3, "epic": 4}
-# Near-term hourly horizon embedded for the suitability timeline + tide curve
-# (the full multi-day series is aggregated to daily peaks for the weekly strip).
+# Near-term hourly horizon embedded for the suitability timeline (the integration
+# already provides the daytime-only daily peaks for the weekly strip).
 _NEAR_H = 24
 
 
-def _daily(pts: list, today: str) -> list:
-    """Aggregate a sport's full forward hourly series into one entry per calendar
-    day: the day's PEAK suitability + the hour it occurs. Feeds the weekly strip."""
+def _fmt_daily(daily: list | None, today: str) -> list | None:
+    """Format the integration's daily outlook for embedding — purely presentation
+    (Today/weekday label, verdict→code, HH:MM). No aggregation here: the daytime
+    peak is computed upstream by swelligence.forecast.daily_forecast."""
+    if not daily:
+        return None
     from datetime import date as _date
 
-    days: dict[str, dict] = {}
-    order: list[str] = []
-    for p in pts:
-        d = p["datetime"][:10]
-        sc = p.get("score")
-        if sc is None:
-            continue
-        if d not in days:
-            days[d] = {"date": d, "s": sc, "v": p.get("verdict"), "t": p["datetime"][11:16]}
-            order.append(d)
-        elif sc > days[d]["s"]:
-            days[d].update(s=sc, v=p.get("verdict"), t=p["datetime"][11:16])
     out = []
-    for d in order:
-        e = days[d]
+    for e in daily:
+        d = e["date"]
         out.append({
             "d": "Today" if d == today else _date.fromisoformat(d).strftime("%a"),
             "date": d,
-            "s": round(e["s"]),
-            "v": _VCODE.get(e["v"], 1),
-            "t": e["t"],
+            "s": round(e["score"]) if e.get("score") is not None else None,
+            "v": _VCODE.get(e.get("verdict"), 1),
+            "t": e["datetime"][11:16],
         })
     return out
-
-
-def _derive_tide(hours: list, levels: list) -> dict | None:
-    """Tide state from the modelled sea-level trajectory (Open-Meteo sea_level_m).
-    Honest: this is the MODELLED tidal datum, not a station tide table — labelled
-    as such in the UI. Real overlay (UKHO/NOAA) supplies true high/low events.
-    'now' is hours[0] (the series starts at the captured time)."""
-    valid = [l for l in levels if l is not None]
-    if len(valid) < 3:
-        return None
-    now_l = levels[0]
-    # Tides move slowly — judge the slope over the next ~3h, not one noisy hour.
-    fut = [l for l in levels[1:4] if l is not None]
-    ahead = sum(fut) / len(fut) if fut else now_l
-    if ahead > now_l + 0.02:
-        state, want = "rising", "high"
-    elif ahead < now_l - 0.02:
-        state, want = "falling", "low"
-    else:
-        state, want = "slack", None
-    nxt = None
-    for i in range(1, len(levels) - 1):
-        a, b, c = levels[i - 1], levels[i], levels[i + 1]
-        if None in (a, b, c):
-            continue
-        is_max, is_min = b >= a and b >= c, b <= a and b <= c
-        if (want == "high" and is_max) or (want == "low" and is_min):
-            nxt = (want, i, b)
-            break
-        if want is None and (is_max or is_min):
-            nxt = ("high" if is_max else "low", i, b)
-            break
-    tide = {
-        "now": round(now_l, 2),
-        "state": state,
-        "min": round(min(valid), 2),
-        "max": round(max(valid), 2),
-        "levels": [round(l, 2) if l is not None else None for l in levels],
-    }
-    if nxt:
-        tide["next"] = {"type": nxt[0], "time": hours[nxt[1]], "in_h": nxt[1], "level": round(nxt[2], 2)}
-    return tide
 
 
 def build() -> dict:
@@ -142,9 +91,11 @@ def build() -> dict:
         now_iso = nr.get("time") or (env[0]["datetime"] if env else "")
         now_time = now_iso.replace("T", " ")[11:16]
         today = now_iso[:10]
-        tide = _derive_tide(hours, [p.get("sea_level_m") for p in near]) if near else None
-        # Compact per-sport near-term hourly [score, vcode] (timeline) + daily peaks (week).
-        series_by_sport, daily_by_sport = {}, {}
+        # Tide state is provided by the integration (swelligence.tide.tide_state).
+        tide = fc.get("tide")
+        # Compact per-sport near-term hourly [score, vcode] for the timeline only;
+        # the weekly daily peaks come ready-made from the integration per sport.
+        series_by_sport = {}
         for sk, pts in fseries.items():
             if isinstance(pts, list):
                 series_by_sport[sk] = [
@@ -152,7 +103,6 @@ def build() -> dict:
                      _VCODE.get(p.get("verdict"), 1)]
                     for p in pts[:_NEAR_H]
                 ]
-                daily_by_sport[sk] = _daily(pts, today)
 
         # Time-invariant presentation/quality metadata from the recorder capture
         # (sport label/icon, model grid distance, per-domain sources, advice).
@@ -196,7 +146,7 @@ def build() -> dict:
                 "best_verdict": best.get("verdict"),
                 "best_time": hours[bih] if bih is not None and bih < len(hours) else None,
                 "series": series_by_sport.get(sk),
-                "daily": daily_by_sport.get(sk),
+                "daily": _fmt_daily(sc.get("daily"), today),
             }
         ordered = [sports[k] for k in SPORT_ORDER if k in sports]
         ordered += [v for k, v in sports.items() if k not in SPORT_ORDER]

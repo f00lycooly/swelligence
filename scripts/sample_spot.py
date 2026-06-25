@@ -26,8 +26,9 @@ _pkg = types.ModuleType("swelligence")
 _pkg.__path__ = [str(_PKG_DIR)]
 sys.modules["swelligence"] = _pkg
 
-from swelligence.forecast import _slot  # noqa: E402
+from swelligence.forecast import _slot, daily_forecast  # noqa: E402
 from swelligence.policy import apply_water_policy  # noqa: E402
+from swelligence.tide import tide_state  # noqa: E402
 from swelligence.providers.open_meteo import (  # noqa: E402
     _FORECAST_HOURLY,
     _MARINE_HOURLY,
@@ -98,10 +99,16 @@ def main() -> int:
     now_index = next((i for i, p in enumerate(pts) if p.time.hour == 12), 0)
     forward = pts[now_index:]
     now = forward[0]
+    # A forecast windowed at "now" so the integration builders (daily outlook,
+    # tide state) reflect now → +7d, not this morning's already-past hours.
+    fwd = dataclasses.replace(forecast, points=forward)
 
     sample: dict = {
         "spot": {"name": name, "latitude": lat, "longitude": lon, "water_type": water},
         "now_raw": _point_dict(now),
+        # Tide state is a spot-level, integration-provided data point (trend +
+        # next high/low); screens render it without deriving anything.
+        "tide": tide_state(fwd),
         "scores": {},
         "forecast": {},
     }
@@ -122,6 +129,10 @@ def main() -> int:
             "best": {"score": bw[1].score, "in_hours": bw[0], "verdict": bw[1].verdict}
             if bw
             else None,
+            # Daytime-only daily peak per day = the weekly outlook. pad_h=0 =
+            # strict sunrise..sunset; the default pad (2h) barely filters in a UK
+            # summer (~17h days) so a "daytime" peak would otherwise land at 23:00.
+            "daily": daily_forecast(fwd, profile, sport, pad_h=0),
         }
         # Full forward get_forecast-style hourly slots (now → +7d) for this sport;
         # consumers slice the near-term for the timeline and aggregate per-day for

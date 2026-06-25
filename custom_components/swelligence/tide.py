@@ -89,3 +89,87 @@ def tide_factor(
     factor = max(TIDE_FLOOR, 1.0 - 0.3 * (dt / window_h))
     note = f"near {state} tide" if dt <= window_h else f"{dt:.1f}h off {state} tide"
     return round(factor, 3), note
+
+
+# ---------------------------------------------------------------------------
+# Tide STATE — a ready-to-render data point for the cards/panel (not scoring).
+#
+# Honesty: the real high/low events come from a tide overlay (UKHO / NOAA /
+# Open-Meteo modeled) when one covers the spot; only when no events exist do we
+# fall back to the MODELLED sea-level trajectory and label it as such. Trend and
+# next extreme are surfaced so the screens render without deriving anything.
+# ---------------------------------------------------------------------------
+
+#: Below this metre delta over ~3h the tide reads as standing (slack water).
+_TIDE_SLACK_DELTA_M = 0.02
+
+
+def _modelled_tide_state(points, levels):
+    """(state, next-extreme) from the modelled sea-level trajectory. Tides move
+    slowly, so judge the trend over the next ~3h rather than one noisy hour."""
+    valid = [l for l in levels if l is not None]
+    if len(valid) < 3:
+        return "slack", None
+    now_l = levels[0]
+    fut = [l for l in levels[1:4] if l is not None]
+    ahead = sum(fut) / len(fut) if fut else now_l
+    if ahead > now_l + _TIDE_SLACK_DELTA_M:
+        state, want = "rising", "high"
+    elif ahead < now_l - _TIDE_SLACK_DELTA_M:
+        state, want = "falling", "low"
+    else:
+        state, want = "slack", None
+    for i in range(1, len(levels) - 1):
+        a, b, c = levels[i - 1], levels[i], levels[i + 1]
+        if None in (a, b, c):
+            continue
+        is_max, is_min = b >= a and b >= c, b <= a and b <= c
+        match = (want == "high" and is_max) or (want == "low" and is_min) or (
+            want is None and (is_max or is_min)
+        )
+        if match:
+            kind = want or ("high" if is_max else "low")
+            return state, {"type": kind, "time": points[i].time.strftime("%H:%M"),
+                           "in_h": i, "level": round(b, 2)}
+    return state, None
+
+
+def tide_state(forecast, *, now=None, horizon: int = 24) -> dict | None:
+    """Current tide trend + the next high/low, as a ready-to-render data point.
+
+    Prefers the real ``forecast.tide_events`` overlay; falls back to the modelled
+    ``sea_level_m`` trajectory when no events exist (``source`` says which).
+    ``levels`` is the near-term sea-level series (``horizon`` points) for a
+    sparkline; ``next`` is ``{type, time, in_h, level}`` or absent.
+    """
+    points = forecast.points
+    if not points:
+        return None
+    now = now or points[0].time
+    near = [p.sea_level_m for p in points[:horizon]]
+    valid = [l for l in near if l is not None]
+    out: dict = {"levels": [round(l, 2) if l is not None else None for l in near]}
+    if valid:
+        out["now"] = round(near[0], 2) if near and near[0] is not None else None
+        out["min"], out["max"] = round(min(valid), 2), round(max(valid), 2)
+
+    upcoming = sorted((e for e in (forecast.tide_events or []) if e.time >= now),
+                      key=lambda e: e.time)
+    if upcoming:
+        nxt = upcoming[0]
+        out["source"] = "overlay"
+        out["state"] = "rising" if nxt.kind == "high" else "falling"
+        out["next"] = {
+            "type": nxt.kind,
+            "time": nxt.time.strftime("%H:%M"),
+            "in_h": round((nxt.time - now).total_seconds() / 3600),
+            "level": round(nxt.height_m, 2) if nxt.height_m is not None else None,
+        }
+        return out
+
+    state, nxt = _modelled_tide_state(points, [p.sea_level_m for p in points])
+    out["source"] = "modelled"
+    out["state"] = state
+    if nxt:
+        out["next"] = nxt
+    return out
