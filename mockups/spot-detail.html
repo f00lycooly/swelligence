@@ -194,7 +194,9 @@ function rose(d){
 // blows FROM; the arrow is drawn pointing the way it blows TOWARD (flow), so on
 // the map you read "the wind is pushing this way" at a glance. Calm → no arrow.
 function windRose(dir, kn, gust){
-  const calm = kn==null || dir==null || kn < 1.0;
+  // "Calm" only means no data (no direction or no speed). Any real wind — even
+  // light — shows the needle so the direction always reads at a glance.
+  const calm = kn==null || dir==null;
   const flow = dir==null ? 0 : (dir + 180) % 360;   // from-bearing → flow-bearing
   // Strength → needle opacity: light winds still show direction but read as weak.
   const op = calm ? 0 : Math.max(.55, Math.min(1, kn/12));
@@ -275,13 +277,13 @@ function render(){
         <h1>${s.name}</h1>
       </div>
       ${c.wind_kn!=null?`<div class="wind-badge">
-        <span class="wb-card">${windCard==null||c.wind_kn<1.0?'Calm':'Wind from '+windCard}</span>
+        <span class="wb-card">${windCard==null?'Calm':'Wind from '+windCard}</span>
       </div>`:''}
       <div class="coords-badge">${s.lat.toFixed(4)}, ${s.lon.toFixed(4)}</div>
     </div>
 
     <div class="head">
-      <div class="coords">${s.sports.length} sports${windCard&&c.wind_kn>=1.0?` · wind from ${windCard}`:''}</div>
+      <div class="coords">${s.sports.length} sports${windCard?` · wind from ${windCard}`:''}</div>
       <div class="src-chip">source <b>Open-Meteo</b><span class="stamp">${stamp?'captured '+stamp:''}</span></div>
     </div>
 
