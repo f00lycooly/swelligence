@@ -60,6 +60,9 @@ def _fmt_daily(daily: list | None, today: str) -> list | None:
         return None
     from datetime import date as _date
 
+    def _r(v, n=1):
+        return round(v, n) if isinstance(v, (int, float)) else None
+
     out = []
     for e in daily:
         d = e["date"]
@@ -69,6 +72,17 @@ def _fmt_daily(daily: list | None, today: str) -> list | None:
             "s": round(e["score"]) if e.get("score") is not None else None,
             "v": _VCODE.get(e.get("verdict"), 1),
             "t": e["datetime"][11:16],
+            # Conditions AT the peak hour (the daily entry is that hour's full
+            # slot, incl. integration-annotated tide) so the Best-day pane shows
+            # what to expect — wind/gust/wave/swell/tide/water — not just a score.
+            "c": {
+                "wind": _r(e.get("wind_speed_kn")), "gust": _r(e.get("wind_gust_kn")),
+                "dir": _r(e.get("wind_bearing"), 0), "wave": _r(e.get("wave_height_m")),
+                "swell": _r(e.get("swell_height_m")), "per": _r(e.get("swell_period_s")),
+                "water": _r(e.get("water_temp_c")),
+                "tideS": (e.get("tide") or {}).get("state"),
+                "tideH": _r((e.get("tide") or {}).get("height"), 2),
+            },
         })
     return out
 

@@ -249,10 +249,18 @@ body{
 .wsum .bigday .dn{font-size:26px;font-weight:800;letter-spacing:.3px}
 .wsum .bigday .ds{font-size:26px;font-weight:800;font-variant-numeric:tabular-nums}
 .wsum .bigday .dv{font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:.08em;margin-left:auto}
-.wsum .grid2{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:auto}
-.wsum .st{background:var(--raise);border:1px solid var(--line);border-radius:12px;padding:10px 12px}
+.wsum .psub{font-size:11px;font-weight:600;color:var(--muted)}
+.wsum .psub b{color:var(--text);font-weight:800}
+.wsum .grid2,.wsum .wgrid{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:auto}
+.wsum .st{background:var(--raise);border:1px solid var(--line);border-radius:12px;padding:10px 12px;position:relative;overflow:hidden}
+.wsum .st::before{content:"";position:absolute;left:0;top:0;bottom:0;width:3px;background:var(--teal);opacity:.5}
+.wsum .st.amber::before{background:var(--amber)}
+.wsum .st.t-rising::before{background:var(--rise)}
+.wsum .st.t-falling::before{background:var(--fall)}
+.wsum .st.t-high::before,.wsum .st.t-low::before{background:var(--teal)}
 .wsum .st .sk{font-size:9.5px;font-weight:700;text-transform:uppercase;letter-spacing:.1em;color:var(--muted)}
 .wsum .st .sv{font-size:21px;font-weight:800;margin-top:3px;font-variant-numeric:tabular-nums}
+.wsum .st.amber .sv{color:var(--amber)}
 .wsum .st .sv small{font-size:11px;font-weight:600;color:var(--muted)}
 
 /* ---- week view: per-day rows ---- */
@@ -410,12 +418,23 @@ function dayRows(sp){
 }
 function weekSummary(s,sp){
   const d=sp.daily||[],pk=weekPeak(sp),good=d.filter(e=>e.v>=2).length,col=pk?VC[pk.v]:VC[2];
+  const cc=(pk&&pk.c)||{}, wc=card(cc.dir);
+  const met=(cls,k,v,sub)=>`<div class="st ${cls||''}"><div class="sk">${k}</div><div class="sv">${v}${sub?`<small> ${sub}</small>`:''}</div></div>`;
+  const ts=cc.tideS, cap=x=>x?x[0].toUpperCase()+x.slice(1):'—';
+  // Metrics AT the best day's peak hour — the Best-day pane doubles as the
+  // detail readout for that {day, time}, all from the integration's daily slot
+  // (tide phase/height annotated server-side by tide_phase()).
   return `<div class="wsum">
     <div class="k">Best day · ${sp.label}</div>
     <div class="bigday"><span class="dn" style="color:${col}">${pk?pk.d:'—'}</span><span class="ds">${pk?pk.s:'—'}</span><span class="dv" style="color:${col}">${pk?VNAME[pk.v]:''}</span></div>
-    <div class="grid2">
-      <div class="st"><div class="sk">Good+ days</div><div class="sv">${good}<small> / ${d.length}</small></div></div>
-      <div class="st"><div class="sk">Peak window</div><div class="sv" style="font-size:15px">${pk?pk.d+' '+pk.t:'—'}</div></div>
+    <div class="psub">peak <b>${pk?pk.t:'—'}</b> · ${good}/${d.length} good+ days this week</div>
+    <div class="wgrid">
+      ${met('','Wind', pk?fmt(cc.wind):'—', 'kn'+(wc?' '+wc:''))}
+      ${met('amber','Gust', pk?fmt(cc.gust):'—','kn')}
+      ${met('','Wave', cc.wave!=null?fmt(cc.wave):'—','m')}
+      ${met('','Swell', cc.swell!=null?fmt(cc.swell):'—', cc.per!=null?fmt(cc.per)+'s':'m')}
+      ${met(ts?'t-'+ts:'', 'Tide', `<span style="font-size:16px">${cap(ts)}</span>`, cc.tideH!=null?fmt(cc.tideH,2)+' m':'')}
+      ${met('','Water', cc.water!=null?fmt(cc.water):'—','°C')}
     </div>
   </div>`;
 }

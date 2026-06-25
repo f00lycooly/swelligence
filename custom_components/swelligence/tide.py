@@ -134,6 +134,57 @@ def _modelled_tide_state(points, levels):
     return state, None
 
 
+def _phase_from_levels(levels, i) -> str:
+    """high/low (local extreme) else rising/falling/slack at index ``i``."""
+    cur = levels[i] if 0 <= i < len(levels) else None
+    if cur is None:
+        return "slack"
+    prv = next((levels[j] for j in range(i - 1, -1, -1) if levels[j] is not None), None)
+    nxt = next((levels[j] for j in range(i + 1, len(levels)) if levels[j] is not None), None)
+    if prv is not None and nxt is not None:
+        if cur >= prv and cur >= nxt:
+            return "high"
+        if cur <= prv and cur <= nxt:
+            return "low"
+    ref = nxt if nxt is not None else cur
+    if ref > cur + _TIDE_SLACK_DELTA_M:
+        return "rising"
+    if ref < cur - _TIDE_SLACK_DELTA_M:
+        return "falling"
+    return "slack"
+
+
+def tide_phase(forecast, when, *, near_min: int = 45) -> dict | None:
+    """Tide phase + height AT a given time — a ready-to-render data point for the
+    weekly best-day readout. ``state`` ∈ {high, low, rising, falling, slack};
+    ``height`` is metres (provider datum). Prefers the tide_events overlay;
+    falls back to the modelled sea_level_m trajectory (``source`` says which)."""
+    pts = forecast.points
+    if not pts:
+        return None
+    i = min(range(len(pts)), key=lambda k: abs((pts[k].time - when).total_seconds()))
+    height = pts[i].sea_level_m
+    out: dict = {"height": round(height, 2) if height is not None else None}
+
+    events = sorted(forecast.tide_events or [], key=lambda e: e.time)
+    if events:
+        out["source"] = "overlay"
+        nearest = min(events, key=lambda e: abs((e.time - when).total_seconds()))
+        if abs((nearest.time - when).total_seconds()) <= near_min * 60:
+            out["state"] = nearest.kind  # "high" / "low"
+            if out["height"] is None and nearest.height_m is not None:
+                out["height"] = round(nearest.height_m, 2)
+        else:
+            nxt = next((e for e in events if e.time >= when), None)
+            out["state"] = ("rising" if nxt and nxt.kind == "high"
+                            else "falling" if nxt and nxt.kind == "low" else "slack")
+        return out
+
+    out["source"] = "modelled"
+    out["state"] = _phase_from_levels([p.sea_level_m for p in pts], i)
+    return out
+
+
 def tide_state(forecast, *, now=None, horizon: int = 24) -> dict | None:
     """Current tide trend + the next high/low, as a ready-to-render data point.
 

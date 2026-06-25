@@ -121,3 +121,23 @@ def test_tide_state_prefers_overlay_events():
     assert st["source"] == "overlay"
     assert st["state"] == "rising"
     assert st["next"] == {"type": "high", "time": "14:00", "in_h": 2, "level": 1.8}
+
+
+def test_tide_phase_modelled_high_and_rising():
+    from swelligence.tide import tide_phase
+    fc = _fc_from_levels([-0.6, -0.4, -0.1, 0.2, 0.1, -0.2])
+    base = _dt(2026, 6, 25, 12, 0)
+    # index 3 is the local max → high, height 0.2
+    ph = tide_phase(fc, base + _td(hours=3))
+    assert ph["state"] == "high" and ph["height"] == 0.2 and ph["source"] == "modelled"
+    # index 1 is on the way up → rising
+    assert tide_phase(fc, base + _td(hours=1))["state"] == "rising"
+
+
+def test_tide_phase_prefers_overlay_event():
+    from swelligence.tide import tide_phase
+    fc = _fc_from_levels([-0.6, -0.4, -0.1, 0.2])
+    base = _dt(2026, 6, 25, 12, 0)
+    fc.tide_events = [TideEvent(time=base + _td(hours=3), kind="high", height_m=1.9)]
+    ph = tide_phase(fc, base + _td(hours=3))
+    assert ph["state"] == "high" and ph["source"] == "overlay"

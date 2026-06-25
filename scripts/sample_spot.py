@@ -14,6 +14,7 @@ import dataclasses
 import json
 import sys
 import types
+from datetime import datetime
 import urllib.parse
 import urllib.request
 from pathlib import Path
@@ -28,7 +29,7 @@ sys.modules["swelligence"] = _pkg
 
 from swelligence.forecast import _slot, daily_forecast  # noqa: E402
 from swelligence.policy import apply_water_policy  # noqa: E402
-from swelligence.tide import tide_state  # noqa: E402
+from swelligence.tide import tide_phase, tide_state  # noqa: E402
 from swelligence.providers.open_meteo import (  # noqa: E402
     _FORECAST_HOURLY,
     _MARINE_HOURLY,
@@ -134,6 +135,10 @@ def main() -> int:
             # summer (~17h days) so a "daytime" peak would otherwise land at 23:00.
             "daily": daily_forecast(fwd, profile, sport, pad_h=0),
         }
+        # Annotate each daily peak with the tide phase + height AT that peak hour,
+        # so the weekly best-day readout is a true detail view (integration-side).
+        for entry in sample["scores"][sport]["daily"]:
+            entry["tide"] = tide_phase(fwd, datetime.fromisoformat(entry["datetime"]))
         # Full forward get_forecast-style hourly slots (now → +7d) for this sport;
         # consumers slice the near-term for the timeline and aggregate per-day for
         # the weekly outlook.
