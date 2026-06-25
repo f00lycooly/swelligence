@@ -75,6 +75,7 @@ class SuitabilitySensor(SwelligenceEntity, SensorEntity):
         profile = SPORT_PROFILES.get(self._sport)
         attrs = {
             "spot": self.coordinator.spot["name"],
+            "water_type": self.coordinator.spot.get("water_type", "sea"),
             "sport": self._sport,
             "sport_label": profile.label if profile else self._sport,
             "verdict": res.now.verdict,

@@ -35,6 +35,14 @@ const vc = (v) => (VERDICT[v] || VERDICT.poor).c;
 const vt = (v) => (VERDICT[v] || VERDICT.poor).t;
 const wday = (d) => { try { return new Date(d).toLocaleDateString(undefined, { weekday: "short" }); } catch { return d; } };
 
+/* spot-detail helpers */
+const COMPASS16 = ["N","NNE","NE","ENE","E","ESE","SE","SSE","S","SSW","SW","WSW","W","WNW","NW","NNW"];
+const cardOf = (deg) => (deg == null ? null : COMPASS16[Math.round(((deg % 360) / 22.5)) % 16]);
+const f1 = (n, d = 1) => (n == null ? "—" : Math.round(n * 10 ** d) / 10 ** d);
+const vkey = (v) => (v === "marginal" ? "marg" : v);          // data verdict → palette key
+const vcw = (v) => vc(vkey(v) in VERDICT ? vkey(v) : "poor"); // verdict word → colour
+const cap = (s) => (s ? s[0].toUpperCase() + s.slice(1) : "—");
+
 const ICON_DEFS = `
 <symbol id="i-kite" viewBox="0 0 24 24"><path d="M2.5 7 Q12 1 21.5 7"/><path d="M5.5 7.6 L11 15.5"/><path d="M18.5 7.6 L13 15.5"/><path d="M10.5 15.6 H13.5"/><path d="M7 20 Q12 22.5 17 20"/></symbol>
 <symbol id="i-windsurf" viewBox="0 0 24 24"><path d="M3 19.5 Q12 22.5 21 19.5"/><path d="M12 19 L12 3.5"/><path d="M12 4 Q20 9.5 12 15"/><path d="M12 9.5 L17.5 9"/></symbol>
@@ -52,15 +60,19 @@ class SwelligenceCard extends HTMLElement {
   setConfig(config) {
     this._config = { mode: "podium", ...config };
     this._ov = null;
+    this._detail = null;
     this._loading = false;
+    // UI state for spot mode — preserved across hass re-renders.
+    this._sv = { sport: config.sport || null, view: config.default_view || "now" };
   }
-  getCardSize() { return this._config.mode === "podium" ? 7 : 5; }
+  getCardSize() { return this._config.mode === "podium" ? 7 : this._config.mode === "spot" ? 8 : 5; }
 
   set hass(hass) {
     const first = !this._hass;
     this._hass = hass;
     if (!this._root) this._init();
     if (first || this._needsOverview()) this._loadOverview();
+    if (this._config.mode === "spot" && (first || !this._detail)) this._loadDetail();
     this._render();
   }
 
@@ -79,10 +91,35 @@ class SwelligenceCard extends HTMLElement {
     this._card.innerHTML = defs;
     this._card.appendChild(this._body);
     this._root.append(style, this._card);
+    // tap handling for the interactive spot mode (view toggle, sport select)
+    this._body.addEventListener("click", (e) => this._onClick(e));
     // periodic refresh of forecast data
-    this._timer = setInterval(() => this._loadOverview(), 300000);
+    this._timer = setInterval(() => { this._loadOverview(); this._loadDetail(); }, 300000);
   }
   disconnectedCallback() { if (this._timer) clearInterval(this._timer); }
+
+  _onClick(e) {
+    const el = e.target.closest("[data-act]");
+    if (!el) return;
+    if (el.dataset.act === "view") this._sv.view = el.dataset.v;
+    else if (el.dataset.act === "sport") this._sv.sport = el.dataset.s;
+    else return;
+    this._render();
+  }
+
+  async _loadDetail() {
+    if (!this._hass || this._loadingD || this._config.mode !== "spot") return;
+    this._loadingD = true;
+    try {
+      const data = this._config.spot ? { spots: [this._config.spot] } : {};
+      const r = await this._hass.callService("swelligence", "get_spot_detail", data, undefined, false, true);
+      const spots = (r && r.response && r.response.spots) || [];
+      this._detail = this._config.spot
+        ? (spots.find((s) => s.name === this._config.spot) || spots[0]) : spots[0];
+    } catch (e) { /* keep stale */ }
+    this._loadingD = false;
+    this._render();
+  }
 
   async _loadOverview() {
     if (!this._hass || this._loading) return;
@@ -132,7 +169,7 @@ class SwelligenceCard extends HTMLElement {
     const title = this._config.title;
     let html = title ? `<div class="title">${title}</div>` : "";
     html += { heatgrid: () => this._heatgrid(), medallions: () => this._medallions(),
-      timeline: () => this._timeline(), podium: () => this._podium() }[m]?.() ||
+      timeline: () => this._timeline(), podium: () => this._podium(), spot: () => this._spot() }[m]?.() ||
       `<div class="muted">Unknown mode "${m}".</div>`;
     this._body.innerHTML = html;
   }
@@ -239,10 +276,166 @@ class SwelligenceCard extends HTMLElement {
     return h + `</div>`;
   }
 
+  /* ---------- SPOT: single-spot now/week detail ---------- */
+  _spot() {
+    const d = this._detail;
+    if (!d) return `<div class="muted">Loading spot detail…</div>`;
+    const sports = (d.sports || []).filter((s) =>
+      !this._config.sports || this._config.sports.includes(s.sport));
+    if (!sports.length) return this._empty();
+    let si = sports.findIndex((s) => s.sport === this._sv.sport);
+    if (si < 0) si = 0;
+    const sp = sports[si], view = this._sv.view;
+    const wc = cardOf(d.current?.wind_dir_deg);
+    const dl = sp.daily || [];
+    const range = dl.length ? `${this._wd(dl[0].date)} – ${this._wd(dl[dl.length - 1].date)}` : "";
+    const right = view === "now"
+      ? `<div class="sd-now"><b>${d.now_time || "--:--"}</b><span>now</span></div>`
+      : `<div class="sd-now"><b>${range || "7 days"}</b><span>7-day</span></div>`;
+
+    let h = `<div class="sd">
+      <div class="sd-hdr">
+        <div class="sd-id"><div class="sd-nm">${d.name}</div>
+          <div class="sd-sub">${d.water_type || ""}${wc && view === "now" ? " · wind from " + wc : ""}</div></div>
+        <div class="sd-ctrl">
+          <div class="sd-seg">
+            <button data-act="view" data-v="now" class="${view === "now" ? "on" : ""}">Now</button>
+            <button data-act="view" data-v="week" class="${view === "week" ? "on" : ""}">Week</button>
+          </div>${right}
+        </div>
+      </div>
+      <div class="sd-pills">${sports.map((s) => {
+        const val = view === "week" ? this._peak(s)?.score ?? "—" : Math.round(s.now?.score ?? 0);
+        return `<div class="sd-pill ${s === sp ? "on" : ""}" data-act="sport" data-s="${s.sport}">
+          ${ICON(s.sport)}<span class="pn">${s.label || LABELS[s.sport] || s.sport}</span>
+          <span class="pv" style="color:${vcw((view === "week" ? this._peak(s)?.verdict : s.now?.verdict) || "poor")}">${val}</span></div>`;
+      }).join("")}</div>`;
+
+    h += view === "now" ? this._spotNow(d, sp) : this._spotWeek(d, sp);
+    return h + `</div>`;
+  }
+
+  _wd(date) { try { return new Date(date).toLocaleDateString(undefined, { weekday: "short" }); } catch { return date; } }
+  _peak(sp) { const d = sp.daily || []; return d.length ? d.reduce((a, b) => (b.score > a.score ? b : a), d[0]) : null; }
+  _gauge(score, col, lbl) {
+    const s = Math.max(0, Math.min(100, Math.round(score ?? 0)));
+    return `<div class="sd-ring" style="--c:${col};--p:${s}"><div class="sd-ri">
+      <b style="color:${col}">${score == null ? "—" : Math.round(score)}</b><i>${lbl}</i></div></div>`;
+  }
+  _factors(now) {
+    const order = ["wind", "gust", "direction", "wave", "swell", "temp", "tide", "kit"];
+    const f = now.factors || {};
+    return order.filter((k) => f[k] != null).map((k) =>
+      `<div class="sd-fac"><span>${k}</span><span class="fb"><i style="width:${f[k]}%"></i></span><b>${Math.round(f[k])}</b></div>`).join("");
+  }
+  _compass(deg, kn, gust) {
+    const calm = kn == null || deg == null, flow = deg == null ? 0 : (deg + 180) % 360;
+    const op = calm ? 0 : Math.max(0.5, Math.min(1, kn / 14));
+    return `<svg class="sd-rose ${calm ? "calm" : ""}" viewBox="0 0 120 120">
+      <circle cx="60" cy="60" r="48" fill="none" stroke="var(--divider-color,#444)"/>
+      <text class="t" x="60" y="22">N</text><text class="t" x="60" y="106">S</text>
+      <text class="t" x="104" y="64">E</text><text class="t" x="16" y="64">W</text>
+      <g transform="rotate(${flow} 60 60)" style="opacity:${op}"><polygon class="nd" points="60,16 67,64 60,55 53,64"/></g>
+      <circle class="hub" cx="60" cy="60" r="23"/>
+      ${calm ? `<text class="spd" x="60" y="65">Calm</text>`
+        : `<text class="spd" x="60" y="60">${f1(kn)}</text><text class="u" x="60" y="74">kn${gust != null ? " · g" + f1(gust) : ""}</text>`}
+    </svg>`;
+  }
+  _tide(d) {
+    const t = d.tide;
+    if (!t || this._config.show_tide === false) return "";
+    const ar = t.state === "rising" ? "▲" : t.state === "falling" ? "▼" : "—", nx = t.next;
+    let spark = "";
+    if (t.levels && t.levels.length) {
+      const lv = t.levels, n = lv.length, lo = t.min, hi = t.max, rng = (hi - lo) || 1, W = 130, H = 30;
+      const X = (i) => i / (n - 1) * W, Y = (v) => v == null ? H / 2 : H - 3 - ((v - lo) / rng) * (H - 6);
+      let dp = ""; lv.forEach((v, i) => { if (v == null) return; dp += (dp ? "L" : "M") + X(i).toFixed(1) + " " + Y(v).toFixed(1) + " "; });
+      spark = `<svg class="sd-spark" viewBox="0 0 ${W} ${H}" preserveAspectRatio="none">
+        <path d="${dp}" fill="none" stroke="var(--primary-color,#03a9f4)" stroke-width="1.6"/>
+        <line x1="${X(0)}" y1="1" x2="${X(0)}" y2="${H - 1}" stroke="var(--secondary-text-color,#999)" stroke-dasharray="2 2"/></svg>`;
+    }
+    return `<div class="sd-tide t-${t.state}">
+      <div class="sd-th"><span>Tide</span><span class="src">${t.source || "modelled"}</span></div>
+      <div class="sd-ts"><span class="ar">${ar}</span><span class="w">${cap(t.state)}</span></div>
+      ${nx ? `<div class="sd-tn">next <b>${nx.type}</b> ${nx.time}${nx.level != null ? ` · ${f1(nx.level, 2)}m` : ""}</div>` : ""}
+      ${spark}</div>`;
+  }
+
+  _spotNow(d, sp) {
+    const c = d.current || {}, now = sp.now || {}, col = vcw(now.verdict);
+    const best = sp.best, bestT = best?.time || (best?.in_hours != null ? "+" + best.in_hours + "h" : "—");
+    const ser = sp.hourly || [];
+    const bars = ser.slice(0, 24).map((p, i) => {
+      const sc = Math.max(4, Math.round(p.score ?? 0));
+      return `<div class="b ${i === 0 ? "now" : ""}" style="height:${sc}%;background:${vcw(p.verdict)}" title="${(p.datetime || "").slice(11, 16)} · ${Math.round(p.score ?? 0)}"></div>`;
+    }).join("");
+    const strip = (k, v, sub) => `<div class="sd-ns"><span class="k">${k}</span><b>${v}</b>${sub ? `<span class="s">${sub}</span>` : ""}</div>`;
+    return `<div class="sd-row2">
+        <div class="sd-wind">${this._compass(c.wind_dir_deg, c.wind_speed_kn, c.wind_gust_kn)}</div>
+        ${this._tide(d)}
+      </div>
+      <div class="sd-sel">
+        ${this._gauge(now.score, col, "now")}
+        <div class="sd-selr"><div class="nm">${sp.label}</div><div class="vd" style="color:${col}">${now.verdict || "—"}</div></div>
+        <div class="sd-best"><span class="bk">Best · 24h</span><b>${bestT}</b><span class="bs">${best ? Math.round(best.score) + " · " + (best.verdict || "") : ""}</span></div>
+      </div>
+      ${ser.length ? `<div class="sd-tl"><div class="tlh">Next 24h</div><div class="bars">${bars}</div></div>` : ""}
+      <div class="sd-strip">
+        ${strip("Wind", f1(c.wind_speed_kn), (cardOf(c.wind_dir_deg) || "") + " kn")}
+        ${strip("Gust", f1(c.wind_gust_kn), "kn")}
+        ${strip("Wave", c.wave_height_m != null ? f1(c.wave_height_m) : (c.wind_wave_height_m != null ? f1(c.wind_wave_height_m) : "—"), "m")}
+        ${strip("Swell", c.swell_height_m != null ? f1(c.swell_height_m) : "—", c.swell_period_s != null ? f1(c.swell_period_s) + "s" : "m")}
+      </div>
+      ${this._config.show_factors !== false && this._factors(now) ? `<div class="sd-facs">${this._factors(now)}</div>` : ""}`;
+  }
+
+  _spotWeek(d, sp) {
+    const dl = sp.daily || [], pk = this._peak(sp), col = pk ? vcw(pk.verdict) : vc("good");
+    const today = d.now_time != null ? (dl[0] && dl[0].date) : null;
+    const cc = pk || {}, wc = cardOf(cc.wind_bearing);
+    const good = dl.filter((e) => !["poor", "marginal"].includes(e.verdict)).length;
+    const tide = cc.tide || {};
+    const m = (k, v, sub) => `<div class="sd-st"><span class="k">${k}</span><b>${v}</b>${sub ? `<span class="s">${sub}</span>` : ""}</div>`;
+    const rows = dl.map((e) => {
+      const isP = e === pk, c2 = vcw(e.verdict);
+      return `<div class="sd-drow ${isP ? "best" : ""}">
+        <span class="dd">${e.date === today ? "Today" : this._wd(e.date)}</span>
+        <span class="db"><i style="width:${Math.max(4, e.score)}%;background:${c2}"></i></span>
+        <span class="dt">${(e.datetime || "").slice(11, 16)}</span>
+        <span class="ds" style="color:${c2}">${isP ? "★ " : ""}${Math.round(e.score)}</span></div>`;
+    }).join("");
+    return `<div class="sd-sel">
+        ${this._gauge(pk?.score, col, "peak")}
+        <div class="sd-selr"><div class="nm">${sp.label}</div><div class="vd" style="color:${col}">${pk?.verdict || "—"}</div></div>
+        <div class="sd-best"><span class="bk">Peak day</span><b>${pk ? (pk.date === today ? "Today" : this._wd(pk.date)) : "—"}</b><span class="bs">${pk ? (pk.datetime || "").slice(11, 16) : ""}</span></div>
+      </div>
+      <div class="sd-bestpane">
+        <div class="bp-h">Best day${pk ? " · " + (pk.date === today ? "Today" : this._wd(pk.date)) + " " + (pk.datetime || "").slice(11, 16) : ""} · ${good}/${dl.length} good+ days</div>
+        <div class="sd-strip wrap">
+          ${m("Wind", f1(cc.wind_speed_kn), (wc || "") + " kn")}
+          ${m("Gust", f1(cc.wind_gust_kn), "kn")}
+          ${m("Wave", cc.wave_height_m != null ? f1(cc.wave_height_m) : "—", "m")}
+          ${m("Swell", cc.swell_height_m != null ? f1(cc.swell_height_m) : "—", cc.swell_period_s != null ? f1(cc.swell_period_s) + "s" : "m")}
+          ${this._config.show_tide === false ? "" : m("Tide", cap(tide.state), tide.height != null ? f1(tide.height, 2) + " m" : "")}
+          ${m("Water", cc.water_temp_c != null ? f1(cc.water_temp_c) : "—", "°C")}
+        </div>
+      </div>
+      <div class="sd-drows">${rows}</div>`;
+  }
+
   _empty() { return `<div class="muted">No Swelligence sensors found. Add spots in the integration options.</div>`; }
 
   static getConfigElement() { return document.createElement("swelligence-card-editor"); }
-  static getStubConfig() { return { mode: "podium", title: "Conditions" }; }
+  static getStubConfig(hass) {
+    // Default the spot-detail stub to the first configured spot, if any.
+    let spot;
+    for (const id in (hass && hass.states) || {}) {
+      if (id.startsWith("sensor.swelligence_") && id.endsWith("_suitability")) {
+        spot = hass.states[id].attributes?.spot; if (spot) break;
+      }
+    }
+    return spot ? { mode: "spot", spot } : { mode: "podium", title: "Conditions" };
+  }
 }
 
 /* ---------- visual editor (ha-form) ---------- */
@@ -269,19 +462,34 @@ class SwelligenceCardEditor extends HTMLElement {
 
   _schema() {
     const o = this._opts();
-    return [
+    const base = [
       { name: "title", selector: { text: {} } },
       { name: "mode", required: true, selector: { select: { mode: "dropdown", options: [
+        { value: "spot", label: "Spot detail — now/week (one spot)" },
         { value: "podium", label: "Podium — top 3 per day" },
         { value: "timeline", label: "Opportunity timeline (7 days)" },
         { value: "heatgrid", label: "Heat-grid — now" },
         { value: "medallions", label: "Medallions — now" },
       ] } } },
+    ];
+    if (this._config.mode === "spot") {
+      base.push(
+        { name: "spot", required: true, selector: { select: { mode: "dropdown", options: o.spots } } },
+        { name: "default_view", selector: { select: { mode: "dropdown", options: [
+          { value: "now", label: "Now" }, { value: "week", label: "Week" } ] } } },
+        { name: "show_tide", selector: { boolean: {} } },
+        { name: "show_factors", selector: { boolean: {} } },
+        { name: "sports", selector: { select: { multiple: true, options: o.sports } } },
+      );
+      return base;
+    }
+    base.push(
       { name: "days", selector: { number: { min: 1, max: 7, mode: "slider", step: 1 } } },
       { name: "show_score", selector: { boolean: {} } },
       { name: "spots", selector: { select: { multiple: true, options: o.spots } } },
       { name: "sports", selector: { select: { multiple: true, options: o.sports } } },
-    ];
+    );
+    return base;
   }
 
   _update() {
@@ -296,6 +504,10 @@ class SwelligenceCardEditor extends HTMLElement {
       this._form.computeLabel = (s) => ({
         title: "Title", mode: "Mode", days: "Days to show (forecast modes)",
         show_score: "Show score number (rings)",
+        spot: "Spot (spot-detail mode)",
+        default_view: "Default view (spot-detail)",
+        show_tide: "Show tide module",
+        show_factors: "Show factor breakdown (Now)",
         spots: "Spots (filter — leave empty for all)",
         sports: "Sports (filter — leave empty for all)",
       }[s.name] || s.name);
@@ -424,6 +636,44 @@ table.grid{border-collapse:separate;border-spacing:6px;width:100%;}
 .ps{font-weight:600;font-size:10px;color:var(--c-dim);line-height:1;} .pm.big .ps{font-size:11px;}
 .pi .icon{width:22px;height:22px;color:var(--c-ink);} .pm.big .pi .icon{width:26px;height:26px;}
 .pl{font-size:9.5px;color:var(--c-dim);}
+/* ---------- spot detail ---------- */
+.sd{display:flex;flex-direction:column;gap:12px;}
+.sd-hdr{display:flex;justify-content:space-between;align-items:flex-start;gap:10px;}
+.sd-nm{font-size:18px;font-weight:700;color:var(--c-ink);}
+.sd-sub{font-size:11px;color:var(--c-dim);text-transform:capitalize;margin-top:2px;}
+.sd-ctrl{display:flex;align-items:center;gap:10px;}
+.sd-seg{display:flex;border:1px solid var(--c-line);border-radius:9px;overflow:hidden;}
+.sd-seg button{font:inherit;cursor:pointer;border:0;background:transparent;color:var(--c-dim);font-size:12px;font-weight:700;padding:7px 13px;}
+.sd-seg button.on{background:var(--primary-color,#03a9f4);color:#fff;}
+.sd-now{text-align:right;} .sd-now b{display:block;font-size:15px;color:var(--c-ink);} .sd-now span{font-size:9px;text-transform:uppercase;letter-spacing:.12em;color:var(--c-dim);}
+.sd-pills{display:flex;gap:6px;flex-wrap:wrap;}
+.sd-pill{cursor:pointer;flex:1 1 auto;min-width:84px;display:flex;align-items:center;gap:6px;border:1px solid var(--c-line);border-radius:10px;padding:7px 9px;}
+.sd-pill.on{border-color:var(--primary-color,#03a9f4);background:color-mix(in srgb,var(--primary-color,#03a9f4) 12%,transparent);}
+.sd-pill .icon{width:16px;height:16px;color:var(--c-ink);} .sd-pill .pn{font-size:12px;font-weight:600;color:var(--c-ink);} .sd-pill .pv{font-size:14px;font-weight:800;margin-left:auto;}
+.sd-row2{display:flex;gap:10px;flex-wrap:wrap;}
+.sd-wind{flex:1 1 130px;display:flex;align-items:center;justify-content:center;min-width:120px;}
+.sd-rose{width:130px;height:130px;} .sd-rose .t{fill:var(--c-dim);font:700 11px sans-serif;text-anchor:middle;} .sd-rose .nd{fill:var(--primary-color,#03a9f4);} .sd-rose .hub{fill:var(--card-background-color,#1b1e25);stroke:var(--c-line);} .sd-rose .spd{fill:var(--c-ink);font:800 22px sans-serif;text-anchor:middle;} .sd-rose .u{fill:var(--c-dim);font:600 9px sans-serif;text-anchor:middle;}
+.sd-tide{flex:1 1 150px;min-width:150px;border:1px solid var(--c-line);border-radius:12px;padding:9px 11px;}
+.sd-th{display:flex;justify-content:space-between;font-size:10px;text-transform:uppercase;letter-spacing:.1em;color:var(--c-dim);} .sd-th .src{opacity:.7;}
+.sd-ts{display:flex;align-items:baseline;gap:7px;margin-top:3px;} .sd-ts .ar,.sd-ts .w{font-size:19px;font-weight:800;color:var(--c-ink);}
+.t-rising .ar,.t-rising .w{color:#39bdf8;} .t-falling .ar,.t-falling .w{color:#f0a83d;}
+.sd-tn{font-size:11px;color:var(--c-dim);margin-top:2px;} .sd-tn b{color:var(--c-ink);text-transform:capitalize;}
+.sd-spark{width:100%;height:30px;margin-top:5px;display:block;}
+.sd-sel{display:flex;align-items:center;gap:13px;border:1px solid var(--c-line);border-radius:12px;padding:11px 13px;}
+.sd-ring{width:60px;height:60px;border-radius:50%;flex:0 0 auto;position:relative;background:conic-gradient(var(--c) calc(var(--p)*1%),var(--c-track) 0);}
+.sd-ring::after{content:'';position:absolute;inset:5px;border-radius:50%;background:var(--card-background-color,#1b1e25);}
+.sd-ri{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;}
+.sd-ri b{font-size:20px;font-weight:800;line-height:1;} .sd-ri i{font-size:8px;font-style:normal;text-transform:uppercase;letter-spacing:.1em;color:var(--c-dim);}
+.sd-selr .nm{font-size:16px;font-weight:700;color:var(--c-ink);} .sd-selr .vd{font-size:12px;font-weight:700;text-transform:capitalize;}
+.sd-best{margin-left:auto;text-align:right;} .sd-best .bk{font-size:9px;text-transform:uppercase;letter-spacing:.1em;color:var(--c-dim);display:block;} .sd-best b{font-size:15px;color:var(--c-ink);} .sd-best .bs{display:block;font-size:11px;color:var(--c-dim);}
+.sd-tl{border:1px solid var(--c-line);border-radius:12px;padding:9px 11px;} .sd-tl .tlh{font-size:10px;text-transform:uppercase;letter-spacing:.12em;color:var(--c-dim);margin-bottom:7px;}
+.sd-tl .bars{display:flex;align-items:flex-end;gap:2px;height:60px;} .sd-tl .b{flex:1;border-radius:3px 3px 0 0;min-height:3px;align-self:flex-end;} .sd-tl .b.now{outline:1.5px solid var(--c-ink);outline-offset:1px;}
+.sd-strip{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;} .sd-strip.wrap{grid-template-columns:repeat(3,1fr);}
+.sd-ns,.sd-st{border:1px solid var(--c-line);border-radius:10px;padding:7px 9px;} .sd-ns .k,.sd-st .k{font-size:9px;text-transform:uppercase;letter-spacing:.08em;color:var(--c-dim);display:block;} .sd-ns b,.sd-st b{font-size:16px;font-weight:800;color:var(--c-ink);display:block;} .sd-ns .s,.sd-st .s{font-size:10px;color:var(--c-dim);}
+.sd-facs{display:grid;gap:5px;} .sd-fac{display:grid;grid-template-columns:64px 1fr 28px;align-items:center;gap:8px;font-size:11px;color:var(--c-dim);text-transform:capitalize;} .sd-fac .fb{height:6px;border-radius:4px;background:var(--c-track);overflow:hidden;} .sd-fac .fb i{display:block;height:100%;background:var(--primary-color,#03a9f4);} .sd-fac b{text-align:right;color:var(--c-ink);}
+.sd-bestpane{border:1px solid var(--c-line);border-radius:12px;padding:10px 12px;} .bp-h{font-size:11px;font-weight:600;color:var(--c-dim);margin-bottom:8px;}
+.sd-drows{display:flex;flex-direction:column;gap:6px;} .sd-drow{display:grid;grid-template-columns:46px 1fr 44px 40px;align-items:center;gap:9px;border:1px solid var(--c-line);border-radius:9px;padding:7px 11px;}
+.sd-drow.best{border-color:var(--primary-color,#03a9f4);} .sd-drow .dd{font-size:12px;font-weight:700;color:var(--c-ink);} .sd-drow .db{height:7px;border-radius:4px;background:var(--c-track);overflow:hidden;} .sd-drow .db i{display:block;height:100%;} .sd-drow .dt{font-size:10px;color:var(--c-dim);text-align:right;} .sd-drow .ds{font-size:15px;font-weight:800;text-align:right;}
 `;
 
 /* visual-editor priority list (light DOM — class-scoped with spr-) */
@@ -445,8 +695,8 @@ window.customCards = window.customCards || [];
 window.customCards.push({
   type: "swelligence-card",
   name: "Swelligence Card",
-  description: "Conditions: podium, opportunity timeline, heat-grid, or medallions.",
+  description: "Conditions: spot detail (now/week), podium, opportunity timeline, heat-grid, or medallions.",
   preview: true,
   documentationURL: "https://git.bagofholding.co.uk/foolycooly/swelligence",
 });
-console.info("%c SWELLIGENCE-CARD ", "background:#1f9d57;color:#fff", "v10 loaded (drag sport priority)");
+console.info("%c SWELLIGENCE-CARD ", "background:#1f9d57;color:#fff", "v11 loaded (spot-detail now/week mode)");

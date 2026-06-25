@@ -14,6 +14,7 @@ import dataclasses
 import json
 import sys
 import types
+from datetime import datetime
 import urllib.parse
 import urllib.request
 from pathlib import Path
@@ -26,8 +27,9 @@ _pkg = types.ModuleType("swelligence")
 _pkg.__path__ = [str(_PKG_DIR)]
 sys.modules["swelligence"] = _pkg
 
-from swelligence.forecast import _slot  # noqa: E402
+from swelligence.forecast import _slot, daily_forecast  # noqa: E402
 from swelligence.policy import apply_water_policy  # noqa: E402
+from swelligence.tide import tide_phase, tide_state  # noqa: E402
 from swelligence.providers.open_meteo import (  # noqa: E402
     _FORECAST_HOURLY,
     _MARINE_HOURLY,
@@ -89,12 +91,25 @@ def main() -> int:
         name, lat, lon, water = "Southbourne", 50.718, -1.7825, "sea"
         sports = ["surf", "kitesurf", "wingfoil", "sup"]
 
-    forecast = fetch(lat, lon, water)
-    now = forecast.points[0]
+    forecast = fetch(lat, lon, water, days=7)
+    # Anchor "now" at local mid-day (12:00) rather than the series' midnight start
+    # — a daytime snapshot reads far more naturally on the card/panel. The emitted
+    # series runs from this point forward, so the consumers' "series[0] == now"
+    # invariant holds (now / next hours / rest-of-week all flow from here).
+    pts = forecast.points
+    now_index = next((i for i, p in enumerate(pts) if p.time.hour == 12), 0)
+    forward = pts[now_index:]
+    now = forward[0]
+    # A forecast windowed at "now" so the integration builders (daily outlook,
+    # tide state) reflect now → +7d, not this morning's already-past hours.
+    fwd = dataclasses.replace(forecast, points=forward)
 
     sample: dict = {
         "spot": {"name": name, "latitude": lat, "longitude": lon, "water_type": water},
         "now_raw": _point_dict(now),
+        # Tide state is a spot-level, integration-provided data point (trend +
+        # next high/low); screens render it without deriving anything.
+        "tide": tide_state(fwd),
         "scores": {},
         "forecast": {},
     }
@@ -103,7 +118,7 @@ def main() -> int:
         if not profile:
             continue
         res = score_point(now, profile)
-        bw = best_window(forecast.points, profile, horizon=24)
+        bw = best_window(forward, profile, horizon=24)
         sample["scores"][sport] = {
             "score": res.score,
             "verdict": res.verdict,
@@ -115,10 +130,20 @@ def main() -> int:
             "best": {"score": bw[1].score, "in_hours": bw[0], "verdict": bw[1].verdict}
             if bw
             else None,
+            # Daytime-only daily peak per day = the weekly outlook. pad_h=0 =
+            # strict sunrise..sunset; the default pad (2h) barely filters in a UK
+            # summer (~17h days) so a "daytime" peak would otherwise land at 23:00.
+            "daily": daily_forecast(fwd, profile, sport, pad_h=0),
         }
-        # 24h get_forecast-style hourly slots for this sport.
+        # Annotate each daily peak with the tide phase + height AT that peak hour,
+        # so the weekly best-day readout is a true detail view (integration-side).
+        for entry in sample["scores"][sport]["daily"]:
+            entry["tide"] = tide_phase(fwd, datetime.fromisoformat(entry["datetime"]))
+        # Full forward get_forecast-style hourly slots (now → +7d) for this sport;
+        # consumers slice the near-term for the timeline and aggregate per-day for
+        # the weekly outlook.
         sample["forecast"][sport] = [
-            _slot(p, profile, sport, 0, None) for p in forecast.points[:24]
+            _slot(p, profile, sport, 0, None) for p in forward
         ]
 
     json.dump(sample, sys.stdout, indent=2)

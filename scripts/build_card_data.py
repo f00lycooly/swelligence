@@ -17,7 +17,11 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
 SAMPLE = ROOT / "mockups" / "research" / "sample"
-MOCKUP = ROOT / "mockups" / "spot-detail.html"
+# Every mockup that embeds the shared DATA blob between the /*__DATA__*/ markers.
+MOCKUPS = [
+    ROOT / "mockups" / "spot-detail.html",
+    ROOT / "mockups" / "wall-panel-720.html",
+]
 
 # Spot order + identity (matches the configured HA spots).
 SPOTS = [
@@ -27,11 +31,60 @@ SPOTS = [
 ]
 SPORT_ORDER = ["surf", "kitesurf", "wingfoil", "sup", "wakeboard_inland"]
 
+# Fallback labels when the recorder capture doesn't carry sport_label.
+_SPORT_META = {
+    "surf": ("Surf",), "kitesurf": ("Kitesurf",), "wingfoil": ("Wingfoil",),
+    "sup": ("SUP",), "wakeboard_inland": ("Wake",), "windsurf": ("Windsurf",),
+    "sailing": ("Sailing",), "seaswim": ("Sea swim",),
+}
+
 
 def _sport_key(entity_id: str, slug: str) -> str:
     # sensor.swelligence_<slug>_<sport>_suitability ; sport slug uses wing_foil
     tail = entity_id.split(f"swelligence_{slug}_", 1)[-1]
     return tail.rsplit("_suitability", 1)[0].replace("wing_foil", "wingfoil")
+
+
+# Verdict → compact code for the hourly timeline (keeps DATA small).
+_VCODE = {"poor": 0, "marginal": 1, "good": 2, "great": 3, "epic": 4}
+# Near-term hourly horizon embedded for the suitability timeline (the integration
+# already provides the daytime-only daily peaks for the weekly strip).
+_NEAR_H = 24
+
+
+def _fmt_daily(daily: list | None, today: str) -> list | None:
+    """Format the integration's daily outlook for embedding — purely presentation
+    (Today/weekday label, verdict→code, HH:MM). No aggregation here: the daytime
+    peak is computed upstream by swelligence.forecast.daily_forecast."""
+    if not daily:
+        return None
+    from datetime import date as _date
+
+    def _r(v, n=1):
+        return round(v, n) if isinstance(v, (int, float)) else None
+
+    out = []
+    for e in daily:
+        d = e["date"]
+        out.append({
+            "d": "Today" if d == today else _date.fromisoformat(d).strftime("%a"),
+            "date": d,
+            "s": round(e["score"]) if e.get("score") is not None else None,
+            "v": _VCODE.get(e.get("verdict"), 1),
+            "t": e["datetime"][11:16],
+            # Conditions AT the peak hour (the daily entry is that hour's full
+            # slot, incl. integration-annotated tide) so the Best-day pane shows
+            # what to expect — wind/gust/wave/swell/tide/water — not just a score.
+            "c": {
+                "wind": _r(e.get("wind_speed_kn")), "gust": _r(e.get("wind_gust_kn")),
+                "dir": _r(e.get("wind_bearing"), 0), "wave": _r(e.get("wave_height_m")),
+                "swell": _r(e.get("swell_height_m")), "per": _r(e.get("swell_period_s")),
+                "water": _r(e.get("water_temp_c")),
+                "tideS": (e.get("tide") or {}).get("state"),
+                "tideH": _r((e.get("tide") or {}).get("height"), 2),
+            },
+        })
+    return out
 
 
 def build() -> dict:
@@ -42,10 +95,33 @@ def build() -> dict:
         meta = fc["spot"]
         nr = fc["now_raw"]
 
-        # Per-sport from the authoritative recorder attributes.
-        sports = {}
-        advice = []
-        grid = None
+        # Hourly forecast series → the time story (now / next hours / today).
+        # Environmental series (time, sea level) is spot-level; take it from any
+        # sport's series. Per-sport score series feeds the suitability timeline.
+        fseries = fc.get("forecast", {})
+        env = next((v for v in fseries.values() if isinstance(v, list) and v), [])
+        near = env[:_NEAR_H]
+        hours = [p["datetime"][11:16] for p in near]
+        now_iso = nr.get("time") or (env[0]["datetime"] if env else "")
+        now_time = now_iso.replace("T", " ")[11:16]
+        today = now_iso[:10]
+        # Tide state is provided by the integration (swelligence.tide.tide_state).
+        tide = fc.get("tide")
+        # Compact per-sport near-term hourly [score, vcode] for the timeline only;
+        # the weekly daily peaks come ready-made from the integration per sport.
+        series_by_sport = {}
+        for sk, pts in fseries.items():
+            if isinstance(pts, list):
+                series_by_sport[sk] = [
+                    [round(p["score"]) if p.get("score") is not None else None,
+                     _VCODE.get(p.get("verdict"), 1)]
+                    for p in pts[:_NEAR_H]
+                ]
+
+        # Time-invariant presentation/quality metadata from the recorder capture
+        # (sport label/icon, model grid distance, per-domain sources, advice).
+        # These don't change with time of day, so a prior capture is fine.
+        meta_by_sport, advice, grid = {}, [], None
         sources: dict = {}
         for eid, rec in sensors.items():
             a = rec.get("attributes", {})
@@ -55,28 +131,36 @@ def build() -> dict:
             if "_suitability" not in eid:
                 continue
             sk = _sport_key(eid, slug)
-            try:
-                score = round(float(rec["state"]), 1)
-            except (TypeError, ValueError):
-                score = None  # unknown/unavailable (e.g. captured mid-restart)
-            dq = a.get("data_quality", {})
-            grid = dq.get("grid_distance_km", grid)
+            meta_by_sport[sk] = {"label": a.get("sport_label"), "icon": a.get("icon", "")}
+            grid = a.get("data_quality", {}).get("grid_distance_km", grid)
             sources = a.get("data_sources", sources) or sources
+
+        # SCORING is single-sourced from the freshly-fetched midday forecast so the
+        # "now" gauge, the timeline (series[0]) and the weekly peaks all agree.
+        # (The recorder sensors.json was a midnight capture; using it for scores
+        # here would make now ≠ series[0]. See mockups/research/sample/README.)
+        sports = {}
+        for sk, sc in (fc.get("scores") or {}).items():
+            best = sc.get("best") or {}
+            bih = best.get("in_hours")
+            lab = (meta_by_sport.get(sk) or {}).get("label") or _SPORT_META.get(sk, (sk.title(),))[0]
             sports[sk] = {
                 "sport": sk,
-                "label": a.get("sport_label", sk),
-                "icon": a.get("icon", ""),
-                "score": score,
-                "verdict": a.get("verdict"),
-                "suitable": a.get("suitable"),
-                "factors": a.get("factors", {}),
-                "reasons": a.get("reasons", []),
-                "completeness": a.get("completeness", {}),
-                "nudges": a.get("nudges", []),
-                "best_score": a.get("best_score"),
-                "best_in_h": a.get("best_in_hours"),
-                "best_verdict": a.get("best_verdict"),
-                "data_quality": dq,
+                "label": lab,
+                "icon": (meta_by_sport.get(sk) or {}).get("icon", ""),
+                "score": round(sc["score"], 1) if sc.get("score") is not None else None,
+                "verdict": sc.get("verdict"),
+                "suitable": sc.get("suitable"),
+                "factors": sc.get("factors", {}),
+                "reasons": sc.get("reasons", []),
+                "completeness": sc.get("completeness", {}),
+                "nudges": sc.get("nudges", []),
+                "best_score": best.get("score"),
+                "best_in_h": bih,
+                "best_verdict": best.get("verdict"),
+                "best_time": hours[bih] if bih is not None and bih < len(hours) else None,
+                "series": series_by_sport.get(sk),
+                "daily": _fmt_daily(sc.get("daily"), today),
             }
         ordered = [sports[k] for k in SPORT_ORDER if k in sports]
         ordered += [v for k, v in sports.items() if k not in SPORT_ORDER]
@@ -90,6 +174,10 @@ def build() -> dict:
                 "grid_distance_km": grid,
                 "sources": sources,
                 "source_advice": advice,
+                "now_time": now_time,
+                "hours": hours,
+                "horizon_h": len(hours),
+                "tide": tide,
                 "sports": ordered,
                 "current": {
                     "time": nr.get("time"),
@@ -127,15 +215,18 @@ def main() -> int:
     data = build()
     blob = json.dumps(data, separators=(",", ":"))
     if "--inject" in sys.argv:
-        html = MOCKUP.read_text()
-        new = re.sub(
-            r"/\*__DATA__\*/.*?/\*__END__\*/",
-            f"/*__DATA__*/{blob}/*__END__*/",
-            html,
-            flags=re.S,
-        )
-        MOCKUP.write_text(new)
-        print(f"injected {len(blob)} bytes into {MOCKUP.relative_to(ROOT)}")
+        for mockup in MOCKUPS:
+            if not mockup.exists():
+                continue
+            html = mockup.read_text()
+            new = re.sub(
+                r"/\*__DATA__\*/.*?/\*__END__\*/",
+                f"/*__DATA__*/{blob}/*__END__*/",
+                html,
+                flags=re.S,
+            )
+            mockup.write_text(new)
+            print(f"injected {len(blob)} bytes into {mockup.relative_to(ROOT)}")
     else:
         print(blob)
     return 0

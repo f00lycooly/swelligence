@@ -1,0 +1,515 @@
+<!-- @dsCard group="Wall panel 720" -->
+<!--
+  Swelligence — 720×720 wall panel (static mockup; LVGL-translatable spec).
+
+  Kiosk surface, NOT the HA Lovelace card. Rendered in HTML for fidelity, but
+  every element maps 1:1 onto an LVGL widget on the real ESPHome/LVGL display:
+
+    score / compass rings .... lv_arc
+    factor bars .............. lv_bar
+    suitability timeline ..... lv_chart (bar) / row of lv_bar
+    tide curve ............... lv_chart (line)
+    map ...................... lv_img (static PNG refreshed periodically;
+                                       Leaflet used here only for the mock)
+    selectors ................ lv_btn (checked) inside lv_flex / lv_grid
+    text ..................... lv_label in compiled Montserrat sizes
+    wind needle .............. lv_canvas line / baked image
+
+  Designed to answer at a glance: is this NOW, what's the tide doing, and how do
+  conditions trend over the next hours / rest of today. Touch-only (no hover,
+  ≥64px targets, visible press/selected states); critical info inside a
+  centre-safe circle for round 720×720 panels. Onshore/offshore label deferred
+  (swelligence-slh.6); multi-day "this week" needs the 7-day fetch (sample=24h).
+
+  DATA injected from real spots by scripts/build_card_data.py between markers.
+-->
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Swelligence · Wall panel 720</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
+  integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin="" />
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"
+  integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
+<style>
+:root{
+  --bg:#060a0e; --panel:#0d151d; --panel2:#121d27; --raise:#16232e; --press:#1d2f3c;
+  --line:rgba(150,178,198,.13); --line-2:rgba(150,178,198,.22);
+  --text:#eaf2f6; --muted:#8ba4b3; --dim:#5a7180;
+  --teal:#23d5be; --teal-d:#0f8c7e; --cyan:#39bdf8;
+  --amber:#f6a623; --danger:#ef5e6b; --rise:#39bdf8; --fall:#f6a623;
+  --v0:#6b8190; --v1:#f6a623; --v2:#a7d84a; --v3:#5bd07a; --v4:#23d5be;
+  --r:18px;
+}
+*{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent}
+html,body{height:100%}
+body{
+  font-family:Montserrat,-apple-system,system-ui,sans-serif;
+  background:
+    radial-gradient(1100px 700px at 15% -10%, #0c1a22 0%, transparent 60%),
+    radial-gradient(900px 600px at 110% 120%, #0a1620 0%, transparent 55%),
+    var(--bg);
+  color:var(--text); min-height:100%;
+  display:flex; align-items:center; justify-content:center; padding:24px;
+  font-feature-settings:"tnum" 1; -webkit-font-smoothing:antialiased;
+}
+.cap{position:fixed;top:14px;left:0;right:0;text-align:center;font-size:11px;letter-spacing:.18em;
+  text-transform:uppercase;color:var(--dim)}
+
+.device{
+  width:720px;height:720px;flex:0 0 auto;position:relative;border-radius:26px;overflow:hidden;
+  background:linear-gradient(180deg,var(--panel) 0%,#0a121a 100%);
+  box-shadow:0 0 0 2px #05080b, 0 24px 60px rgba(0,0,0,.6), inset 0 0 0 1px rgba(255,255,255,.03);
+}
+.panel{position:absolute;inset:0;padding:18px;display:grid;grid-template-rows:52px 1fr 80px;gap:13px}
+
+/* ---- header ---- */
+.hdr{display:flex;align-items:center;justify-content:space-between;gap:14px;padding:0 2px}
+.hdr .id{display:flex;align-items:center;gap:11px;min-width:0}
+.hdr .mono{width:40px;height:40px;border-radius:11px;flex:0 0 auto;display:grid;place-items:center;
+  background:radial-gradient(circle at 35% 30%,var(--teal),var(--teal-d));color:#04201c;font-weight:800;font-size:19px;
+  box-shadow:0 4px 14px rgba(35,213,190,.28)}
+.hdr h1{font-size:24px;font-weight:800;letter-spacing:.2px;line-height:1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.hdr .wt{font-size:10.5px;font-weight:600;text-transform:uppercase;letter-spacing:.13em;color:var(--muted);margin-top:4px}
+.hdr .wt b{color:var(--teal)}
+.hdr .now{display:flex;align-items:center;gap:9px;flex:0 0 auto}
+.hdr .now .pulse{width:9px;height:9px;border-radius:50%;background:var(--teal);box-shadow:0 0 0 0 rgba(35,213,190,.6);animation:pulse 2.4s infinite}
+@keyframes pulse{0%{box-shadow:0 0 0 0 rgba(35,213,190,.5)}70%{box-shadow:0 0 0 9px rgba(35,213,190,0)}100%{box-shadow:0 0 0 0 rgba(35,213,190,0)}}
+.hdr .now .nlab{text-align:right}
+.hdr .now .nlab .t{font-size:21px;font-weight:800;line-height:1;font-variant-numeric:tabular-nums}
+.hdr .now .nlab .l{font-size:9.5px;font-weight:700;letter-spacing:.22em;color:var(--teal);text-transform:uppercase;margin-top:3px}
+
+/* ---- main split ---- */
+.main{display:grid;grid-template-columns:300px 1fr;gap:13px;min-height:0}
+.col{min-height:0;display:flex;flex-direction:column;gap:11px}
+
+/* map + compass */
+.map-hero{position:relative;height:206px;border-radius:var(--r);overflow:hidden;background:var(--panel2);border:1px solid var(--line)}
+.map-hero .lmap{position:absolute;inset:0;z-index:0;background:var(--panel2)}
+.map-hero .lmap .leaflet-tile-pane{filter:invert(1) hue-rotate(180deg) brightness(.86) contrast(.95) saturate(.7)}
+.map-hero .leaflet-control-attribution{font-size:8px;opacity:.5;background:transparent;color:var(--dim)}
+.map-hero .leaflet-control-attribution a{color:var(--muted)}
+.map-hero .vign{position:absolute;inset:0;z-index:1;pointer-events:none;box-shadow:inset 0 0 50px 6px rgba(4,8,11,.7)}
+.map-hero .wband{position:absolute;left:0;right:0;bottom:0;z-index:2;pointer-events:none;
+  padding:20px 14px 9px;display:flex;align-items:flex-end;justify-content:space-between;
+  background:linear-gradient(0deg,rgba(4,8,11,.85),transparent)}
+.map-hero .wband .wfrom{font-size:12px;font-weight:700;letter-spacing:.1em;text-transform:uppercase}
+.map-hero .wband .wfrom span{color:var(--teal)}
+.map-hero .wband .wxy{font-size:10.5px;color:var(--muted)}
+
+/* compass */
+.compass{filter:drop-shadow(0 3px 6px rgba(0,0,0,.8))}
+.compass .ring{fill:rgba(8,14,19,.52);stroke:var(--line-2);stroke-width:1.6}
+.compass .ring2{fill:none;stroke:rgba(35,213,190,.30);stroke-width:1.2;stroke-dasharray:2 5}
+.compass .tick{fill:var(--muted);font:700 12px Montserrat,sans-serif;text-anchor:middle}
+.compass .tickN{fill:var(--teal)}
+.compass .needle{fill:var(--teal);stroke:#06201d;stroke-width:1.2;stroke-linejoin:round}
+.compass .tail{fill:rgba(35,213,190,.30)}
+.compass .hub{fill:rgba(7,12,17,.92);stroke:var(--line-2);stroke-width:1.5}
+.compass .spd{fill:var(--text);font:800 32px Montserrat,sans-serif;text-anchor:middle}
+.compass .unit{fill:var(--muted);font:700 11px Montserrat,sans-serif;text-anchor:middle;letter-spacing:.1em}
+.compass .gust{fill:var(--amber);font:700 12px Montserrat,sans-serif;text-anchor:middle}
+.compass.calm .needle,.compass.calm .tail{display:none}
+.compass .calm-dot{display:none}.compass.calm .calm-dot{display:block;fill:var(--muted)}
+.compass.calm .spd{font-size:21px}
+
+/* tide module */
+.tide{flex:1;min-height:0;background:linear-gradient(180deg,var(--panel2),var(--panel));border:1px solid var(--line);
+  border-radius:var(--r);padding:13px 15px;display:flex;flex-direction:column}
+.tide .th{display:flex;align-items:center;justify-content:space-between}
+.tide .th .k{font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.15em;color:var(--muted)}
+.tide .th .model{font-size:8.5px;font-weight:700;letter-spacing:.12em;text-transform:uppercase;color:var(--dim);
+  border:1px solid var(--line);border-radius:6px;padding:2px 6px}
+.tide .state{display:flex;align-items:baseline;gap:10px;margin-top:7px}
+.tide .state .arrow{font-size:23px;line-height:1}
+.tide .state .word{font-size:23px;font-weight:800;letter-spacing:.5px}
+.tide.rising .arrow,.tide.rising .word{color:var(--rise)}
+.tide.falling .arrow,.tide.falling .word{color:var(--fall)}
+.tide.slack .word{color:var(--muted)}
+.tide .nxt{font-size:12px;color:var(--muted);margin-top:5px}
+.tide .nxt b{color:var(--text);font-weight:800}
+.tide .curve{flex:1;min-height:0;margin-top:8px;position:relative}
+.tide .curve svg{position:absolute;inset:0;width:100%;height:100%}
+.tide .cpath{fill:none;stroke:var(--teal);stroke-width:2;stroke-linejoin:round}
+.tide .cfill{fill:rgba(35,213,190,.10)}
+.tide .cnow{stroke:var(--text);stroke-width:1.4;stroke-dasharray:3 3;opacity:.7}
+.tide .cdot{fill:var(--amber)}
+.tide .cnowdot{fill:var(--text)}
+.tide .clab{fill:var(--dim);font:700 9px Montserrat,sans-serif}
+
+/* ---- sports column ---- */
+.sportwrap{min-height:0;display:flex;flex-direction:column;gap:11px}
+/* sport pills (touch selector) */
+.pills{display:grid;grid-auto-flow:column;grid-auto-columns:1fr;gap:8px}
+.pill{cursor:pointer;min-height:50px;border-radius:13px;border:1px solid var(--line);background:var(--panel2);
+  display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;padding:5px 4px;
+  transition:background .12s,border-color .12s}
+.pill:active{background:var(--press)}
+.pill.on{border-color:var(--teal);background:linear-gradient(180deg,rgba(35,213,190,.12),var(--panel2))}
+.pill .pn{font-size:12px;font-weight:700;white-space:nowrap}
+.pill .ps{font-size:14px;font-weight:800;font-variant-numeric:tabular-nums}
+
+/* selected sport head */
+.sel{display:flex;align-items:center;gap:15px;background:linear-gradient(180deg,var(--raise),var(--panel2));
+  border:1px solid var(--line-2);border-radius:16px;padding:13px 15px}
+.gauge{position:relative;width:80px;height:80px;flex:0 0 auto}
+.gauge svg{width:80px;height:80px;transform:rotate(-90deg)}
+.gauge .gt{fill:none;stroke:rgba(150,178,198,.16);stroke-width:8}
+.gauge .ga{fill:none;stroke-width:8;stroke-linecap:round}
+.gauge .gn{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center}
+.gauge .gn b{font-size:27px;font-weight:800;line-height:1;font-variant-numeric:tabular-nums}
+.gauge .gn i{font-size:8.5px;font-style:normal;text-transform:uppercase;letter-spacing:.16em;color:var(--teal);margin-top:1px}
+.sel .nm{font-size:20px;font-weight:800}
+.sel .vd{font-size:12.5px;font-weight:700;text-transform:uppercase;letter-spacing:.1em;margin-top:2px}
+.sel .best{margin-left:auto;text-align:right}
+.sel .best .bk{font-size:9px;font-weight:700;letter-spacing:.16em;text-transform:uppercase;color:var(--dim)}
+.sel .best .bt{font-size:18px;font-weight:800;margin-top:2px;font-variant-numeric:tabular-nums}
+.sel .best .bs{font-size:11px;color:var(--muted);margin-top:1px}
+
+/* suitability timeline */
+.tl{background:var(--panel2);border:1px solid var(--line);border-radius:16px;padding:11px 13px 9px;display:flex;flex-direction:column}
+.tl .tlh{display:flex;align-items:center;justify-content:space-between;margin-bottom:8px}
+.tl .tlh .k{font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.14em;color:var(--muted)}
+.tl .tlh .span{font-size:9.5px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:var(--dim);
+  border:1px solid var(--line);border-radius:6px;padding:2px 7px}
+/* 24h ⇄ Week toggle (touch) */
+.tl .seg{display:flex;gap:0;border:1px solid var(--line-2);border-radius:9px;overflow:hidden}
+.tl .seg button{cursor:pointer;font-family:inherit;border:0;background:transparent;color:var(--muted);
+  font-size:10px;font-weight:800;letter-spacing:.08em;text-transform:uppercase;padding:7px 13px;min-height:32px}
+.tl .seg button:active{background:var(--press)}
+.tl .seg button.on{background:var(--teal);color:#04201c}
+/* weekly bars */
+.wk{display:flex;gap:6px;height:78px}
+.wd{flex:1;display:flex;flex-direction:column;align-items:center;gap:3px;min-width:0}
+.wd .num{font-size:11px;font-weight:800;font-variant-numeric:tabular-nums;line-height:1}
+.wd .num .star{color:var(--amber)}
+.wd .track{flex:1;width:100%;display:flex;align-items:flex-end;background:rgba(150,178,198,.12);border-radius:6px;overflow:hidden}
+.wd .fill{width:100%;border-radius:6px 6px 0 0;min-height:3px}
+.wd .dow{font-size:9.5px;font-weight:700;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:100%}
+.wd.today .dow{color:var(--teal)}
+.wd .bt{font-size:8px;color:var(--dim);font-variant-numeric:tabular-nums}
+.tl .bars{display:flex;align-items:flex-end;gap:2px;height:78px}
+.tl .b{flex:1;position:relative;border-radius:3px 3px 0 0;min-height:3px;align-self:flex-end}
+.tl .b.now::after{content:"NOW";position:absolute;top:-13px;left:50%;transform:translateX(-50%);
+  font-size:7.5px;font-weight:800;letter-spacing:.08em;color:var(--text);white-space:nowrap}
+.tl .b.best::before{content:"★";position:absolute;top:-14px;left:50%;transform:translateX(-50%);
+  font-size:11px;color:var(--amber)}
+.tl .axis{display:flex;margin-top:6px}
+.tl .axis .x{flex:1;text-align:center;font-size:9px;font-weight:600;color:var(--dim);font-variant-numeric:tabular-nums}
+.tl .none{height:78px;display:flex;align-items:center;justify-content:center;color:var(--dim);font-size:12px}
+
+/* now conditions strip + factors */
+.now-strip{display:grid;grid-template-columns:repeat(4,1fr);gap:8px}
+.ns{background:var(--panel2);border:1px solid var(--line);border-radius:12px;padding:8px 10px}
+.ns .k{font-size:9.5px;font-weight:700;text-transform:uppercase;letter-spacing:.1em;color:var(--muted)}
+.ns .v{font-size:18px;font-weight:800;margin-top:2px;font-variant-numeric:tabular-nums}
+.ns .v small{font-size:10px;font-weight:600;color:var(--muted)}
+.ns.amber .v{color:var(--amber)}
+.facs{flex:1;min-height:0;display:grid;gap:6px;align-content:center}
+.fac{display:grid;grid-template-columns:70px 1fr 30px;align-items:center;gap:9px;font-size:10.5px}
+.fac .fl{color:var(--muted);text-transform:capitalize;font-weight:600}
+.fac .fb{height:6px;border-radius:4px;background:rgba(150,178,198,.14);overflow:hidden}
+.fac .fb i{display:block;height:100%;border-radius:4px;background:linear-gradient(90deg,var(--teal-d),var(--teal))}
+.fac .fn{text-align:right;color:var(--muted);font-weight:700;font-variant-numeric:tabular-nums}
+
+/* ---- bottom spot tabs ---- */
+.tabs{display:grid;grid-template-columns:repeat(3,1fr);gap:13px}
+.tab{cursor:pointer;border-radius:16px;padding:11px 15px;display:flex;flex-direction:column;justify-content:center;gap:4px;
+  background:var(--panel2);border:1px solid var(--line);transition:background .12s,border-color .12s,box-shadow .12s}
+.tab:active{background:var(--press)}
+.tab.on{border-color:var(--teal);background:linear-gradient(180deg,rgba(35,213,190,.12),var(--panel2));
+  box-shadow:0 0 0 1px rgba(35,213,190,.35),0 8px 22px rgba(35,213,190,.12)}
+.tab .tn{font-size:17px;font-weight:800;display:flex;align-items:center;gap:8px}
+.tab .tdot{width:8px;height:8px;border-radius:50%;background:var(--muted)}
+.tab.on .tdot{background:var(--teal);box-shadow:0 0 8px var(--teal)}
+.tab .tw{font-size:10.5px;font-weight:600;text-transform:uppercase;letter-spacing:.1em;color:var(--muted);
+  display:flex;justify-content:space-between;align-items:baseline;gap:8px}
+.tab .tw b{font-size:14px;font-weight:800;color:var(--text);font-variant-numeric:tabular-nums}
+/* ---- header view toggle (NOW ⇄ WEEK) ---- */
+.hdr .ctrl{display:flex;align-items:center;gap:12px;flex:0 0 auto}
+.hdr .seg{display:flex;border:1px solid var(--line-2);border-radius:11px;overflow:hidden}
+.hdr .seg button{cursor:pointer;font-family:inherit;border:0;background:transparent;color:var(--muted);
+  font-size:12px;font-weight:800;letter-spacing:.06em;text-transform:uppercase;padding:9px 16px;min-height:42px}
+.hdr .seg button:active{background:var(--press)}
+.hdr .seg button.on{background:var(--teal);color:#04201c}
+.hdr .wkr{text-align:right}
+.hdr .wkr .t{font-size:17px;font-weight:800;line-height:1;white-space:nowrap}
+.hdr .wkr .l{font-size:9.5px;font-weight:700;letter-spacing:.22em;color:var(--teal);text-transform:uppercase;margin-top:3px}
+
+/* ---- week view: left summary panel ---- */
+.wsum{flex:1;min-height:0;background:linear-gradient(180deg,var(--panel2),var(--panel));border:1px solid var(--line);
+  border-radius:var(--r);padding:14px 15px;display:flex;flex-direction:column;gap:11px}
+.wsum .k{font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.15em;color:var(--muted)}
+.wsum .bigday{display:flex;align-items:baseline;gap:10px}
+.wsum .bigday .dn{font-size:26px;font-weight:800;letter-spacing:.3px}
+.wsum .bigday .ds{font-size:26px;font-weight:800;font-variant-numeric:tabular-nums}
+.wsum .bigday .dv{font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:.08em;margin-left:auto}
+.wsum .psub{font-size:11px;font-weight:600;color:var(--muted)}
+.wsum .psub b{color:var(--text);font-weight:800}
+.wsum .grid2,.wsum .wgrid{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:auto}
+.wsum .st{background:var(--raise);border:1px solid var(--line);border-radius:12px;padding:10px 12px;position:relative;overflow:hidden}
+.wsum .st::before{content:"";position:absolute;left:0;top:0;bottom:0;width:3px;background:var(--teal);opacity:.5}
+.wsum .st.amber::before{background:var(--amber)}
+.wsum .st.t-rising::before{background:var(--rise)}
+.wsum .st.t-falling::before{background:var(--fall)}
+.wsum .st.t-high::before,.wsum .st.t-low::before{background:var(--teal)}
+.wsum .st .sk{font-size:9.5px;font-weight:700;text-transform:uppercase;letter-spacing:.1em;color:var(--muted)}
+.wsum .st .sv{font-size:21px;font-weight:800;margin-top:3px;font-variant-numeric:tabular-nums}
+.wsum .st.amber .sv{color:var(--amber)}
+.wsum .st .sv small{font-size:11px;font-weight:600;color:var(--muted)}
+
+/* ---- week view: per-day rows ---- */
+.sel.week .best .bk{color:var(--dim)}
+.drows{flex:1;min-height:0;display:flex;flex-direction:column;gap:7px}
+.drow{flex:1;display:grid;grid-template-columns:54px 1fr 50px 38px;align-items:center;gap:11px;
+  background:var(--panel2);border:1px solid var(--line);border-radius:11px;padding:0 13px;min-height:42px}
+.drow.today{border-color:var(--line-2)}
+.drow.best{border-color:rgba(35,213,190,.5);box-shadow:0 0 0 1px rgba(35,213,190,.22)}
+.drow .dd{font-size:13px;font-weight:800}
+.drow.today .dd{color:var(--teal)}
+.drow .dbar{height:8px;border-radius:5px;background:rgba(150,178,198,.14);overflow:hidden}
+.drow .dbar i{display:block;height:100%;border-radius:5px}
+.drow .dt{font-size:11px;color:var(--muted);text-align:right;font-variant-numeric:tabular-nums}
+.drow .dsc{font-size:17px;font-weight:800;text-align:right;font-variant-numeric:tabular-nums}
+.drow .dsc .star{color:var(--amber);font-size:11px}
+
+/* ---- week view: plain location marker on map ---- */
+.pin-mk{display:grid;place-items:center}
+.pin-mk svg{filter:drop-shadow(0 2px 4px rgba(0,0,0,.7))}
+@media (prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
+</style>
+</head>
+<body>
+<div class="cap">720 × 720 · LVGL wall panel · touch</div>
+<div class="device"><div class="panel" id="panel"></div></div>
+
+<script>
+const DATA = /*__DATA__*/{}/*__END__*/;
+
+const VC=['var(--v0)','var(--v1)','var(--v2)','var(--v3)','var(--v4)'];
+const VNAME=['poor','marginal','good','great','epic'];
+const VBYNAME={poor:0,marginal:1,good:2,great:3,epic:4};
+const COMPASS=['N','NNE','NE','ENE','E','ESE','SE','SSE','S','SSW','SW','WSW','W','WNW','NW','NNW'];
+let aSpot=0, aSport=0;
+
+const fmt=(n,d=1)=> n==null?'—':(Math.round(n*10**d)/10**d).toString();
+const card=d=> d==null?null:COMPASS[Math.round(((d%360)/22.5))%16];
+
+function compass(dir,kn,gust){
+  const calm=kn==null||dir==null, flow=dir==null?0:(dir+180)%360;
+  const op=calm?0:Math.max(.55,Math.min(1,kn/14));
+  return `<svg class="compass ${calm?'calm':''}" viewBox="0 0 200 200" width="200" height="200">
+    <circle class="ring" cx="100" cy="100" r="80"/><circle class="ring2" cx="100" cy="100" r="71"/>
+    <text class="tick tickN" x="100" y="26">N</text><text class="tick" x="100" y="182">S</text>
+    <text class="tick" x="180" y="105">E</text><text class="tick" x="20" y="105">W</text>
+    <g transform="rotate(${flow} 100 100)" style="opacity:${op}">
+      <polygon class="tail" points="100,118 108,150 100,140 92,150"/>
+      <polygon class="needle" points="100,26 111,116 100,102 89,116"/></g>
+    <circle class="hub" cx="100" cy="100" r="40"/><circle class="calm-dot" cx="100" cy="100" r="6"/>
+    ${calm?`<text class="spd" x="100" y="107">Calm</text>`
+      :`<text class="spd" x="100" y="97">${fmt(kn)}</text><text class="unit" x="100" y="113">KN</text>
+        ${gust!=null?`<text class="gust" x="100" y="132">G ${fmt(gust)}</text>`:''}`}
+  </svg>`;
+}
+function ring(score,col,s,sw){const r=s/2-sw,circ=2*Math.PI*r,off=circ*(1-(score||0)/100);
+  return `<svg viewBox="0 0 ${s} ${s}"><circle class="gt" cx="${s/2}" cy="${s/2}" r="${r}" style="stroke-width:${sw}"/>`+
+   `<circle class="ga" cx="${s/2}" cy="${s/2}" r="${r}" stroke="${col}" style="stroke-width:${sw}" stroke-dasharray="${circ}" stroke-dashoffset="${off}"/></svg>`;}
+
+// Tide module — state + next high/low + a 24h modelled sea-level curve.
+function tideModule(s){
+  const t=s.tide;
+  if(!t) return `<div class="tide slack"><div class="th"><span class="k">Tide</span></div><div class="nxt">no tide model</div></div>`;
+  const arrow=t.state==='rising'?'▲':t.state==='falling'?'▼':'—';
+  const nx=t.next;
+  const lv=t.levels, n=lv.length, lo=t.min, hi=t.max, rng=(hi-lo)||1;
+  const W=268,H=86;
+  const X=i=>i/(n-1)*W, Y=v=>v==null?H/2:H-6-((v-lo)/rng)*(H-12);
+  let dpath='';
+  lv.forEach((v,i)=>{ if(v==null) return; dpath+=(dpath?'L':'M')+X(i).toFixed(1)+' '+Y(v).toFixed(1)+' ';});
+  const fillp=`M0 ${H} L`+lv.map((v,i)=>X(i).toFixed(1)+' '+Y(v).toFixed(1)).join(' L')+` L${W} ${H} Z`;
+  const nowX=X(0), nxX=nx?X(nx.in_h):null, nxY=nx?Y(nx.level):null;
+  // sparse hour labels (every 6h)
+  let labs='';
+  for(let i=0;i<n;i+=6){ labs+=`<text class="clab" x="${X(i)+2}" y="${H-1}">${s.hours[i]||''}</text>`; }
+  return `<div class="tide ${t.state}">
+    <div class="th"><span class="k">Tide</span><span class="model">${t.source||'modelled'}</span></div>
+    <div class="state"><span class="arrow">${arrow}</span><span class="word">${t.state}</span></div>
+    <div class="nxt">${nx?`next <b>${nx.type}</b> at <b>${nx.time}</b> <span style="color:var(--dim)">(+${nx.in_h}h · ${fmt(nx.level,2)}m)</span>`:'between turning points'}</div>
+    <div class="curve"><svg viewBox="0 0 ${W} ${H}" preserveAspectRatio="none">
+      <path class="cfill" d="${fillp}"/><path class="cpath" d="${dpath}"/>
+      <line class="cnow" x1="${nowX}" y1="2" x2="${nowX}" y2="${H-2}"/>
+      <circle class="cnowdot" cx="${nowX}" cy="${Y(lv[0])}" r="3"/>
+      ${nx?`<circle class="cdot" cx="${nxX}" cy="${nxY}" r="3.5"/>`:''}
+      ${labs}
+    </svg></div>
+  </div>`;
+}
+
+// View state — flicking re-scopes the WHOLE panel, not just one chart:
+//   NOW  = live snapshot + next-24h (compass wind, tide now/next, hourly bars,
+//          now-conditions, factors).
+//   WEEK = 7-day daytime-scoped (location pin, best-day summary, per-day rows).
+// Every time-sensitive element below is chosen for the active view's timeframe.
+let view='now';
+function setView(v){ view=v; render(); }
+
+const MON=['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+const fdate=iso=>{const p=(iso||'').split('-');return p.length===3?(+p[2])+' '+MON[+p[1]-1]:'';};
+
+function nowStrip(c){
+  const wc=card(c.wind_dir);
+  const cell=(amber,k,v,sub)=>`<div class="ns ${amber?'amber':''}"><div class="k">${k}</div><div class="v">${v}${sub?`<small> ${sub}</small>`:''}</div></div>`;
+  return cell(false,'Wind',`${fmt(c.wind_kn)}`,`kn ${wc||''}`)
+    + cell(true,'Gust',`${fmt(c.gust_kn)}`,'kn')
+    + cell(false,'Wave',`${c.wave_m!=null?fmt(c.wave_m):(c.wind_wave_m!=null?fmt(c.wind_wave_m):'—')}`,'m')
+    + cell(false,'Swell',`${c.swell_m!=null?fmt(c.swell_m):'—'}`,c.swell_period_s!=null?fmt(c.swell_period_s)+'s':'m');
+}
+function factors(sp){
+  const order=['wind','gust','direction','wave','swell','temp','tide','kit'];
+  return order.filter(f=>sp.factors[f]!=null).map(f=>
+    `<div class="fac"><span class="fl">${f}</span><span class="fb"><i style="width:${sp.factors[f]}%"></i></span><span class="fn">${Math.round(sp.factors[f])}</span></div>`).join('');
+}
+
+// --- NOW-view pieces ---
+function selNow(sp){
+  const col=VC[VBYNAME[sp.verdict]??2];
+  const bestT=sp.best_time||(sp.best_in_h!=null?'+'+sp.best_in_h+'h':'—');
+  return `<div class="sel">
+    <div class="gauge">${ring(sp.score,col,80,8)}<div class="gn"><b style="color:${col}">${sp.score==null?'—':Math.round(sp.score)}</b><i>now</i></div></div>
+    <div><div class="nm">${sp.label}</div><div class="vd" style="color:${col}">${sp.verdict||'—'}</div></div>
+    <div class="best"><div class="bk">Best · next 24h</div><div class="bt">${bestT}</div><div class="bs">${sp.best_score!=null?Math.round(sp.best_score)+' · '+(sp.best_verdict||''):''}</div></div>
+  </div>`;
+}
+function hourlyTL(sp,s){
+  const ser=sp.series;
+  if(!ser||!ser.length) return `<div class="tl"><div class="tlh"><span class="k">Next 24h</span></div><div class="none">no hourly forecast</div></div>`;
+  const n=ser.length,bestI=sp.best_in_h;
+  const bars=ser.map((p,i)=>`<div class="b ${i===0?'now':''} ${i===bestI?'best':''}" style="height:${Math.max(6,p[0]==null?0:p[0])}%;background:${VC[p[1]]}" title="${s.hours[i]} · ${p[0]}"></div>`).join('');
+  let axis='';for(let i=0;i<n;i++) axis+=`<div class="x">${i%6===0?(s.hours[i]||''):''}</div>`;
+  return `<div class="tl"><div class="tlh"><span class="k">Outlook · next 24h</span><span class="span">hourly</span></div>
+    <div class="bars">${bars}</div><div class="axis">${axis}</div></div>`;
+}
+
+// --- WEEK-view pieces ---
+function weekPeak(sp){const d=sp.daily||[];return d.length?d.reduce((a,b)=>b.s>a.s?b:a,d[0]):null;}
+function selWeek(sp){
+  const pk=weekPeak(sp),col=pk?VC[pk.v]:VC[2];
+  return `<div class="sel week">
+    <div class="gauge">${ring(pk?pk.s:0,col,80,8)}<div class="gn"><b style="color:${col}">${pk?pk.s:'—'}</b><i>peak</i></div></div>
+    <div><div class="nm">${sp.label}</div><div class="vd" style="color:${col}">${pk?VNAME[pk.v]:'—'}</div></div>
+    <div class="best"><div class="bk">Peak day</div><div class="bt">${pk?pk.d:'—'}</div><div class="bs">${pk?pk.t:''}</div></div>
+  </div>`;
+}
+function dayRows(sp){
+  const d=sp.daily||[];
+  if(!d.length) return `<div class="drows"><div class="none">no daily forecast for this sport</div></div>`;
+  const pk=weekPeak(sp);
+  return `<div class="drows">${d.map(e=>`<div class="drow ${e.d==='Today'?'today':''} ${e===pk?'best':''}">
+    <div class="dd">${e.d}</div>
+    <div class="dbar"><i style="width:${Math.max(4,e.s)}%;background:${VC[e.v]}"></i></div>
+    <div class="dt">${e.t}</div>
+    <div class="dsc" style="color:${VC[e.v]}">${e===pk?'<span class="star">★</span>':''}${e.s}</div>
+  </div>`).join('')}</div>`;
+}
+function weekSummary(s,sp){
+  const d=sp.daily||[],pk=weekPeak(sp),good=d.filter(e=>e.v>=2).length,col=pk?VC[pk.v]:VC[2];
+  const cc=(pk&&pk.c)||{}, wc=card(cc.dir);
+  const met=(cls,k,v,sub)=>`<div class="st ${cls||''}"><div class="sk">${k}</div><div class="sv">${v}${sub?`<small> ${sub}</small>`:''}</div></div>`;
+  const ts=cc.tideS, cap=x=>x?x[0].toUpperCase()+x.slice(1):'—';
+  // Metrics AT the best day's peak hour — the Best-day pane doubles as the
+  // detail readout for that {day, time}, all from the integration's daily slot
+  // (tide phase/height annotated server-side by tide_phase()).
+  return `<div class="wsum">
+    <div class="k">Best day · ${sp.label}</div>
+    <div class="bigday"><span class="dn" style="color:${col}">${pk?pk.d:'—'}</span><span class="ds">${pk?pk.s:'—'}</span><span class="dv" style="color:${col}">${pk?VNAME[pk.v]:''}</span></div>
+    <div class="psub">peak <b>${pk?pk.t:'—'}</b> · ${good}/${d.length} good+ days this week</div>
+    <div class="wgrid">
+      ${met('','Wind', pk?fmt(cc.wind):'—', 'kn'+(wc?' '+wc:''))}
+      ${met('amber','Gust', pk?fmt(cc.gust):'—','kn')}
+      ${met('','Wave', cc.wave!=null?fmt(cc.wave):'—','m')}
+      ${met('','Swell', cc.swell!=null?fmt(cc.swell):'—', cc.per!=null?fmt(cc.per)+'s':'m')}
+      ${met(ts?'t-'+ts:'', 'Tide', `<span style="font-size:16px">${cap(ts)}</span>`, cc.tideH!=null?fmt(cc.tideH,2)+' m':'')}
+      ${met('','Water', cc.water!=null?fmt(cc.water):'—','°C')}
+    </div>
+  </div>`;
+}
+
+// --- shared chrome ---
+function pills(s){
+  return `<div class="pills">${s.sports.map((x,i)=>{const sc=VC[VBYNAME[x.verdict]??2];
+    const val=view==='week'?(weekPeak(x)?weekPeak(x).s:'—'):(x.score==null?'—':Math.round(x.score));
+    return `<div class="pill ${i===aSport?'on':''}" onclick="aSport=${i};render()"><span class="pn">${x.label}</span><span class="ps" style="color:${sc}">${val}</span></div>`;}).join('')}</div>`;
+}
+function mapHero(s,c,wc){
+  const band=view==='now'
+    ? `<div class="wband"><div class="wfrom">${wc?`Wind from <span>${wc}</span>`:'Calm'}</div><div class="wxy">${c.wind_kn!=null?fmt(c.wind_kn)+' kn':''}${c.gust_kn!=null?' · gust '+fmt(c.gust_kn):''}</div></div>`
+    : `<div class="wband"><div class="wfrom">${s.name}</div><div class="wxy">${s.lat.toFixed(3)}, ${s.lon.toFixed(3)}</div></div>`;
+  return `<div class="map-hero"><div class="lmap" id="lmap"></div><div class="vign"></div>${band}</div>`;
+}
+function tabs(){
+  return `<div class="tabs">${DATA.spots.map((x,i)=>{
+    const v=view==='week'?Math.max(...x.sports.map(y=>{const p=weekPeak(y);return p?p.s:0;}))
+                          :Math.max(...x.sports.map(y=>y.score||0));
+    return `<div class="tab ${i===aSpot?'on':''}" onclick="aSpot=${i};aSport=0;render()">
+      <div class="tn"><span class="tdot"></span>${x.name}</div>
+      <div class="tw"><span>${x.water_type}</span><b>${Math.round(v)}</b></div></div>`;}).join('')}</div>`;
+}
+
+function render(){
+  const s=DATA.spots[aSpot];
+  if(aSport>=s.sports.length) aSport=0;
+  const c=s.current, sp=s.sports[aSport], wc=card(c.wind_dir);
+  const d=sp.daily||[], range=d.length?`${fdate(d[0].date)} – ${fdate(d[d.length-1].date)}`:'';
+
+  const headRight = view==='now'
+    ? `<div class="now"><span class="pulse"></span><div class="nlab"><div class="t">${s.now_time||'--:--'}</div><div class="l">Now</div></div></div>`
+    : `<div class="wkr"><div class="t">${range||'7 days'}</div><div class="l">7-day</div></div>`;
+  const leftLower = view==='now' ? tideModule(s) : weekSummary(s,sp);
+  const rightContent = view==='now'
+    ? selNow(sp)+hourlyTL(sp,s)+`<div class="now-strip">${nowStrip(c)}</div><div class="facs">${factors(sp)}</div>`
+    : selWeek(sp)+dayRows(sp);
+
+  document.getElementById('panel').innerHTML=`
+    <div class="hdr">
+      <div class="id"><div class="mono">S</div>
+        <div><h1>${s.name}</h1><div class="wt"><b>${s.water_type}</b> · ${s.lat.toFixed(3)}, ${s.lon.toFixed(3)} · Open-Meteo</div></div></div>
+      <div class="ctrl">
+        <div class="seg"><button class="${view==='now'?'on':''}" onclick="setView('now')">Now</button><button class="${view==='week'?'on':''}" onclick="setView('week')">Week</button></div>
+        ${headRight}
+      </div>
+    </div>
+    <div class="main">
+      <div class="col">${mapHero(s,c,wc)}${leftLower}</div>
+      <div class="col sportwrap">${pills(s)}${rightContent}</div>
+    </div>
+    ${tabs()}`;
+
+  initMap(s,c);
+}
+
+function initMap(s,c){
+  const el=document.getElementById('lmap');
+  if(!el||!window.L||s.lat==null||s.lon==null) return;
+  if(window._lmap){window._lmap.remove();window._lmap=null;}
+  const map=L.map(el,{zoomControl:false,attributionControl:true,dragging:false,scrollWheelZoom:false,
+    doubleClickZoom:false,boxZoom:false,keyboard:false,touchZoom:false,tap:false}).setView([s.lat,s.lon],13);
+  L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',{maxZoom:19,attribution:'© OpenStreetMap'}).addTo(map);
+  // NOW → wind compass on the pin; WEEK → a plain location marker (wind is a
+  // now-element, out of scope for the 7-day view).
+  const html = view==='now'
+    ? compass(c.wind_dir,c.wind_kn,c.gust_kn)
+    : `<div class="pin-mk"><svg width="34" height="34" viewBox="0 0 34 34"><circle cx="17" cy="17" r="8" fill="none" stroke="var(--teal)" stroke-width="2"/><circle cx="17" cy="17" r="3.4" fill="var(--teal)"/></svg></div>`;
+  const sz = view==='now'?200:34;
+  const icon=L.divIcon({className:'',html,iconSize:[sz,sz],iconAnchor:[sz/2,sz/2]});
+  L.marker([s.lat,s.lon],{icon,interactive:false,keyboard:false}).addTo(map);
+  window._lmap=map; setTimeout(()=>map.invalidateSize(),0);
+}
+render();
+</script>
+</body>
+</html>
