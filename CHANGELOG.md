@@ -2,6 +2,10 @@
 
 All notable changes per release. Versions follow semver; tags are `vX.Y.Z`.
 
+## v0.1.4 — 2026-06-25
+
+- feat(card): bundle the Lovelace card with the integration (auto-register)
+
 ## v0.1.3 — 2026-06-25
 
 - feat(card): spot-detail mode — single-spot now/week (tide, outlook, best-day)
