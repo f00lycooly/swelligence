@@ -2,6 +2,24 @@
 
 All notable changes per release. Versions follow semver; tags are `vX.Y.Z`.
 
+## v0.1.3 — 2026-06-25
+
+- feat(card): spot-detail mode — single-spot now/week (tide, outlook, best-day)
+- feat(integration): get_spot_detail service — per-spot now/week data for the card
+- fix(card): expose water_type for the medallions/heatgrid water chip
+- feat(panel): Best-day pane shows peak-hour conditions incl. tide + water
+- feat(mockup): make panel Now⇄Week a full view change, not just a chart swap
+- feat(integration): tide_state + daytime weekly outlook as integration data points
+- feat(mockup): 7-day midday samples + weekly outlook toggle on the panel
+- feat(mockup): make the 720 panel time-aware — NOW, tide state, hourly outlook
+- feat(mockup): 720x720 LVGL marine-instrument wall panel (touch, frontend-design)
+- feat(mockup): always show wind needle in light wind (calm = no data only)
+- feat(mockup): enlarge map hero; wind as a vane with speed/gust on it
+- feat(mockup): map hero with at-a-glance wind overlay on spot-detail card
+- feat(mockup): regenerate spot-detail card — HA-themed, single-source, real data
+- docs(samples): add Mudeford + Sandbanks real samples (sensors + forecast)
+- docs(data-model): document entities/attributes/services/raw fields + real spot sample
+
 ## v0.1.2 — 2026-06-24
 
 - feat(config-flow): map picker + UK postcode search for add-spot
