@@ -1,0 +1,355 @@
+<!-- @dsCard group="Wall panel 720" -->
+<!--
+  Swelligence — 720×720 wall panel (static mockup; LVGL-translatable spec).
+
+  This is the kiosk surface, NOT the HA Lovelace card. It is rendered here in
+  HTML for fidelity, but every element is chosen to map 1:1 onto an LVGL widget
+  on the real ESPHome/LVGL touch display:
+
+    score / compass rings .... lv_arc
+    factor bars .............. lv_bar
+    map ...................... lv_img  (a static PNG refreshed periodically;
+                                        Leaflet is used here only for the mock)
+    spot / sport selectors ... lv_btn (checked state) inside lv_flex / lv_grid
+    text ..................... lv_label in compiled Montserrat sizes
+    wind needle .............. lv_canvas line / baked image
+
+  Constraints honoured: no hover (touch-only; press + selected states only),
+  ≥64px touch targets, no transparency/animation effects LVGL can't do cheaply,
+  critical info kept within a centre-safe circle so it also survives a ROUND
+  720×720 panel. Onshore/offshore safety label is deferred (swelligence-slh.6).
+
+  DATA injected from real spots by scripts/build_card_data.py between the
+  /*__DATA__*/{"source":"open_meteo","confidence_dormant":true,"spots":[{"name":"Southbourne","water_type":"sea","lat":50.718,"lon":-1.7825,"grid_distance_km":1.3,"sources":{"water":"open_meteo","wind":"open_meteo","air":"open_meteo","wave":"open_meteo"},"source_advice":[],"sports":[{"sport":"surf","label":"Surf","icon":"mdi:surfing","score":35.8,"verdict":"marginal","suitable":false,"factors":{"wind":66.4,"gust":100.0,"wave":23.3,"swell":0.0},"reasons":["1kn","flat (0.3m)","short-period swell (3s)"],"completeness":{"direction":"not_configured"},"nudges":["set offshore wind directions for sharper scoring","set swell directions for sharper surf scoring"],"best_score":42.1,"best_in_h":3,"best_verdict":"marginal","data_quality":{"summary":"wind: open_meteo; swell: open_meteo","issues":[],"grid_distance_km":1.3}},{"sport":"kitesurf","label":"Kitesurf","icon":"mdi:kitesurfing","score":45.9,"verdict":"marginal","suitable":false,"factors":{"wind":2.7,"gust":100.0,"wave":100.0},"reasons":["under-powered (1kn)"],"completeness":{"direction":"not_configured"},"nudges":["set offshore wind directions for sharper scoring"],"best_score":57.4,"best_in_h":18,"best_verdict":"good","data_quality":{"summary":"wind: open_meteo; waves: open_meteo","issues":[],"grid_distance_km":1.3}},{"sport":"wingfoil","label":"Wing foil","icon":"mdi:wind-power","score":46.2,"verdict":"marginal","suitable":false,"factors":{"wind":3.2,"gust":100.0,"wave":100.0},"reasons":["under-powered (1kn)"],"completeness":{"direction":"not_configured"},"nudges":["set offshore wind directions for sharper scoring"],"best_score":60.0,"best_in_h":18,"best_verdict":"good","data_quality":{"summary":"wind: open_meteo; waves: open_meteo","issues":[],"grid_distance_km":1.3}},{"sport":"sup","label":"SUP","icon":"mdi:rowing","score":75.3,"verdict":"great","suitable":true,"factors":{"wind":68.0,"gust":100.0,"wave":73.3},"reasons":["1kn"],"completeness":{"direction":"not_configured"},"nudges":["set offshore wind directions for sharper scoring"],"best_score":98.9,"best_in_h":14,"best_verdict":"epic","data_quality":{"summary":"wind: open_meteo; waves: open_meteo","issues":[],"grid_distance_km":1.3}}],"current":{"time":"2026-06-24T00:00:00","wind_kn":0.8,"gust_kn":2.1,"wind_dir":336,"wave_m":0.28,"wave_period_s":3.95,"wave_dir":134,"swell_m":0.28,"swell_period_s":3.0,"swell_peak_period_s":10.15,"swell_dir":129,"wind_wave_m":0.0,"current_kn":0.2,"current_dir":225,"sea_level_m":-0.59,"water_temp_c":19.4,"air_temp_c":24.8,"apparent_temp_c":28.3,"uv":0.0,"visibility_m":21040.0,"weather_code":0}},{"name":"Mudeford","water_type":"sheltered","lat":50.726445,"lon":-1.740603,"grid_distance_km":3.0,"sources":{"water":"open_meteo","wind":"open_meteo","air":"open_meteo","wave":"open_meteo"},"source_advice":[],"sports":[{"sport":"surf","label":"Surf","icon":"mdi:surfing","score":36.9,"verdict":"marginal","suitable":false,"factors":{"wind":71.2,"gust":100.0,"wave":23.3,"swell":0.0},"reasons":["1kn","flat (0.3m)","short-period swell (3s)"],"completeness":{"direction":"not_configured"},"nudges":["set offshore wind directions for sharper scoring","set swell directions for sharper surf scoring"],"best_score":47.8,"best_in_h":19,"best_verdict":"marginal","data_quality":{"summary":"wind: open_meteo; swell: open_meteo","issues":[],"grid_distance_km":3.0}},{"sport":"kitesurf","label":"Kitesurf","icon":"mdi:kitesurfing","score":26.7,"verdict":"poor","suitable":false,"factors":{"wind":4.7,"gust":100.0},"reasons":["under-powered (1kn)"],"completeness":{"direction":"not_configured","wave":"missing_data"},"nudges":["set offshore wind directions for sharper scoring"],"best_score":39.5,"best_in_h":17,"best_verdict":"marginal","data_quality":{"summary":"wind: open_meteo; waves: sheltered: waves suppressed, temp kept","issues":["no wave data"],"grid_distance_km":3.0}},{"sport":"wingfoil","label":"Wing foil","icon":"mdi:wind-power","score":27.4,"verdict":"poor","suitable":false,"factors":{"wind":5.6,"gust":100.0},"reasons":["under-powered (1kn)"],"completeness":{"direction":"not_configured","wave":"missing_data"},"nudges":["set offshore wind directions for sharper scoring"],"best_score":42.8,"best_in_h":17,"best_verdict":"marginal","data_quality":{"summary":"wind: open_meteo; waves: sheltered: waves suppressed, temp kept","issues":["no wave data"],"grid_distance_km":3.0}},{"sport":"sup","label":"SUP","icon":"mdi:rowing","score":81.1,"verdict":"great","suitable":true,"factors":{"wind":74.0,"gust":100.0},"reasons":["1kn"],"completeness":{"direction":"not_configured","wave":"missing_data"},"nudges":["set offshore wind directions for sharper scoring"],"best_score":99.3,"best_in_h":4,"best_verdict":"epic","data_quality":{"summary":"wind: open_meteo; waves: sheltered: waves suppressed, temp kept","issues":["no wave data"],"grid_distance_km":3.0}},{"sport":"wakeboard_inland","label":"Wakeboard (inland)","icon":"mdi:ski-water","score":53.9,"verdict":"marginal","suitable":false,"factors":{"wind":78.7,"gust":100.0,"wave":11.1},"reasons":["1kn","choppy (0.3m)"],"completeness":{"direction":"not_configured"},"nudges":["set offshore wind directions for sharper scoring"],"best_score":94.0,"best_in_h":20,"best_verdict":"epic","data_quality":{"summary":"wind: open_meteo; waves: open_meteo","issues":[],"grid_distance_km":3.0}}],"current":{"time":"2026-06-24T00:00:00","wind_kn":1.4,"gust_kn":3.1,"wind_dir":8,"wave_m":null,"wave_period_s":null,"wave_dir":null,"swell_m":null,"swell_period_s":null,"swell_peak_period_s":10.15,"swell_dir":129,"wind_wave_m":0.0,"current_kn":0.1,"current_dir":270,"sea_level_m":-0.63,"water_temp_c":19.4,"air_temp_c":23.2,"apparent_temp_c":26.1,"uv":0.0,"visibility_m":24380.0,"weather_code":0}},{"name":"Sandbanks","water_type":"sea","lat":50.69711,"lon":-1.932735,"grid_distance_km":8.2,"sources":{"water":"open_meteo","wind":"open_meteo","air":"open_meteo","wave":"open_meteo"},"source_advice":[],"sports":[{"sport":"surf","label":"Surf","icon":"mdi:surfing","score":40.3,"verdict":"marginal","suitable":false,"factors":{"wind":80.0,"gust":100.0,"wave":26.7,"swell":0.0},"reasons":["2kn","flat (0.3m)","short-period swell (3s)"],"completeness":{"direction":"not_configured"},"nudges":["set offshore wind directions for sharper scoring","set swell directions for sharper surf scoring"],"best_score":49.3,"best_in_h":20,"best_verdict":"marginal","data_quality":{"summary":"wind: open_meteo; swell: open_meteo","issues":["grid cell ~8km from spot"],"grid_distance_km":8.2}},{"sport":"kitesurf","label":"Kitesurf","icon":"mdi:kitesurfing","score":49.1,"verdict":"marginal","suitable":false,"factors":{"wind":8.3,"gust":100.0,"wave":100.0},"reasons":["under-powered (2kn)"],"completeness":{"direction":"not_configured"},"nudges":["set offshore wind directions for sharper scoring"],"best_score":55.6,"best_in_h":8,"best_verdict":"good","data_quality":{"summary":"wind: open_meteo; waves: open_meteo","issues":["grid cell ~8km from spot"],"grid_distance_km":8.2}},{"sport":"wingfoil","label":"Wing foil","icon":"mdi:wind-power","score":50.0,"verdict":"marginal","suitable":false,"factors":{"wind":10.0,"gust":100.0,"wave":100.0},"reasons":["under-powered (2kn)"],"completeness":{"direction":"not_configured"},"nudges":["set offshore wind directions for sharper scoring"],"best_score":57.8,"best_in_h":8,"best_verdict":"good","data_quality":{"summary":"wind: open_meteo; waves: open_meteo","issues":["grid cell ~8km from spot"],"grid_distance_km":8.2}},{"sport":"sup","label":"SUP","icon":"mdi:rowing","score":76.8,"verdict":"great","suitable":true,"factors":{"wind":85.0,"gust":100.0,"wave":60.0},"reasons":["2kn"],"completeness":{"direction":"not_configured"},"nudges":["set offshore wind directions for sharper scoring"],"best_score":98.9,"best_in_h":20,"best_verdict":"epic","data_quality":{"summary":"wind: open_meteo; waves: open_meteo","issues":["grid cell ~8km from spot"],"grid_distance_km":8.2}},{"sport":"wakeboard_inland","label":"Wakeboard (inland)","icon":"mdi:ski-water","score":30.0,"verdict":"poor","suitable":false,"factors":{"wind":93.3,"gust":100.0,"wave":0.0},"reasons":["2kn","too choppy (0.3m)"],"completeness":{"direction":"not_configured"},"nudges":["set offshore wind directions for sharper scoring"],"best_score":92.4,"best_in_h":20,"best_verdict":"epic","data_quality":{"summary":"wind: open_meteo; waves: open_meteo","issues":["grid cell ~8km from spot"],"grid_distance_km":8.2}}],"current":{"time":"2026-06-24T00:00:00","wind_kn":2.5,"gust_kn":4.1,"wind_dir":244,"wave_m":0.32,"wave_period_s":4.4,"wave_dir":129,"swell_m":0.28,"swell_period_s":3.0,"swell_peak_period_s":4.3,"swell_dir":118,"wind_wave_m":0.0,"current_kn":0.1,"current_dir":270,"sea_level_m":-0.55,"water_temp_c":19.7,"air_temp_c":22.3,"apparent_temp_c":25.1,"uv":0.0,"visibility_m":23260.0,"weather_code":0}}]}/*__END__*/ markers.
+-->
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Swelligence · Wall panel 720</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
+  integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin="" />
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"
+  integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
+<style>
+:root{
+  /* Marine instrument cluster — a branded kiosk palette (NOT HA theme vars). */
+  --bg:#060a0e; --panel:#0d151d; --panel2:#121d27; --raise:#16232e; --press:#1d2f3c;
+  --line:rgba(150,178,198,.13); --line-2:rgba(150,178,198,.22);
+  --text:#eaf2f6; --muted:#8ba4b3; --dim:#5a7180;
+  --teal:#23d5be; --teal-d:#0f8c7e; --cyan:#39bdf8;
+  --amber:#f6a623; --danger:#ef5e6b;
+  --v-epic:#23d5be; --v-great:#5bd07a; --v-good:#a7d84a; --v-marginal:#f6a623; --v-poor:#6b8190;
+  --r:18px;
+}
+*{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent}
+html,body{height:100%}
+body{
+  font-family:Montserrat,-apple-system,system-ui,sans-serif;
+  background:
+    radial-gradient(1100px 700px at 15% -10%, #0c1a22 0%, transparent 60%),
+    radial-gradient(900px 600px at 110% 120%, #0a1620 0%, transparent 55%),
+    var(--bg);
+  color:var(--text); min-height:100%;
+  display:flex; align-items:center; justify-content:center; padding:24px; gap:24px; flex-wrap:wrap;
+  font-feature-settings:"tnum" 1; -webkit-font-smoothing:antialiased;
+}
+.cap{position:fixed;top:14px;left:0;right:0;text-align:center;font-size:11px;letter-spacing:.18em;
+  text-transform:uppercase;color:var(--dim)}
+
+/* the device */
+.device{
+  width:720px;height:720px;flex:0 0 auto;position:relative;border-radius:26px;overflow:hidden;
+  background:linear-gradient(180deg,var(--panel) 0%,#0a121a 100%);
+  box-shadow:0 0 0 2px #05080b, 0 24px 60px rgba(0,0,0,.6), inset 0 0 0 1px rgba(255,255,255,.03);
+}
+.panel{position:absolute;inset:0;padding:18px;display:grid;grid-template-rows:58px 1fr 96px;gap:14px}
+
+/* ---- header ---- */
+.hdr{display:flex;align-items:center;justify-content:space-between;gap:14px;padding:0 4px}
+.hdr .id{display:flex;align-items:center;gap:12px;min-width:0}
+.hdr .mono{width:42px;height:42px;border-radius:12px;flex:0 0 auto;display:grid;place-items:center;
+  background:radial-gradient(circle at 35% 30%,var(--teal),var(--teal-d));color:#04201c;font-weight:800;font-size:20px;
+  box-shadow:0 4px 14px rgba(35,213,190,.28)}
+.hdr h1{font-size:25px;font-weight:800;letter-spacing:.2px;line-height:1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.hdr .wt{font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.14em;color:var(--muted);margin-top:5px}
+.hdr .wt b{color:var(--teal)}
+.hdr .src{text-align:right;flex:0 0 auto}
+.hdr .src .s1{font-size:12px;font-weight:700;color:var(--text)}
+.hdr .src .s2{font-size:11px;color:var(--dim);margin-top:3px;letter-spacing:.04em}
+
+/* ---- main split ---- */
+.main{display:grid;grid-template-columns:318px 1fr;gap:14px;min-height:0}
+.col{min-height:0;display:flex;flex-direction:column;gap:12px}
+
+/* map + compass hero */
+.map-hero{position:relative;height:262px;border-radius:var(--r);overflow:hidden;
+  background:var(--panel2);border:1px solid var(--line)}
+.map-hero .lmap{position:absolute;inset:0;z-index:0;background:var(--panel2)}
+.map-hero .lmap .leaflet-tile-pane{filter:invert(1) hue-rotate(180deg) brightness(.86) contrast(.95) saturate(.7)}
+.map-hero .leaflet-control-attribution{font-size:8px;opacity:.5;background:transparent;color:var(--dim)}
+.map-hero .leaflet-control-attribution a{color:var(--muted)}
+.map-hero .vign{position:absolute;inset:0;z-index:1;pointer-events:none;
+  box-shadow:inset 0 0 60px 8px rgba(4,8,11,.7)}
+.map-hero .wband{position:absolute;left:0;right:0;bottom:0;z-index:2;pointer-events:none;
+  padding:22px 16px 11px;display:flex;align-items:flex-end;justify-content:space-between;
+  background:linear-gradient(0deg,rgba(4,8,11,.85),transparent)}
+.map-hero .wband .wfrom{font-size:12px;font-weight:700;letter-spacing:.12em;text-transform:uppercase;color:var(--text)}
+.map-hero .wband .wfrom span{color:var(--teal)}
+.map-hero .wband .wxy{font-size:10.5px;color:var(--muted);font-variant-numeric:tabular-nums}
+
+/* wind compass (Leaflet divIcon) — needle points the way wind BLOWS (flow) */
+.compass{filter:drop-shadow(0 3px 6px rgba(0,0,0,.8))}
+.compass .ring{fill:rgba(8,14,19,.52);stroke:var(--line-2);stroke-width:1.6}
+.compass .ring2{fill:none;stroke:rgba(35,213,190,.30);stroke-width:1.2;stroke-dasharray:2 5}
+.compass .tick{fill:var(--muted);font:700 12px Montserrat,sans-serif;text-anchor:middle}
+.compass .tickN{fill:var(--teal)}
+.compass .needle{fill:var(--teal);stroke:#06201d;stroke-width:1.2;stroke-linejoin:round}
+.compass .tail{fill:rgba(35,213,190,.30)}
+.compass .hub{fill:rgba(7,12,17,.92);stroke:var(--line-2);stroke-width:1.5}
+.compass .spd{fill:var(--text);font:800 34px Montserrat,sans-serif;text-anchor:middle;font-variant-numeric:tabular-nums}
+.compass .unit{fill:var(--muted);font:700 12px Montserrat,sans-serif;text-anchor:middle;letter-spacing:.1em}
+.compass .gust{fill:var(--amber);font:700 13px Montserrat,sans-serif;text-anchor:middle}
+.compass.calm .needle,.compass.calm .tail{display:none}
+.compass .calm-dot{display:none}.compass.calm .calm-dot{display:block;fill:var(--muted)}
+.compass.calm .spd{font-size:22px}
+
+/* now-cluster (instrument tiles) */
+.cluster{display:grid;grid-template-columns:1fr 1fr;grid-auto-rows:1fr;gap:10px;flex:1;min-height:0}
+.tile{background:var(--panel2);border:1px solid var(--line);border-radius:14px;padding:11px 13px;
+  display:flex;flex-direction:column;justify-content:center;position:relative;overflow:hidden}
+.tile::before{content:"";position:absolute;left:0;top:0;bottom:0;width:3px;background:var(--teal);opacity:.55}
+.tile.amber::before{background:var(--amber)}
+.tile .k{font-size:10.5px;font-weight:700;text-transform:uppercase;letter-spacing:.13em;color:var(--muted)}
+.tile .v{font-size:27px;font-weight:800;line-height:1.05;margin-top:3px;font-variant-numeric:tabular-nums}
+.tile .v small{font-size:13px;font-weight:600;color:var(--muted)}
+.tile .sub{font-size:10.5px;color:var(--dim);margin-top:2px}
+
+/* ---- sports column ---- */
+.sportwrap{display:flex;flex-direction:column;gap:10px;min-height:0}
+.sec{font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.16em;color:var(--muted);
+  display:flex;align-items:center;gap:10px;padding:0 2px}
+.sec .rule{flex:1;height:1px;background:var(--line)}
+
+/* selected sport — the big readout */
+.sel{background:linear-gradient(180deg,var(--raise),var(--panel2));border:1px solid var(--line-2);
+  border-radius:18px;padding:15px 16px}
+.sel .top{display:flex;align-items:center;gap:15px}
+.gauge{position:relative;width:92px;height:92px;flex:0 0 auto}
+.gauge svg{width:92px;height:92px;transform:rotate(-90deg)}
+.gauge .gt{fill:none;stroke:rgba(150,178,198,.16);stroke-width:8}
+.gauge .ga{fill:none;stroke-width:8;stroke-linecap:round}
+.gauge .gn{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center}
+.gauge .gn b{font-size:30px;font-weight:800;line-height:1;font-variant-numeric:tabular-nums}
+.gauge .gn i{font-size:9px;font-style:normal;text-transform:uppercase;letter-spacing:.12em;color:var(--muted);margin-top:2px}
+.sel .nm{font-size:22px;font-weight:800;letter-spacing:.2px}
+.sel .vd{font-size:13px;font-weight:700;text-transform:uppercase;letter-spacing:.1em;margin-top:3px}
+.sel .best{margin-left:auto;text-align:right;font-size:11px;color:var(--muted);line-height:1.5}
+.sel .best b{color:var(--text);font-size:14px}
+.facs{margin-top:13px;display:grid;gap:7px}
+.fac{display:grid;grid-template-columns:74px 1fr 34px;align-items:center;gap:10px;font-size:11px}
+.fac .fl{color:var(--muted);text-transform:capitalize;font-weight:600}
+.fac .fb{height:7px;border-radius:4px;background:rgba(150,178,198,.14);overflow:hidden}
+.fac .fb i{display:block;height:100%;border-radius:4px;background:linear-gradient(90deg,var(--teal-d),var(--teal))}
+.fac .fn{text-align:right;color:var(--muted);font-weight:700;font-variant-numeric:tabular-nums}
+.chips{display:flex;flex-wrap:wrap;gap:6px;margin-top:11px}
+.chips .rsn{font-size:11px;color:var(--muted);background:rgba(8,14,19,.6);border:1px solid var(--line);
+  border-radius:8px;padding:3px 9px}
+.chips .flag{font-size:11px;font-weight:600;border-radius:8px;padding:3px 9px;border:1px solid}
+.chips .flag.nc{color:var(--amber);border-color:rgba(246,166,35,.45)}
+.chips .flag.md{color:var(--v-poor);border-color:rgba(107,129,144,.5)}
+
+/* compact sport rows (touch targets) */
+.rows{display:flex;flex-direction:column;gap:9px;overflow:hidden}
+.row{display:flex;align-items:center;gap:13px;min-height:64px;padding:9px 14px;cursor:pointer;
+  background:var(--panel2);border:1px solid var(--line);border-radius:14px;transition:background .12s,border-color .12s}
+.row:active{background:var(--press)}
+.row.on{border-color:var(--line-2)}
+.minir{position:relative;width:44px;height:44px;flex:0 0 auto}
+.minir svg{width:44px;height:44px;transform:rotate(-90deg)}
+.minir .mt{fill:none;stroke:rgba(150,178,198,.16);stroke-width:5}
+.minir .ma{fill:none;stroke-width:5;stroke-linecap:round}
+.minir b{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;font-size:15px;font-weight:800;font-variant-numeric:tabular-nums}
+.row .rl{flex:1;min-width:0}
+.row .rl .rn{font-size:16px;font-weight:700}
+.row .rl .rv{font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.08em;margin-top:2px}
+.row .ra{text-align:right;font-size:10.5px;color:var(--dim);line-height:1.45}
+.row .ra b{color:var(--muted);font-size:13px;font-weight:700}
+
+/* ---- bottom spot tabs (big touch) ---- */
+.tabs{display:grid;grid-template-columns:repeat(3,1fr);gap:14px}
+.tab{cursor:pointer;border-radius:18px;padding:13px 16px;display:flex;flex-direction:column;justify-content:center;gap:4px;
+  background:var(--panel2);border:1px solid var(--line);transition:background .12s,border-color .12s,box-shadow .12s}
+.tab:active{background:var(--press)}
+.tab.on{border-color:var(--teal);background:linear-gradient(180deg,rgba(35,213,190,.12),var(--panel2));
+  box-shadow:0 0 0 1px rgba(35,213,190,.35),0 8px 22px rgba(35,213,190,.12)}
+.tab .tn{font-size:18px;font-weight:800;letter-spacing:.2px;display:flex;align-items:center;gap:8px}
+.tab .tdot{width:9px;height:9px;border-radius:50%;background:var(--muted)}
+.tab.on .tdot{background:var(--teal);box-shadow:0 0 8px var(--teal)}
+.tab .tw{font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.12em;color:var(--muted);
+  display:flex;justify-content:space-between;align-items:baseline;gap:8px}
+.tab .tw b{font-size:15px;font-weight:800;color:var(--text);font-variant-numeric:tabular-nums}
+@media (prefers-reduced-motion:reduce){*{transition:none!important}}
+</style>
+</head>
+<body>
+<div class="cap">720 × 720 · LVGL wall panel · touch</div>
+<div class="device"><div class="panel" id="panel"></div></div>
+
+<script>
+const DATA = /*__DATA__*/{"source":"open_meteo","confidence_dormant":true,"spots":[{"name":"Southbourne","water_type":"sea","lat":50.718,"lon":-1.7825,"grid_distance_km":1.3,"sources":{"water":"open_meteo","wind":"open_meteo","air":"open_meteo","wave":"open_meteo"},"source_advice":[],"sports":[{"sport":"surf","label":"Surf","icon":"mdi:surfing","score":35.8,"verdict":"marginal","suitable":false,"factors":{"wind":66.4,"gust":100.0,"wave":23.3,"swell":0.0},"reasons":["1kn","flat (0.3m)","short-period swell (3s)"],"completeness":{"direction":"not_configured"},"nudges":["set offshore wind directions for sharper scoring","set swell directions for sharper surf scoring"],"best_score":42.1,"best_in_h":3,"best_verdict":"marginal","data_quality":{"summary":"wind: open_meteo; swell: open_meteo","issues":[],"grid_distance_km":1.3}},{"sport":"kitesurf","label":"Kitesurf","icon":"mdi:kitesurfing","score":45.9,"verdict":"marginal","suitable":false,"factors":{"wind":2.7,"gust":100.0,"wave":100.0},"reasons":["under-powered (1kn)"],"completeness":{"direction":"not_configured"},"nudges":["set offshore wind directions for sharper scoring"],"best_score":57.4,"best_in_h":18,"best_verdict":"good","data_quality":{"summary":"wind: open_meteo; waves: open_meteo","issues":[],"grid_distance_km":1.3}},{"sport":"wingfoil","label":"Wing foil","icon":"mdi:wind-power","score":46.2,"verdict":"marginal","suitable":false,"factors":{"wind":3.2,"gust":100.0,"wave":100.0},"reasons":["under-powered (1kn)"],"completeness":{"direction":"not_configured"},"nudges":["set offshore wind directions for sharper scoring"],"best_score":60.0,"best_in_h":18,"best_verdict":"good","data_quality":{"summary":"wind: open_meteo; waves: open_meteo","issues":[],"grid_distance_km":1.3}},{"sport":"sup","label":"SUP","icon":"mdi:rowing","score":75.3,"verdict":"great","suitable":true,"factors":{"wind":68.0,"gust":100.0,"wave":73.3},"reasons":["1kn"],"completeness":{"direction":"not_configured"},"nudges":["set offshore wind directions for sharper scoring"],"best_score":98.9,"best_in_h":14,"best_verdict":"epic","data_quality":{"summary":"wind: open_meteo; waves: open_meteo","issues":[],"grid_distance_km":1.3}}],"current":{"time":"2026-06-24T00:00:00","wind_kn":0.8,"gust_kn":2.1,"wind_dir":336,"wave_m":0.28,"wave_period_s":3.95,"wave_dir":134,"swell_m":0.28,"swell_period_s":3.0,"swell_peak_period_s":10.15,"swell_dir":129,"wind_wave_m":0.0,"current_kn":0.2,"current_dir":225,"sea_level_m":-0.59,"water_temp_c":19.4,"air_temp_c":24.8,"apparent_temp_c":28.3,"uv":0.0,"visibility_m":21040.0,"weather_code":0}},{"name":"Mudeford","water_type":"sheltered","lat":50.726445,"lon":-1.740603,"grid_distance_km":3.0,"sources":{"water":"open_meteo","wind":"open_meteo","air":"open_meteo","wave":"open_meteo"},"source_advice":[],"sports":[{"sport":"surf","label":"Surf","icon":"mdi:surfing","score":36.9,"verdict":"marginal","suitable":false,"factors":{"wind":71.2,"gust":100.0,"wave":23.3,"swell":0.0},"reasons":["1kn","flat (0.3m)","short-period swell (3s)"],"completeness":{"direction":"not_configured"},"nudges":["set offshore wind directions for sharper scoring","set swell directions for sharper surf scoring"],"best_score":47.8,"best_in_h":19,"best_verdict":"marginal","data_quality":{"summary":"wind: open_meteo; swell: open_meteo","issues":[],"grid_distance_km":3.0}},{"sport":"kitesurf","label":"Kitesurf","icon":"mdi:kitesurfing","score":26.7,"verdict":"poor","suitable":false,"factors":{"wind":4.7,"gust":100.0},"reasons":["under-powered (1kn)"],"completeness":{"direction":"not_configured","wave":"missing_data"},"nudges":["set offshore wind directions for sharper scoring"],"best_score":39.5,"best_in_h":17,"best_verdict":"marginal","data_quality":{"summary":"wind: open_meteo; waves: sheltered: waves suppressed, temp kept","issues":["no wave data"],"grid_distance_km":3.0}},{"sport":"wingfoil","label":"Wing foil","icon":"mdi:wind-power","score":27.4,"verdict":"poor","suitable":false,"factors":{"wind":5.6,"gust":100.0},"reasons":["under-powered (1kn)"],"completeness":{"direction":"not_configured","wave":"missing_data"},"nudges":["set offshore wind directions for sharper scoring"],"best_score":42.8,"best_in_h":17,"best_verdict":"marginal","data_quality":{"summary":"wind: open_meteo; waves: sheltered: waves suppressed, temp kept","issues":["no wave data"],"grid_distance_km":3.0}},{"sport":"sup","label":"SUP","icon":"mdi:rowing","score":81.1,"verdict":"great","suitable":true,"factors":{"wind":74.0,"gust":100.0},"reasons":["1kn"],"completeness":{"direction":"not_configured","wave":"missing_data"},"nudges":["set offshore wind directions for sharper scoring"],"best_score":99.3,"best_in_h":4,"best_verdict":"epic","data_quality":{"summary":"wind: open_meteo; waves: sheltered: waves suppressed, temp kept","issues":["no wave data"],"grid_distance_km":3.0}},{"sport":"wakeboard_inland","label":"Wakeboard (inland)","icon":"mdi:ski-water","score":53.9,"verdict":"marginal","suitable":false,"factors":{"wind":78.7,"gust":100.0,"wave":11.1},"reasons":["1kn","choppy (0.3m)"],"completeness":{"direction":"not_configured"},"nudges":["set offshore wind directions for sharper scoring"],"best_score":94.0,"best_in_h":20,"best_verdict":"epic","data_quality":{"summary":"wind: open_meteo; waves: open_meteo","issues":[],"grid_distance_km":3.0}}],"current":{"time":"2026-06-24T00:00:00","wind_kn":1.4,"gust_kn":3.1,"wind_dir":8,"wave_m":null,"wave_period_s":null,"wave_dir":null,"swell_m":null,"swell_period_s":null,"swell_peak_period_s":10.15,"swell_dir":129,"wind_wave_m":0.0,"current_kn":0.1,"current_dir":270,"sea_level_m":-0.63,"water_temp_c":19.4,"air_temp_c":23.2,"apparent_temp_c":26.1,"uv":0.0,"visibility_m":24380.0,"weather_code":0}},{"name":"Sandbanks","water_type":"sea","lat":50.69711,"lon":-1.932735,"grid_distance_km":8.2,"sources":{"water":"open_meteo","wind":"open_meteo","air":"open_meteo","wave":"open_meteo"},"source_advice":[],"sports":[{"sport":"surf","label":"Surf","icon":"mdi:surfing","score":40.3,"verdict":"marginal","suitable":false,"factors":{"wind":80.0,"gust":100.0,"wave":26.7,"swell":0.0},"reasons":["2kn","flat (0.3m)","short-period swell (3s)"],"completeness":{"direction":"not_configured"},"nudges":["set offshore wind directions for sharper scoring","set swell directions for sharper surf scoring"],"best_score":49.3,"best_in_h":20,"best_verdict":"marginal","data_quality":{"summary":"wind: open_meteo; swell: open_meteo","issues":["grid cell ~8km from spot"],"grid_distance_km":8.2}},{"sport":"kitesurf","label":"Kitesurf","icon":"mdi:kitesurfing","score":49.1,"verdict":"marginal","suitable":false,"factors":{"wind":8.3,"gust":100.0,"wave":100.0},"reasons":["under-powered (2kn)"],"completeness":{"direction":"not_configured"},"nudges":["set offshore wind directions for sharper scoring"],"best_score":55.6,"best_in_h":8,"best_verdict":"good","data_quality":{"summary":"wind: open_meteo; waves: open_meteo","issues":["grid cell ~8km from spot"],"grid_distance_km":8.2}},{"sport":"wingfoil","label":"Wing foil","icon":"mdi:wind-power","score":50.0,"verdict":"marginal","suitable":false,"factors":{"wind":10.0,"gust":100.0,"wave":100.0},"reasons":["under-powered (2kn)"],"completeness":{"direction":"not_configured"},"nudges":["set offshore wind directions for sharper scoring"],"best_score":57.8,"best_in_h":8,"best_verdict":"good","data_quality":{"summary":"wind: open_meteo; waves: open_meteo","issues":["grid cell ~8km from spot"],"grid_distance_km":8.2}},{"sport":"sup","label":"SUP","icon":"mdi:rowing","score":76.8,"verdict":"great","suitable":true,"factors":{"wind":85.0,"gust":100.0,"wave":60.0},"reasons":["2kn"],"completeness":{"direction":"not_configured"},"nudges":["set offshore wind directions for sharper scoring"],"best_score":98.9,"best_in_h":20,"best_verdict":"epic","data_quality":{"summary":"wind: open_meteo; waves: open_meteo","issues":["grid cell ~8km from spot"],"grid_distance_km":8.2}},{"sport":"wakeboard_inland","label":"Wakeboard (inland)","icon":"mdi:ski-water","score":30.0,"verdict":"poor","suitable":false,"factors":{"wind":93.3,"gust":100.0,"wave":0.0},"reasons":["2kn","too choppy (0.3m)"],"completeness":{"direction":"not_configured"},"nudges":["set offshore wind directions for sharper scoring"],"best_score":92.4,"best_in_h":20,"best_verdict":"epic","data_quality":{"summary":"wind: open_meteo; waves: open_meteo","issues":["grid cell ~8km from spot"],"grid_distance_km":8.2}}],"current":{"time":"2026-06-24T00:00:00","wind_kn":2.5,"gust_kn":4.1,"wind_dir":244,"wave_m":0.32,"wave_period_s":4.4,"wave_dir":129,"swell_m":0.28,"swell_period_s":3.0,"swell_peak_period_s":4.3,"swell_dir":118,"wind_wave_m":0.0,"current_kn":0.1,"current_dir":270,"sea_level_m":-0.55,"water_temp_c":19.7,"air_temp_c":22.3,"apparent_temp_c":25.1,"uv":0.0,"visibility_m":23260.0,"weather_code":0}}]}/*__END__*/;
+
+const VERDICT_C={epic:'var(--v-epic)',great:'var(--v-great)',good:'var(--v-good)',marginal:'var(--v-marginal)',poor:'var(--v-poor)'};
+const COMPASS=['N','NNE','NE','ENE','E','ESE','SE','SSE','S','SSW','SW','WSW','W','WNW','NW','NNW'];
+const WMO={0:'Clear',1:'Mainly clear',2:'Partly cloudy',3:'Overcast',45:'Fog',48:'Rime fog',51:'Drizzle',61:'Light rain',63:'Rain',65:'Heavy rain',80:'Showers',95:'Storm'};
+let aSpot=0, aSport=0;
+
+const fmt=(n,d=1)=> n==null?'—':(Math.round(n*10**d)/10**d).toString();
+const card=d=> d==null?null:COMPASS[Math.round(((d%360)/22.5))%16];
+
+// Wind compass for the map marker. Meteorological wind_dir = bearing wind blows
+// FROM; needle drawn pointing the way it blows TOWARD (flow). LVGL: lv_arc ring
+// + lv_canvas needle + lv_label hub.
+function compass(dir,kn,gust){
+  const calm = kn==null||dir==null;
+  const flow = dir==null?0:(dir+180)%360;
+  const op = calm?0:Math.max(.55,Math.min(1,kn/14));
+  return `<svg class="compass ${calm?'calm':''}" viewBox="0 0 200 200" width="200" height="200">
+    <circle class="ring" cx="100" cy="100" r="80"/>
+    <circle class="ring2" cx="100" cy="100" r="71"/>
+    <text class="tick tickN" x="100" y="26">N</text><text class="tick" x="100" y="182">S</text>
+    <text class="tick" x="180" y="105">E</text><text class="tick" x="20" y="105">W</text>
+    <g transform="rotate(${flow} 100 100)" style="opacity:${op}">
+      <polygon class="tail" points="100,118 108,150 100,140 92,150"/>
+      <polygon class="needle" points="100,26 111,116 100,102 89,116"/>
+    </g>
+    <circle class="hub" cx="100" cy="100" r="40"/>
+    <circle class="calm-dot" cx="100" cy="100" r="6"/>
+    ${calm
+      ? `<text class="spd" x="100" y="107">Calm</text>`
+      : `<text class="spd" x="100" y="97">${fmt(kn)}</text>
+         <text class="unit" x="100" y="113">KN</text>
+         ${gust!=null?`<text class="gust" x="100" y="132">G ${fmt(gust)}</text>`:''}`}
+  </svg>`;
+}
+
+function ring(score,col,big){
+  const r=big?42:19, circ=2*Math.PI*r, off=circ*(1-(score||0)/100), s=big?92:44;
+  const cls=big?'':'mt', cla=big?'':'ma';
+  return `<svg viewBox="0 0 ${s} ${s}"><circle class="${big?'gt':'mt'}" cx="${s/2}" cy="${s/2}" r="${r}"/>`+
+    `<circle class="${big?'ga':'ma'}" cx="${s/2}" cy="${s/2}" r="${r}" stroke="${col}" stroke-dasharray="${circ}" stroke-dashoffset="${off}"/></svg>`;
+}
+
+function selSport(sp){
+  const col=VERDICT_C[sp.verdict]||'var(--v-good)';
+  const facOrder=['wind','gust','direction','wave','swell','temp','tide','kit'];
+  const facs=facOrder.filter(f=>sp.factors[f]!=null).map(f=>
+    `<div class="fac"><span class="fl">${f}</span><span class="fb"><i style="width:${sp.factors[f]}%"></i></span><span class="fn">${Math.round(sp.factors[f])}</span></div>`).join('');
+  const flags=Object.entries(sp.completeness||{}).map(([k,st])=>
+    st==='not_configured'?`<span class="flag nc">⚑ ${k}: not set</span>`:`<span class="flag md">⊘ ${k}: no data</span>`).join('');
+  const rsn=(sp.reasons||[]).slice(0,3).map(x=>`<span class="rsn">${x}</span>`).join('');
+  const best=sp.best_in_h!=null?`best <b>+${sp.best_in_h}h</b><br>${Math.round(sp.best_score)} · ${sp.best_verdict}`:'';
+  return `<div class="sel">
+    <div class="top">
+      <div class="gauge">${ring(sp.score,col,true)}<div class="gn"><b style="color:${col}">${sp.score==null?'—':Math.round(sp.score)}</b><i>score</i></div></div>
+      <div><div class="nm">${sp.label}</div><div class="vd" style="color:${col}">${sp.verdict||'—'}</div></div>
+      <div class="best">${best}</div>
+    </div>
+    <div class="facs">${facs}</div>
+    ${rsn||flags?`<div class="chips">${rsn}${flags}</div>`:''}
+  </div>`;
+}
+
+function compactRow(sp,i){
+  const col=VERDICT_C[sp.verdict]||'var(--v-good)';
+  const best=sp.best_in_h!=null?`<b>+${sp.best_in_h}h</b><br>${Math.round(sp.best_score)}`:'';
+  return `<div class="row ${i===aSport?'on':''}" onclick="aSport=${i};render()">
+    <div class="minir">${ring(sp.score,col,false)}<b style="color:${col}">${sp.score==null?'—':Math.round(sp.score)}</b></div>
+    <div class="rl"><div class="rn">${sp.label}</div><div class="rv" style="color:${col}">${sp.verdict||'—'}</div></div>
+    <div class="ra">${best}</div>
+  </div>`;
+}
+
+function tiles(c){
+  const t=[];
+  t.push(`<div class="tile amber"><div class="k">Gust</div><div class="v">${fmt(c.gust_kn)}<small> kn</small></div><div class="sub">peak gust now</div></div>`);
+  if(c.wave_m!=null) t.push(`<div class="tile"><div class="k">Wave</div><div class="v">${fmt(c.wave_m)}<small> m</small></div><div class="sub">${c.wave_period_s!=null?'period '+fmt(c.wave_period_s)+'s':'sig. height'}</div></div>`);
+  else if(c.wind_wave_m!=null) t.push(`<div class="tile"><div class="k">Wind-wave</div><div class="v">${fmt(c.wind_wave_m)}<small> m</small></div><div class="sub">local wind-sea</div></div>`);
+  else t.push(`<div class="tile"><div class="k">Wave</div><div class="v">—</div><div class="sub">no data</div></div>`);
+  if(c.swell_m!=null) t.push(`<div class="tile"><div class="k">Swell</div><div class="v">${fmt(c.swell_m)}<small> m</small></div><div class="sub">${c.swell_period_s!=null?fmt(c.swell_period_s)+'s'+(c.swell_dir!=null?' · '+card(c.swell_dir):''):'period —'}</div></div>`);
+  else t.push(`<div class="tile"><div class="k">Swell</div><div class="v">—</div><div class="sub">no data</div></div>`);
+  if(c.sea_level_m!=null) t.push(`<div class="tile"><div class="k">Sea level</div><div class="v">${fmt(c.sea_level_m,2)}<small> m</small></div><div class="sub">tidal · model datum</div></div>`);
+  else if(c.water_temp_c!=null) t.push(`<div class="tile"><div class="k">Water</div><div class="v">${fmt(c.water_temp_c)}<small> °C</small></div><div class="sub">${c.air_temp_c!=null?'air '+fmt(c.air_temp_c)+'°C':''}</div></div>`);
+  else t.push(`<div class="tile"><div class="k">Sky</div><div class="v" style="font-size:18px">${c.weather_code!=null?(WMO[c.weather_code]||'—'):'—'}</div><div class="sub">${c.uv!=null?'UV '+fmt(c.uv,0):''}</div></div>`);
+  return t.slice(0,4).join('');
+}
+
+function render(){
+  const s=DATA.spots[aSpot];
+  if(aSport>=s.sports.length) aSport=0;
+  const c=s.current;
+  const wc=card(c.wind_dir);
+  const stamp=(c.time||'').replace('T',' ').slice(11,16);
+  const rest=s.sports.map((sp,i)=>i===aSport?'':compactRow(sp,i)).filter(Boolean).join('');
+
+  document.getElementById('panel').innerHTML=`
+    <div class="hdr">
+      <div class="id">
+        <div class="mono">S</div>
+        <div><h1>${s.name}</h1><div class="wt"><b>${s.water_type}</b> · ${s.lat.toFixed(3)}, ${s.lon.toFixed(3)}</div></div>
+      </div>
+      <div class="src"><div class="s1">Open-Meteo</div><div class="s2">${stamp?stamp+' · single source':'single source'}</div></div>
+    </div>
+
+    <div class="main">
+      <div class="col">
+        <div class="map-hero">
+          <div class="lmap" id="lmap"></div>
+          <div class="vign"></div>
+          <div class="wband">
+            <div class="wfrom">${wc?`Wind from <span>${wc}</span>`:'Calm'}</div>
+            <div class="wxy">${c.wind_kn!=null?fmt(c.wind_kn)+' kn':''}${c.gust_kn!=null?' · gust '+fmt(c.gust_kn):''}</div>
+          </div>
+        </div>
+        <div class="cluster">${tiles(c)}</div>
+      </div>
+
+      <div class="col sportwrap">
+        <div class="sec">Sessions${`<span class="rule"></span>`}${s.sports.length} sports</div>
+        ${selSport(s.sports[aSport])}
+        <div class="rows">${rest}</div>
+      </div>
+    </div>
+
+    <div class="tabs">
+      ${DATA.spots.map((sp,i)=>{
+        const top=Math.max(...sp.sports.map(x=>x.score||0));
+        return `<div class="tab ${i===aSpot?'on':''}" onclick="aSpot=${i};aSport=0;render()">
+          <div class="tn"><span class="tdot"></span>${sp.name}</div>
+          <div class="tw"><span>${sp.water_type}</span><b>${Math.round(top)}</b></div>
+        </div>`;}).join('')}
+    </div>`;
+
+  initMap(s,c);
+}
+
+function initMap(s,c){
+  const el=document.getElementById('lmap');
+  if(!el||!window.L||s.lat==null||s.lon==null) return;
+  if(window._lmap){window._lmap.remove();window._lmap=null;}
+  const map=L.map(el,{zoomControl:false,attributionControl:true,dragging:false,scrollWheelZoom:false,
+    doubleClickZoom:false,boxZoom:false,keyboard:false,touchZoom:false,tap:false}).setView([s.lat,s.lon],13);
+  L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',{maxZoom:19,attribution:'© OpenStreetMap'}).addTo(map);
+  const icon=L.divIcon({className:'',html:compass(c.wind_dir,c.wind_kn,c.gust_kn),iconSize:[200,200],iconAnchor:[100,100]});
+  L.marker([s.lat,s.lon],{icon,interactive:false,keyboard:false}).addTo(map);
+  window._lmap=map;
+  setTimeout(()=>map.invalidateSize(),0);
+}
+render();
+</script>
+</body>
+</html>

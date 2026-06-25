@@ -17,7 +17,11 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
 SAMPLE = ROOT / "mockups" / "research" / "sample"
-MOCKUP = ROOT / "mockups" / "spot-detail.html"
+# Every mockup that embeds the shared DATA blob between the /*__DATA__*/ markers.
+MOCKUPS = [
+    ROOT / "mockups" / "spot-detail.html",
+    ROOT / "mockups" / "wall-panel-720.html",
+]
 
 # Spot order + identity (matches the configured HA spots).
 SPOTS = [
@@ -127,15 +131,18 @@ def main() -> int:
     data = build()
     blob = json.dumps(data, separators=(",", ":"))
     if "--inject" in sys.argv:
-        html = MOCKUP.read_text()
-        new = re.sub(
-            r"/\*__DATA__\*/.*?/\*__END__\*/",
-            f"/*__DATA__*/{blob}/*__END__*/",
-            html,
-            flags=re.S,
-        )
-        MOCKUP.write_text(new)
-        print(f"injected {len(blob)} bytes into {MOCKUP.relative_to(ROOT)}")
+        for mockup in MOCKUPS:
+            if not mockup.exists():
+                continue
+            html = mockup.read_text()
+            new = re.sub(
+                r"/\*__DATA__\*/.*?/\*__END__\*/",
+                f"/*__DATA__*/{blob}/*__END__*/",
+                html,
+                flags=re.S,
+            )
+            mockup.write_text(new)
+            print(f"injected {len(blob)} bytes into {mockup.relative_to(ROOT)}")
     else:
         print(blob)
     return 0
