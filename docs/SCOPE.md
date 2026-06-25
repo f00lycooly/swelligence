@@ -140,7 +140,7 @@ one profile + quiver in config — so there's no per-rider entity multiplication
   geocoding API) with a disambiguation step when several places match; raw
   coordinates remain as a fallback. Plus an **edit-spot** step to add/remove a
   spot's sports and change its water type after creation.
-- **M3 — Custom Lovelace card** *(done)*: `www/swelligence-card.js` — one theme-
+- **M3 — Custom Lovelace card** *(done)*: `custom_components/swelligence/frontend/swelligence-card.js` — one theme-
   aware element, four `mode`s: **podium** (day's preference-ranked top-3),
   **timeline** (per-spot opportunity windows, 7d), **heatgrid** (spot×sport now),
   **medallions** (per-spot rings now). NOW modes read sensor states; forecast

@@ -119,11 +119,13 @@ Both are budget-throttled by the same free-tier interval as polling.
 
 ## Lovelace card
 
-`www/swelligence-card.js` is a dependency-free, theme-aware custom card with four
+The integration **bundles** a dependency-free, theme-aware custom card
+(`custom_components/swelligence/frontend/swelligence-card.js`) with five
 **modes**, each built around the bespoke sport icon set:
 
 | `mode` | Shows | Data |
 | --- | --- | --- |
+| `spot` | single-spot **now/week detail** — wind, tide, next-24h outlook, weekly best-day | `get_spot_detail` |
 | `podium` *(default)* | each day's **top-3** opportunities (preference-ranked) | `get_overview` |
 | `timeline` | per-spot **opportunity timeline** — only go-worthy windows over 7 days | `get_overview` |
 | `heatgrid` | spot × sport **suitability now** (verdict colour + rig size) | live sensor states |
@@ -137,15 +139,16 @@ A **visual editor** is supported — add the card from the dashboard's card pick
 ("Swelligence Card", with live preview) and configure mode/title/filters in the
 UI; no YAML needed. The YAML below is equivalent.
 
-Install:
-
-1. Copy `www/swelligence-card.js` to your HA `config/www/`.
-2. Add a Lovelace resource: URL `/local/swelligence-card.js`, type **JavaScript module**.
-3. Add cards (visual editor, or YAML):
+Install — **nothing to do**: the card ships with the integration. On setup it
+registers itself as a frontend module (served from `/swelligence_frontend/
+swelligence-card.js`, auto-versioned per release to bust the browser cache), so
+there is **no file to copy and no Lovelace resource to add**. Just add cards
+(visual editor — "Swelligence Card", with live preview — or YAML):
 
    ```yaml
    type: custom:swelligence-card
-   mode: podium          # podium | timeline | heatgrid | medallions
+   mode: spot            # spot | podium | timeline | heatgrid | medallions
+   spot: Southbourne     # required for spot mode
    title: Conditions
    # optional:
    # days: 4             # forecast modes: how many days to show (1-7)
