@@ -38,6 +38,52 @@ def _sport_key(entity_id: str, slug: str) -> str:
     return tail.rsplit("_suitability", 1)[0].replace("wing_foil", "wingfoil")
 
 
+# Verdict → compact code for the hourly timeline (keeps DATA small).
+_VCODE = {"poor": 0, "marginal": 1, "good": 2, "great": 3, "epic": 4}
+
+
+def _derive_tide(hours: list, levels: list) -> dict | None:
+    """Tide state from the modelled sea-level trajectory (Open-Meteo sea_level_m).
+    Honest: this is the MODELLED tidal datum, not a station tide table — labelled
+    as such in the UI. Real overlay (UKHO/NOAA) supplies true high/low events.
+    'now' is hours[0] (the series starts at the captured time)."""
+    valid = [l for l in levels if l is not None]
+    if len(valid) < 3:
+        return None
+    now_l = levels[0]
+    # Tides move slowly — judge the slope over the next ~3h, not one noisy hour.
+    fut = [l for l in levels[1:4] if l is not None]
+    ahead = sum(fut) / len(fut) if fut else now_l
+    if ahead > now_l + 0.02:
+        state, want = "rising", "high"
+    elif ahead < now_l - 0.02:
+        state, want = "falling", "low"
+    else:
+        state, want = "slack", None
+    nxt = None
+    for i in range(1, len(levels) - 1):
+        a, b, c = levels[i - 1], levels[i], levels[i + 1]
+        if None in (a, b, c):
+            continue
+        is_max, is_min = b >= a and b >= c, b <= a and b <= c
+        if (want == "high" and is_max) or (want == "low" and is_min):
+            nxt = (want, i, b)
+            break
+        if want is None and (is_max or is_min):
+            nxt = ("high" if is_max else "low", i, b)
+            break
+    tide = {
+        "now": round(now_l, 2),
+        "state": state,
+        "min": round(min(valid), 2),
+        "max": round(max(valid), 2),
+        "levels": [round(l, 2) if l is not None else None for l in levels],
+    }
+    if nxt:
+        tide["next"] = {"type": nxt[0], "time": hours[nxt[1]], "in_h": nxt[1], "level": round(nxt[2], 2)}
+    return tide
+
+
 def build() -> dict:
     spots = []
     for name, slug in SPOTS:
@@ -45,6 +91,24 @@ def build() -> dict:
         fc = json.loads((SAMPLE / f"{slug}-forecast.json").read_text())
         meta = fc["spot"]
         nr = fc["now_raw"]
+
+        # Hourly forecast series → the time story (now / next hours / today).
+        # Environmental series (time, sea level) is spot-level; take it from any
+        # sport's series. Per-sport score series feeds the suitability timeline.
+        fseries = fc.get("forecast", {})
+        env = next((v for v in fseries.values() if isinstance(v, list) and v), [])
+        hours = [p["datetime"][11:16] for p in env]
+        now_time = (nr.get("time") or (env[0]["datetime"] if env else "")).replace("T", " ")[11:16]
+        tide = _derive_tide(hours, [p.get("sea_level_m") for p in env]) if env else None
+        # Compact per-sport hourly [score, vcode] for the timeline.
+        series_by_sport = {}
+        for sk, pts in fseries.items():
+            if isinstance(pts, list):
+                series_by_sport[sk] = [
+                    [round(p["score"]) if p.get("score") is not None else None,
+                     _VCODE.get(p.get("verdict"), 1)]
+                    for p in pts
+                ]
 
         # Per-sport from the authoritative recorder attributes.
         sports = {}
@@ -80,6 +144,10 @@ def build() -> dict:
                 "best_score": a.get("best_score"),
                 "best_in_h": a.get("best_in_hours"),
                 "best_verdict": a.get("best_verdict"),
+                "best_time": (hours[a["best_in_hours"]]
+                              if a.get("best_in_hours") is not None
+                              and a["best_in_hours"] < len(hours) else None),
+                "series": series_by_sport.get(sk),
                 "data_quality": dq,
             }
         ordered = [sports[k] for k in SPORT_ORDER if k in sports]
@@ -94,6 +162,10 @@ def build() -> dict:
                 "grid_distance_km": grid,
                 "sources": sources,
                 "source_advice": advice,
+                "now_time": now_time,
+                "hours": hours,
+                "horizon_h": len(hours),
+                "tide": tide,
                 "sports": ordered,
                 "current": {
                     "time": nr.get("time"),
