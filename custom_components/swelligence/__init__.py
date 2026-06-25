@@ -197,16 +197,23 @@ async def _async_register_card(hass: HomeAssistant) -> None:
     """Serve + auto-load the bundled Lovelace card so it travels with the
     integration (one HACS install, no manual resource). The ``?v=<version>``
     query busts the browser cache on every release. Registered once per HA run;
-    not cleared on unload so reloads don't re-register the static path."""
+    not cleared on unload so reloads don't re-register the static path.
+
+    Best-effort: frontend/http are after_dependencies (always set up in a real
+    HA, but not force-set-up — so this stays out of hassfest's hard-dep gate and
+    never makes integration setup fail if the frontend isn't available)."""
     if hass.data.get(_CARD_REGISTERED):
         return
-    hass.data[_CARD_REGISTERED] = True
-    card_path = Path(__file__).parent / "frontend" / "swelligence-card.js"
-    await hass.http.async_register_static_paths(
-        [StaticPathConfig(_CARD_URL, str(card_path), False)]
-    )
-    integration = await async_get_integration(hass, DOMAIN)
-    add_extra_js_url(hass, f"{_CARD_URL}?v={integration.version}")
+    try:
+        card_path = Path(__file__).parent / "frontend" / "swelligence-card.js"
+        await hass.http.async_register_static_paths(
+            [StaticPathConfig(_CARD_URL, str(card_path), False)]
+        )
+        integration = await async_get_integration(hass, DOMAIN)
+        add_extra_js_url(hass, f"{_CARD_URL}?v={integration.version}")
+        hass.data[_CARD_REGISTERED] = True
+    except Exception as err:  # noqa: BLE001 - card is a convenience, never fatal
+        _LOGGER.warning("Could not register the bundled Swelligence card: %s", err)
 
 
 def _spot_detail(coordinator, data, sports_f: set) -> dict:
