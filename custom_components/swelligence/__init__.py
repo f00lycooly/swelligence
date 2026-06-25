@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import logging
 from collections import Counter
+from datetime import datetime
 
 import voluptuous as vol
 from homeassistant.config_entries import ConfigEntry
@@ -34,12 +35,23 @@ from .overview import build_podium, build_sessions
 from .policy import marine_wanted
 from .providers import free_tier_min_interval_minutes, get_provider
 from .sports import SPORT_PROFILES, SportProfile, apply_overrides
+from .tide import tide_phase, tide_state
 
 _LOGGER = logging.getLogger(__name__)
 
 
 SERVICE_GET_OVERVIEW = "get_overview"
 SERVICE_GET_FORECAST = "get_forecast"
+SERVICE_GET_SPOT_DETAIL = "get_spot_detail"
+
+# Raw now-conditions surfaced verbatim to the spot-detail card (normalised units).
+_NOW_FIELDS = (
+    "wind_speed_kn", "wind_gust_kn", "wind_dir_deg", "wave_height_m", "wave_period_s",
+    "wave_dir_deg", "swell_height_m", "swell_period_s", "swell_peak_period_s",
+    "swell_dir_deg", "wind_wave_height_m", "current_speed_kn", "current_dir_deg",
+    "sea_level_m", "water_temp_c", "air_temp_c", "apparent_temp_c", "uv_index",
+    "visibility_m", "weather_code",
+)
 _GET_FORECAST_SCHEMA = vol.Schema(
     {
         vol.Required("entity_id"): cv.entity_ids,
@@ -167,7 +179,98 @@ async def async_setup_entry(
     entry.async_on_unload(entry.add_update_listener(_async_update_listener))
     _async_register_forecast_service(hass)
     _async_register_overview_service(hass)
+    _async_register_spot_detail_service(hass)
     return True
+
+
+def _spot_detail(coordinator, data, sports_f: set) -> dict:
+    """One spot's full now/week detail for the spot-detail card — every
+    time-varying value ready to render (the screen derives nothing). Live
+    forecast is now-anchored (points[0] == now), so hourly[0]/daily[0]/tide
+    all align without slicing."""
+    forecast = data.forecast
+    now_pt = forecast.current()
+    sports: list[dict] = []
+    for sport, res in data.results.items():
+        if sports_f and sport not in sports_f:
+            continue
+        profile = coordinator.profile(sport)
+        # Continuous next-24h hourly (keep every hour; large pad disables the
+        # daylight filter) + the daytime-only daily peak (strict sunrise..sunset).
+        hourly = coordinator.build_forecast(sport, "hourly", pad_h=999, horizon=24)
+        daily = coordinator.build_forecast(sport, "daily", pad_h=0)
+        for entry in daily:
+            entry["tide"] = tide_phase(forecast, datetime.fromisoformat(entry["datetime"]))
+        best = None
+        if res.best is not None:
+            offset = res.best_offset_h
+            best = {
+                "score": round(res.best.score),
+                "in_hours": offset,
+                "verdict": res.best.verdict,
+                "time": hourly[offset]["datetime"][11:16]
+                if offset is not None and offset < len(hourly) else None,
+            }
+        sports.append({
+            "sport": sport,
+            "label": profile.label if profile else sport,
+            "now": {
+                "score": round(res.now.score), "verdict": res.now.verdict,
+                "suitable": res.now.suitable, "factors": res.now.factors,
+                "reasons": res.now.reasons, "completeness": res.now.completeness,
+                "nudges": res.now.nudges,
+            },
+            "best": best,
+            "hourly": hourly,
+            "daily": daily,
+        })
+    return {
+        "name": coordinator.spot["name"],
+        "water_type": coordinator.spot.get("water_type", "sea"),
+        "latitude": coordinator.spot["latitude"],
+        "longitude": coordinator.spot["longitude"],
+        "now_time": now_pt.time.strftime("%H:%M") if now_pt else None,
+        "tide": tide_state(forecast),
+        "current": {f: getattr(now_pt, f, None) for f in _NOW_FIELDS} if now_pt else {},
+        "sports": sports,
+    }
+
+
+def _async_register_spot_detail_service(hass: HomeAssistant) -> None:
+    """Register swelligence.get_spot_detail — per-spot now/week detail for the
+    spot-detail card (tide, hourly series, daytime daily outlook, conditions)."""
+    if hass.services.has_service(DOMAIN, SERVICE_GET_SPOT_DETAIL):
+        return
+
+    async def _handle_get_spot_detail(call: ServiceCall) -> dict:
+        spots_f = set(call.data.get("spots") or [])
+        sports_f = set(call.data.get("sports") or [])
+        spots: list[dict] = []
+        for entry in hass.config_entries.async_entries(DOMAIN):
+            runtime = getattr(entry, "runtime_data", None)
+            if not runtime:
+                continue
+            for coordinator in runtime.coordinators.values():
+                data = coordinator.data
+                if not data:
+                    continue
+                if spots_f and coordinator.spot["name"] not in spots_f:
+                    continue
+                spots.append(_spot_detail(coordinator, data, sports_f))
+        return {"spots": spots}
+
+    hass.services.async_register(
+        DOMAIN,
+        SERVICE_GET_SPOT_DETAIL,
+        _handle_get_spot_detail,
+        schema=vol.Schema(
+            {
+                vol.Optional("spots"): [cv.string],
+                vol.Optional("sports"): [cv.string],
+            }
+        ),
+        supports_response=SupportsResponse.ONLY,
+    )
 
 
 def _async_register_overview_service(hass: HomeAssistant) -> None:

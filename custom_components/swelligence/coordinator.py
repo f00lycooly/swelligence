@@ -437,11 +437,16 @@ class SpotCoordinator(DataUpdateCoordinator[SpotData]):
         """The in-use (override-applied) profile for a sport at this spot."""
         return self._profiles.get(sport)
 
-    def build_forecast(self, sport: str, kind: str) -> list[dict]:
+    def build_forecast(
+        self, sport: str, kind: str, *, pad_h: int | None = None, horizon: int | None = None
+    ) -> list[dict]:
         """Build a suitability forecast (kind='hourly'|'daily') for a sport.
 
         Uses the already-fetched 7-day SpotForecast; no new network call. Applies
-        the rider's quiver per timestep when configured.
+        the rider's quiver per timestep when configured. ``pad_h`` overrides the
+        daylight pad (e.g. a large value = keep every hour for a continuous
+        timeline; 0 = strict sunrise..sunset for a daytime peak). ``horizon``
+        caps the number of slots returned (e.g. next-24h).
         """
         if not self.data or sport not in self._profiles:
             return []
@@ -449,9 +454,11 @@ class SpotCoordinator(DataUpdateCoordinator[SpotData]):
         weight = rider.get(CONF_RIDER_WEIGHT) or 0
         quiver = (rider.get(CONF_QUIVER, {}) or {}).get(sport)
         builder = hourly_forecast if kind == "hourly" else daily_forecast
-        return builder(
-            self.data.forecast, self._profiles[sport], sport, weight, quiver
+        kwargs = {} if pad_h is None else {"pad_h": pad_h}
+        slots = builder(
+            self.data.forecast, self._profiles[sport], sport, weight, quiver, **kwargs
         )
+        return slots[:horizon] if horizon else slots
 
     async def _maybe_enrich_with_llm(self, data: SpotData) -> None:
         if not self.entry.options.get(CONF_USE_LLM):

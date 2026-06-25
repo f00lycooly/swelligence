@@ -59,3 +59,29 @@ get_forecast:
           options:
             - hourly
             - daily
+
+get_spot_detail:
+  name: Get spot detail
+  description: >-
+    Return per-spot now/week detail for the spot-detail Lovelace card: now
+    conditions, tide state (high/low/rising/falling + next event), the next-24h
+    hourly suitability series, and the daytime daily outlook (each day's peak
+    with peak-hour conditions + tide), for every sport at the spot. Optionally
+    restrict to given spots/sports.
+  fields:
+    spots:
+      name: Spots
+      description: Restrict to these spot names (empty = all).
+      required: false
+      example: ["Southbourne"]
+      selector:
+        text:
+          multiple: true
+    sports:
+      name: Sports
+      description: Restrict to these sport keys (empty = all).
+      required: false
+      example: ["surf", "kitesurf"]
+      selector:
+        text:
+          multiple: true
