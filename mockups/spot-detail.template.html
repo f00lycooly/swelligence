@@ -45,7 +45,7 @@ body{
   box-shadow:var(--ha-card-box-shadow); overflow:hidden;
 }
 /* map hero — real Leaflet+OSM map per spot, wind overlaid on the spot pin */
-.map-hero{position:relative;height:190px;background:var(--secondary-background-color);
+.map-hero{position:relative;height:300px;background:var(--secondary-background-color);
   border-bottom:1px solid var(--divider-color);overflow:hidden}
 .map-hero .lmap{position:absolute;inset:0;z-index:0;background:var(--secondary-background-color)}
 /* Dark-mode the OSM tiles so they sit in the HA dark card. Drop this filter
@@ -70,15 +70,21 @@ body{
 .map-hero .wind-badge .wb-gust{font-size:11px;color:#cfd6da;opacity:.9}
 .map-hero .coords-badge{position:absolute;right:12px;bottom:9px;z-index:2;pointer-events:none;
   font-size:10.5px;color:#cfd6da;text-shadow:0 1px 3px rgba(0,0,0,.7);font-variant-numeric:tabular-nums}
-/* wind rose marker (Leaflet divIcon) — arrow points the way the wind BLOWS (flow) */
-.wind-rose{filter:drop-shadow(0 1px 2px rgba(0,0,0,.65))}
-.wind-rose .ring{fill:rgba(20,24,28,.42);stroke:rgba(255,255,255,.55);stroke-width:1.2}
-.wind-rose .tick{fill:rgba(255,255,255,.75);font:600 8px Roboto,sans-serif;text-anchor:middle}
-.wind-rose .pin{fill:#fff;stroke:rgba(0,0,0,.5);stroke-width:1}
-.wind-rose .arrow{fill:var(--primary-color);stroke:#fff;stroke-width:.8;stroke-linejoin:round}
-.wind-rose.calm .arrow{display:none}
+/* wind vane marker (Leaflet divIcon) — long needle points the way the wind
+   BLOWS (flow); centre read-out (speed + gust) stays upright. */
+.wind-rose{filter:drop-shadow(0 2px 4px rgba(0,0,0,.7))}
+.wind-rose .ring{fill:rgba(20,24,28,.40);stroke:rgba(255,255,255,.5);stroke-width:1.4}
+.wind-rose .tick{fill:rgba(255,255,255,.8);font:700 11px Roboto,sans-serif;text-anchor:middle}
+.wind-rose .needle{fill:var(--primary-color);stroke:#fff;stroke-width:1.2;stroke-linejoin:round}
+.wind-rose .hub{fill:rgba(12,16,20,.88);stroke:rgba(255,255,255,.45);stroke-width:1.4}
+.wind-rose .spd{fill:#fff;font:700 26px Roboto,sans-serif;text-anchor:middle}
+.wind-rose .spd small{font-size:12px}
+.wind-rose .unit{fill:rgba(255,255,255,.8);font:600 11px Roboto,sans-serif;text-anchor:middle}
+.wind-rose .gust{fill:var(--v-marginal);font:700 12px Roboto,sans-serif;text-anchor:middle}
+.wind-rose.calm .needle{display:none}
 .wind-rose .calm-dot{display:none}
 .wind-rose.calm .calm-dot{display:block;fill:var(--secondary-text-color)}
+.wind-rose.calm .spd{font-size:18px}
 /* selector */
 .selector{display:flex;gap:6px;padding:12px 12px 0;flex-wrap:wrap}
 .pill{
@@ -187,20 +193,25 @@ function rose(d){
 // Wind rose for the map marker. Meteorological wind_dir is the bearing the wind
 // blows FROM; the arrow is drawn pointing the way it blows TOWARD (flow), so on
 // the map you read "the wind is pushing this way" at a glance. Calm → no arrow.
-function windRose(dir, kn){
+function windRose(dir, kn, gust){
   const calm = kn==null || dir==null || kn < 1.0;
   const flow = dir==null ? 0 : (dir + 180) % 360;   // from-bearing → flow-bearing
-  // Strength → opacity: light winds still show direction but read as weak.
-  const op = calm ? 0 : Math.max(.5, Math.min(1, kn/12));
-  return `<svg class="wind-rose ${calm?'calm':''}" viewBox="0 0 90 90" width="90" height="90">
-    <circle class="ring" cx="45" cy="45" r="30"/>
-    <text class="tick" x="45" y="20">N</text><text class="tick" x="45" y="76">S</text>
-    <text class="tick" x="73" y="48">E</text><text class="tick" x="17" y="48">W</text>
-    <g transform="rotate(${flow} 45 45)" style="opacity:${op}">
-      <polygon class="arrow" points="45,15 51,46 45,40 39,46"/>
+  // Strength → needle opacity: light winds still show direction but read as weak.
+  const op = calm ? 0 : Math.max(.55, Math.min(1, kn/12));
+  return `<svg class="wind-rose ${calm?'calm':''}" viewBox="0 0 170 170" width="170" height="170">
+    <circle class="ring" cx="85" cy="85" r="66"/>
+    <text class="tick" x="85" y="20">N</text><text class="tick" x="85" y="158">S</text>
+    <text class="tick" x="154" y="94">E</text><text class="tick" x="16" y="94">W</text>
+    <g transform="rotate(${flow} 85 85)" style="opacity:${op}">
+      <polygon class="needle" points="85,22 94,98 85,86 76,98"/>
     </g>
-    <circle class="calm-dot" cx="45" cy="45" r="3.5"/>
-    <circle class="pin" cx="45" cy="45" r="2.4"/>
+    <circle class="hub" cx="85" cy="85" r="34"/>
+    <circle class="calm-dot" cx="85" cy="85" r="5"/>
+    ${calm
+      ? `<text class="spd" x="85" y="91">Calm</text>`
+      : `<text class="spd" x="85" y="82">${fmt(kn)}</text>
+         <text class="unit" x="85" y="96">kn</text>
+         ${gust!=null?`<text class="gust" x="85" y="112">gust ${fmt(gust)}</text>`:''}`}
   </svg>`;
 }
 
@@ -264,9 +275,7 @@ function render(){
         <h1>${s.name}</h1>
       </div>
       ${c.wind_kn!=null?`<div class="wind-badge">
-        <span class="wb-card">${windCard==null||c.wind_kn<1.0?'Calm':'Wind '+windCard}</span>
-        <span class="wb-spd">${fmt(c.wind_kn)}<small> kn</small></span>
-        ${c.gust_kn!=null?`<span class="wb-gust">gust ${fmt(c.gust_kn)}</span>`:''}
+        <span class="wb-card">${windCard==null||c.wind_kn<1.0?'Calm':'Wind from '+windCard}</span>
       </div>`:''}
       <div class="coords-badge">${s.lat.toFixed(4)}, ${s.lon.toFixed(4)}</div>
     </div>
@@ -315,8 +324,8 @@ function initMap(s){
   L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',
     {maxZoom:19, attribution:'© OpenStreetMap'}).addTo(map);
   const c = s.current;
-  const icon = L.divIcon({className:'', html:windRose(c.wind_dir, c.wind_kn),
-    iconSize:[90,90], iconAnchor:[45,45]});
+  const icon = L.divIcon({className:'', html:windRose(c.wind_dir, c.wind_kn, c.gust_kn),
+    iconSize:[170,170], iconAnchor:[85,85]});
   L.marker([s.lat, s.lon], {icon, interactive:false, keyboard:false}).addTo(map);
   window._lmap = map;
   setTimeout(()=>map.invalidateSize(), 0);
