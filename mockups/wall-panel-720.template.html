@@ -230,6 +230,49 @@ body{
 .tab .tw{font-size:10.5px;font-weight:600;text-transform:uppercase;letter-spacing:.1em;color:var(--muted);
   display:flex;justify-content:space-between;align-items:baseline;gap:8px}
 .tab .tw b{font-size:14px;font-weight:800;color:var(--text);font-variant-numeric:tabular-nums}
+/* ---- header view toggle (NOW ⇄ WEEK) ---- */
+.hdr .ctrl{display:flex;align-items:center;gap:12px;flex:0 0 auto}
+.hdr .seg{display:flex;border:1px solid var(--line-2);border-radius:11px;overflow:hidden}
+.hdr .seg button{cursor:pointer;font-family:inherit;border:0;background:transparent;color:var(--muted);
+  font-size:12px;font-weight:800;letter-spacing:.06em;text-transform:uppercase;padding:9px 16px;min-height:42px}
+.hdr .seg button:active{background:var(--press)}
+.hdr .seg button.on{background:var(--teal);color:#04201c}
+.hdr .wkr{text-align:right}
+.hdr .wkr .t{font-size:17px;font-weight:800;line-height:1;white-space:nowrap}
+.hdr .wkr .l{font-size:9.5px;font-weight:700;letter-spacing:.22em;color:var(--teal);text-transform:uppercase;margin-top:3px}
+
+/* ---- week view: left summary panel ---- */
+.wsum{flex:1;min-height:0;background:linear-gradient(180deg,var(--panel2),var(--panel));border:1px solid var(--line);
+  border-radius:var(--r);padding:14px 15px;display:flex;flex-direction:column;gap:11px}
+.wsum .k{font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.15em;color:var(--muted)}
+.wsum .bigday{display:flex;align-items:baseline;gap:10px}
+.wsum .bigday .dn{font-size:26px;font-weight:800;letter-spacing:.3px}
+.wsum .bigday .ds{font-size:26px;font-weight:800;font-variant-numeric:tabular-nums}
+.wsum .bigday .dv{font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:.08em;margin-left:auto}
+.wsum .grid2{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:auto}
+.wsum .st{background:var(--raise);border:1px solid var(--line);border-radius:12px;padding:10px 12px}
+.wsum .st .sk{font-size:9.5px;font-weight:700;text-transform:uppercase;letter-spacing:.1em;color:var(--muted)}
+.wsum .st .sv{font-size:21px;font-weight:800;margin-top:3px;font-variant-numeric:tabular-nums}
+.wsum .st .sv small{font-size:11px;font-weight:600;color:var(--muted)}
+
+/* ---- week view: per-day rows ---- */
+.sel.week .best .bk{color:var(--dim)}
+.drows{flex:1;min-height:0;display:flex;flex-direction:column;gap:7px}
+.drow{flex:1;display:grid;grid-template-columns:54px 1fr 50px 38px;align-items:center;gap:11px;
+  background:var(--panel2);border:1px solid var(--line);border-radius:11px;padding:0 13px;min-height:42px}
+.drow.today{border-color:var(--line-2)}
+.drow.best{border-color:rgba(35,213,190,.5);box-shadow:0 0 0 1px rgba(35,213,190,.22)}
+.drow .dd{font-size:13px;font-weight:800}
+.drow.today .dd{color:var(--teal)}
+.drow .dbar{height:8px;border-radius:5px;background:rgba(150,178,198,.14);overflow:hidden}
+.drow .dbar i{display:block;height:100%;border-radius:5px}
+.drow .dt{font-size:11px;color:var(--muted);text-align:right;font-variant-numeric:tabular-nums}
+.drow .dsc{font-size:17px;font-weight:800;text-align:right;font-variant-numeric:tabular-nums}
+.drow .dsc .star{color:var(--amber);font-size:11px}
+
+/* ---- week view: plain location marker on map ---- */
+.pin-mk{display:grid;place-items:center}
+.pin-mk svg{filter:drop-shadow(0 2px 4px rgba(0,0,0,.7))}
 @media (prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
 </style>
 </head>
@@ -299,37 +342,16 @@ function tideModule(s){
   </div>`;
 }
 
-// Suitability outlook for the selected sport — toggles between the next-24h
-// hourly timeline (anchored at NOW) and the 7-day weekly peaks. LVGL: a tab
-// view (lv_tabview) or a checked button pair swapping the lv_chart series.
-let tlMode='hours';
-function setTL(m){ tlMode=m; render(); }
-function outlook(sp,s){
-  const ser=sp.series, daily=sp.daily;
-  const toggle=`<div class="seg">
-    <button class="${tlMode==='hours'?'on':''}" onclick="setTL('hours')">24h</button>
-    <button class="${tlMode==='week'?'on':''}" onclick="setTL('week')">Week</button></div>`;
-  if(tlMode==='week'){
-    if(!daily||!daily.length) return `<div class="tl"><div class="tlh"><span class="k">Outlook</span>${toggle}</div><div class="none">no daily forecast</div></div>`;
-    const peak=Math.max(...daily.map(e=>e.s));
-    const bars=daily.map(e=>`<div class="wd ${e.d==='Today'?'today':''}">
-        <div class="num">${e.s===peak?'<span class="star">★</span>':''}${e.s}</div>
-        <div class="track"><div class="fill" style="height:${Math.max(4,e.s)}%;background:${VC[e.v]}"></div></div>
-        <div class="dow">${e.d}</div><div class="bt">${e.t}</div></div>`).join('');
-    return `<div class="tl"><div class="tlh"><span class="k">Outlook · daily peak</span>${toggle}</div><div class="wk">${bars}</div></div>`;
-  }
-  if(!ser||!ser.length) return `<div class="tl"><div class="tlh"><span class="k">Outlook</span>${toggle}</div><div class="none">no hourly forecast for this sport</div></div>`;
-  const n=ser.length, bestI=sp.best_in_h;
-  const bars=ser.map((p,i)=>{const sc=p[0]==null?0:p[0];
-    return `<div class="b ${i===0?'now':''} ${i===bestI?'best':''}" style="height:${Math.max(6,sc)}%;background:${VC[p[1]]}" title="${s.hours[i]} · ${sc}"></div>`;}).join('');
-  let axis='';
-  for(let i=0;i<n;i++){ axis+=`<div class="x">${i%6===0?(s.hours[i]||''):''}</div>`; }
-  return `<div class="tl">
-    <div class="tlh"><span class="k">Outlook · suitability</span>${toggle}</div>
-    <div class="bars">${bars}</div>
-    <div class="axis">${axis}</div>
-  </div>`;
-}
+// View state — flicking re-scopes the WHOLE panel, not just one chart:
+//   NOW  = live snapshot + next-24h (compass wind, tide now/next, hourly bars,
+//          now-conditions, factors).
+//   WEEK = 7-day daytime-scoped (location pin, best-day summary, per-day rows).
+// Every time-sensitive element below is chosen for the active view's timeframe.
+let view='now';
+function setView(v){ view=v; render(); }
+
+const MON=['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+const fdate=iso=>{const p=(iso||'').split('-');return p.length===3?(+p[2])+' '+MON[+p[1]-1]:'';};
 
 function nowStrip(c){
   const wc=card(c.wind_dir);
@@ -339,54 +361,114 @@ function nowStrip(c){
     + cell(false,'Wave',`${c.wave_m!=null?fmt(c.wave_m):(c.wind_wave_m!=null?fmt(c.wind_wave_m):'—')}`,'m')
     + cell(false,'Swell',`${c.swell_m!=null?fmt(c.swell_m):'—'}`,c.swell_period_s!=null?fmt(c.swell_period_s)+'s':'m');
 }
+function factors(sp){
+  const order=['wind','gust','direction','wave','swell','temp','tide','kit'];
+  return order.filter(f=>sp.factors[f]!=null).map(f=>
+    `<div class="fac"><span class="fl">${f}</span><span class="fb"><i style="width:${sp.factors[f]}%"></i></span><span class="fn">${Math.round(sp.factors[f])}</span></div>`).join('');
+}
+
+// --- NOW-view pieces ---
+function selNow(sp){
+  const col=VC[VBYNAME[sp.verdict]??2];
+  const bestT=sp.best_time||(sp.best_in_h!=null?'+'+sp.best_in_h+'h':'—');
+  return `<div class="sel">
+    <div class="gauge">${ring(sp.score,col,80,8)}<div class="gn"><b style="color:${col}">${sp.score==null?'—':Math.round(sp.score)}</b><i>now</i></div></div>
+    <div><div class="nm">${sp.label}</div><div class="vd" style="color:${col}">${sp.verdict||'—'}</div></div>
+    <div class="best"><div class="bk">Best · next 24h</div><div class="bt">${bestT}</div><div class="bs">${sp.best_score!=null?Math.round(sp.best_score)+' · '+(sp.best_verdict||''):''}</div></div>
+  </div>`;
+}
+function hourlyTL(sp,s){
+  const ser=sp.series;
+  if(!ser||!ser.length) return `<div class="tl"><div class="tlh"><span class="k">Next 24h</span></div><div class="none">no hourly forecast</div></div>`;
+  const n=ser.length,bestI=sp.best_in_h;
+  const bars=ser.map((p,i)=>`<div class="b ${i===0?'now':''} ${i===bestI?'best':''}" style="height:${Math.max(6,p[0]==null?0:p[0])}%;background:${VC[p[1]]}" title="${s.hours[i]} · ${p[0]}"></div>`).join('');
+  let axis='';for(let i=0;i<n;i++) axis+=`<div class="x">${i%6===0?(s.hours[i]||''):''}</div>`;
+  return `<div class="tl"><div class="tlh"><span class="k">Outlook · next 24h</span><span class="span">hourly</span></div>
+    <div class="bars">${bars}</div><div class="axis">${axis}</div></div>`;
+}
+
+// --- WEEK-view pieces ---
+function weekPeak(sp){const d=sp.daily||[];return d.length?d.reduce((a,b)=>b.s>a.s?b:a,d[0]):null;}
+function selWeek(sp){
+  const pk=weekPeak(sp),col=pk?VC[pk.v]:VC[2];
+  return `<div class="sel week">
+    <div class="gauge">${ring(pk?pk.s:0,col,80,8)}<div class="gn"><b style="color:${col}">${pk?pk.s:'—'}</b><i>peak</i></div></div>
+    <div><div class="nm">${sp.label}</div><div class="vd" style="color:${col}">${pk?VNAME[pk.v]:'—'}</div></div>
+    <div class="best"><div class="bk">Peak day</div><div class="bt">${pk?pk.d:'—'}</div><div class="bs">${pk?pk.t:''}</div></div>
+  </div>`;
+}
+function dayRows(sp){
+  const d=sp.daily||[];
+  if(!d.length) return `<div class="drows"><div class="none">no daily forecast for this sport</div></div>`;
+  const pk=weekPeak(sp);
+  return `<div class="drows">${d.map(e=>`<div class="drow ${e.d==='Today'?'today':''} ${e===pk?'best':''}">
+    <div class="dd">${e.d}</div>
+    <div class="dbar"><i style="width:${Math.max(4,e.s)}%;background:${VC[e.v]}"></i></div>
+    <div class="dt">${e.t}</div>
+    <div class="dsc" style="color:${VC[e.v]}">${e===pk?'<span class="star">★</span>':''}${e.s}</div>
+  </div>`).join('')}</div>`;
+}
+function weekSummary(s,sp){
+  const d=sp.daily||[],pk=weekPeak(sp),good=d.filter(e=>e.v>=2).length,col=pk?VC[pk.v]:VC[2];
+  return `<div class="wsum">
+    <div class="k">Best day · ${sp.label}</div>
+    <div class="bigday"><span class="dn" style="color:${col}">${pk?pk.d:'—'}</span><span class="ds">${pk?pk.s:'—'}</span><span class="dv" style="color:${col}">${pk?VNAME[pk.v]:''}</span></div>
+    <div class="grid2">
+      <div class="st"><div class="sk">Good+ days</div><div class="sv">${good}<small> / ${d.length}</small></div></div>
+      <div class="st"><div class="sk">Peak window</div><div class="sv" style="font-size:15px">${pk?pk.d+' '+pk.t:'—'}</div></div>
+    </div>
+  </div>`;
+}
+
+// --- shared chrome ---
+function pills(s){
+  return `<div class="pills">${s.sports.map((x,i)=>{const sc=VC[VBYNAME[x.verdict]??2];
+    const val=view==='week'?(weekPeak(x)?weekPeak(x).s:'—'):(x.score==null?'—':Math.round(x.score));
+    return `<div class="pill ${i===aSport?'on':''}" onclick="aSport=${i};render()"><span class="pn">${x.label}</span><span class="ps" style="color:${sc}">${val}</span></div>`;}).join('')}</div>`;
+}
+function mapHero(s,c,wc){
+  const band=view==='now'
+    ? `<div class="wband"><div class="wfrom">${wc?`Wind from <span>${wc}</span>`:'Calm'}</div><div class="wxy">${c.wind_kn!=null?fmt(c.wind_kn)+' kn':''}${c.gust_kn!=null?' · gust '+fmt(c.gust_kn):''}</div></div>`
+    : `<div class="wband"><div class="wfrom">${s.name}</div><div class="wxy">${s.lat.toFixed(3)}, ${s.lon.toFixed(3)}</div></div>`;
+  return `<div class="map-hero"><div class="lmap" id="lmap"></div><div class="vign"></div>${band}</div>`;
+}
+function tabs(){
+  return `<div class="tabs">${DATA.spots.map((x,i)=>{
+    const v=view==='week'?Math.max(...x.sports.map(y=>{const p=weekPeak(y);return p?p.s:0;}))
+                          :Math.max(...x.sports.map(y=>y.score||0));
+    return `<div class="tab ${i===aSpot?'on':''}" onclick="aSpot=${i};aSport=0;render()">
+      <div class="tn"><span class="tdot"></span>${x.name}</div>
+      <div class="tw"><span>${x.water_type}</span><b>${Math.round(v)}</b></div></div>`;}).join('')}</div>`;
+}
 
 function render(){
   const s=DATA.spots[aSpot];
   if(aSport>=s.sports.length) aSport=0;
-  const c=s.current, sp=s.sports[aSport];
-  const col=VC[VBYNAME[sp.verdict]??2], wc=card(c.wind_dir);
-  const facOrder=['wind','gust','direction','wave','swell','temp','tide','kit'];
-  const facs=facOrder.filter(f=>sp.factors[f]!=null).map(f=>
-    `<div class="fac"><span class="fl">${f}</span><span class="fb"><i style="width:${sp.factors[f]}%"></i></span><span class="fn">${Math.round(sp.factors[f])}</span></div>`).join('');
-  const bestT=sp.best_time||(sp.best_in_h!=null?'+'+sp.best_in_h+'h':'—');
+  const c=s.current, sp=s.sports[aSport], wc=card(c.wind_dir);
+  const d=sp.daily||[], range=d.length?`${fdate(d[0].date)} – ${fdate(d[d.length-1].date)}`:'';
+
+  const headRight = view==='now'
+    ? `<div class="now"><span class="pulse"></span><div class="nlab"><div class="t">${s.now_time||'--:--'}</div><div class="l">Now</div></div></div>`
+    : `<div class="wkr"><div class="t">${range||'7 days'}</div><div class="l">7-day</div></div>`;
+  const leftLower = view==='now' ? tideModule(s) : weekSummary(s,sp);
+  const rightContent = view==='now'
+    ? selNow(sp)+hourlyTL(sp,s)+`<div class="now-strip">${nowStrip(c)}</div><div class="facs">${factors(sp)}</div>`
+    : selWeek(sp)+dayRows(sp);
 
   document.getElementById('panel').innerHTML=`
     <div class="hdr">
       <div class="id"><div class="mono">S</div>
         <div><h1>${s.name}</h1><div class="wt"><b>${s.water_type}</b> · ${s.lat.toFixed(3)}, ${s.lon.toFixed(3)} · Open-Meteo</div></div></div>
-      <div class="now"><span class="pulse"></span><div class="nlab"><div class="t">${s.now_time||'--:--'}</div><div class="l">Now</div></div></div>
+      <div class="ctrl">
+        <div class="seg"><button class="${view==='now'?'on':''}" onclick="setView('now')">Now</button><button class="${view==='week'?'on':''}" onclick="setView('week')">Week</button></div>
+        ${headRight}
+      </div>
     </div>
-
     <div class="main">
-      <div class="col">
-        <div class="map-hero"><div class="lmap" id="lmap"></div><div class="vign"></div>
-          <div class="wband"><div class="wfrom">${wc?`Wind from <span>${wc}</span>`:'Calm'}</div>
-            <div class="wxy">${c.wind_kn!=null?fmt(c.wind_kn)+' kn':''}${c.gust_kn!=null?' · gust '+fmt(c.gust_kn):''}</div></div></div>
-        ${tideModule(s)}
-      </div>
-
-      <div class="col sportwrap">
-        <div class="pills">${s.sports.map((x,i)=>{const sc=VC[VBYNAME[x.verdict]??2];
-          return `<div class="pill ${i===aSport?'on':''}" onclick="aSport=${i};render()"><span class="pn">${x.label}</span><span class="ps" style="color:${sc}">${x.score==null?'—':Math.round(x.score)}</span></div>`;}).join('')}</div>
-
-        <div class="sel">
-          <div class="gauge">${ring(sp.score,col,80,8)}<div class="gn"><b style="color:${col}">${sp.score==null?'—':Math.round(sp.score)}</b><i>now</i></div></div>
-          <div><div class="nm">${sp.label}</div><div class="vd" style="color:${col}">${sp.verdict||'—'}</div></div>
-          <div class="best"><div class="bk">Best · next 24h</div><div class="bt">${bestT}</div><div class="bs">${sp.best_score!=null?Math.round(sp.best_score)+' · '+(sp.best_verdict||''):''}</div></div>
-        </div>
-
-        ${outlook(sp,s)}
-        <div class="now-strip">${nowStrip(c)}</div>
-        <div class="facs">${facs}</div>
-      </div>
+      <div class="col">${mapHero(s,c,wc)}${leftLower}</div>
+      <div class="col sportwrap">${pills(s)}${rightContent}</div>
     </div>
-
-    <div class="tabs">
-      ${DATA.spots.map((x,i)=>{const top=Math.max(...x.sports.map(y=>y.score||0));
-        return `<div class="tab ${i===aSpot?'on':''}" onclick="aSpot=${i};aSport=0;render()">
-          <div class="tn"><span class="tdot"></span>${x.name}</div>
-          <div class="tw"><span>${x.water_type}</span><b>${Math.round(top)}</b></div></div>`;}).join('')}
-    </div>`;
+    ${tabs()}`;
 
   initMap(s,c);
 }
@@ -398,7 +480,13 @@ function initMap(s,c){
   const map=L.map(el,{zoomControl:false,attributionControl:true,dragging:false,scrollWheelZoom:false,
     doubleClickZoom:false,boxZoom:false,keyboard:false,touchZoom:false,tap:false}).setView([s.lat,s.lon],13);
   L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',{maxZoom:19,attribution:'© OpenStreetMap'}).addTo(map);
-  const icon=L.divIcon({className:'',html:compass(c.wind_dir,c.wind_kn,c.gust_kn),iconSize:[200,200],iconAnchor:[100,100]});
+  // NOW → wind compass on the pin; WEEK → a plain location marker (wind is a
+  // now-element, out of scope for the 7-day view).
+  const html = view==='now'
+    ? compass(c.wind_dir,c.wind_kn,c.gust_kn)
+    : `<div class="pin-mk"><svg width="34" height="34" viewBox="0 0 34 34"><circle cx="17" cy="17" r="8" fill="none" stroke="var(--teal)" stroke-width="2"/><circle cx="17" cy="17" r="3.4" fill="var(--teal)"/></svg></div>`;
+  const sz = view==='now'?200:34;
+  const icon=L.divIcon({className:'',html,iconSize:[sz,sz],iconAnchor:[sz/2,sz/2]});
   L.marker([s.lat,s.lon],{icon,interactive:false,keyboard:false}).addTo(map);
   window._lmap=map; setTimeout(()=>map.invalidateSize(),0);
 }
