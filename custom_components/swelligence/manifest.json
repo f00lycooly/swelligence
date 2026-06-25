@@ -2,16 +2,15 @@
   "domain": "swelligence",
   "name": "Swelligence",
   "after_dependencies": [
-    "ai_task"
+    "ai_task",
+    "frontend",
+    "http"
   ],
   "codeowners": [
     "@foolycooly"
   ],
   "config_flow": true,
-  "dependencies": [
-    "frontend",
-    "http"
-  ],
+  "dependencies": [],
   "documentation": "https://git.bagofholding.co.uk/foolycooly/swelligence",
   "iot_class": "cloud_polling",
   "issue_tracker": "https://git.bagofholding.co.uk/foolycooly/swelligence/issues",
