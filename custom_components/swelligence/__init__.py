@@ -223,6 +223,7 @@ def _async_register_overview_service(hass: HomeAssistant) -> None:
                     )
                     now.append({
                         "spot": coordinator.spot["name"],
+                        "water_type": coordinator.spot.get("water_type", "sea"),
                         "sport": sport,
                         "score": round(res.now.score),
                         "verdict": res.now.verdict,
