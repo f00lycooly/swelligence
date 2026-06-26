@@ -2,6 +2,12 @@
 
 All notable changes per release. Versions follow semver; tags are `vX.Y.Z`.
 
+## v0.2.3 — 2026-06-26
+
+- feat(sensor): spot-level `headline_*` panel attributes (best-scoring sport now:
+  sport/label/score/verdict/suitable) so the panel's NOW gauge + verdict bind to
+  statically-named fields without knowing each spot's sport list (HomeAutomation-4uq).
+
 ## v0.2.2 — 2026-06-26
 
 - feat(sensor): per-spot `*_detail` sensor exposing the full now/week payload as

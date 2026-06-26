@@ -156,6 +156,21 @@ def spot_panel_payload(coordinator, data) -> dict:
     # Fixed sport order drives the panel's selector pills + per-sport lookups.
     attrs["sports"] = "|".join(s["sport"] for s in sports)
     attrs["sport_labels"] = "|".join(s["label"] for s in sports)
+    # Spot-level headline = the best-scoring sport right now. Statically named so
+    # the panel's NOW gauge/verdict bind without knowing each spot's sport list
+    # (per-sport attribute names like `kitesurf_now_score` vary by spot).
+    headline = max(
+        sports,
+        key=lambda s: (s.get("now") or {}).get("score") or -1,
+        default=None,
+    )
+    if headline:
+        hnow = headline.get("now") or {}
+        attrs["headline_sport"] = headline["sport"]
+        attrs["headline_label"] = headline["label"]
+        attrs["headline_score"] = hnow.get("score")
+        attrs["headline_verdict"] = hnow.get("verdict")
+        attrs["headline_suitable"] = hnow.get("suitable")
     for s in sports:
         k = s["sport"]
         now = s.get("now") or {}
