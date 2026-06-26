@@ -60,10 +60,15 @@ class SwelligenceCard extends HTMLElement {
   setConfig(config) {
     this._config = { mode: "podium", ...config };
     this._ov = null;
-    this._detail = null;
+    this._spots = undefined;        // all spots (spot mode); undefined = not yet loaded
     this._loading = false;
     // UI state for spot mode — preserved across hass re-renders.
-    this._sv = { sport: config.sport || null, view: config.default_view || "now" };
+    this._sv = {
+      sport: config.sport || null,
+      view: config.default_view || "now",
+      spotIdx: null,                // selected tab; resolved from config.spot on first load
+      spotInit: config.spot || null,
+    };
   }
   getCardSize() { return this._config.mode === "podium" ? 7 : this._config.mode === "spot" ? 8 : 5; }
 
@@ -72,7 +77,7 @@ class SwelligenceCard extends HTMLElement {
     this._hass = hass;
     if (!this._root) this._init();
     if (first || this._needsOverview()) this._loadOverview();
-    if (this._config.mode === "spot" && (first || !this._detail)) this._loadDetail();
+    if (this._config.mode === "spot" && (first || this._spots === undefined)) this._loadDetail();
     this._render();
   }
 
@@ -103,6 +108,7 @@ class SwelligenceCard extends HTMLElement {
     if (!el) return;
     if (el.dataset.act === "view") this._sv.view = el.dataset.v;
     else if (el.dataset.act === "sport") this._sv.sport = el.dataset.s;
+    else if (el.dataset.act === "spot") { this._sv.spotIdx = +el.dataset.i; this._sv.sport = null; }
     else return;
     this._render();
   }
@@ -111,12 +117,17 @@ class SwelligenceCard extends HTMLElement {
     if (!this._hass || this._loadingD || this._config.mode !== "spot") return;
     this._loadingD = true;
     try {
-      const data = this._config.spot ? { spots: [this._config.spot] } : {};
-      const r = await this._hass.callService("swelligence", "get_spot_detail", data, undefined, false, true);
-      const spots = (r && r.response && r.response.spots) || [];
-      this._detail = this._config.spot
-        ? (spots.find((s) => s.name === this._config.spot) || spots[0]) : spots[0];
-    } catch (e) { /* keep stale */ }
+      // Fetch ALL spots (no filter) so the in-card tab strip can switch between
+      // them client-side; `spots` config (if set) narrows which appear.
+      const r = await this._hass.callService("swelligence", "get_spot_detail", {}, undefined, false, true);
+      let spots = (r && r.response && r.response.spots) || [];
+      if (this._config.spots) spots = spots.filter((s) => this._config.spots.includes(s.name));
+      this._spots = spots;
+      if (this._sv.spotIdx == null) {
+        const ix = this._sv.spotInit ? spots.findIndex((s) => s.name === this._sv.spotInit) : -1;
+        this._sv.spotIdx = ix >= 0 ? ix : 0;
+      }
+    } catch (e) { if (this._spots === undefined) this._spots = []; }
     this._loadingD = false;
     this._render();
   }
@@ -276,151 +287,235 @@ class SwelligenceCard extends HTMLElement {
     return h + `</div>`;
   }
 
-  /* ---------- SPOT: single-spot now/week detail ---------- */
+  /* ---------- SPOT: multi-spot now/week detail (720-panel layout) ---------- */
+  _spotList() { return this._spots || []; }
   _spot() {
-    const d = this._detail;
-    if (!d) return `<div class="muted">Loading spot detail…</div>`;
-    const sports = (d.sports || []).filter((s) =>
+    if (this._spots === undefined) return `<div class="muted">Loading spot detail…</div>`;
+    const spots = this._spotList();
+    if (!spots.length) return this._empty();
+    let si = this._sv.spotIdx;
+    if (si == null || si < 0 || si >= spots.length) si = 0;
+    const d = spots[si];
+    const sportsAll = (d.sports || []).filter((s) =>
       !this._config.sports || this._config.sports.includes(s.sport));
-    if (!sports.length) return this._empty();
-    let si = sports.findIndex((s) => s.sport === this._sv.sport);
-    if (si < 0) si = 0;
-    const sp = sports[si], view = this._sv.view;
-    const wc = cardOf(d.current?.wind_dir_deg);
+    if (!sportsAll.length) return this._empty();
+    let pi = sportsAll.findIndex((s) => s.sport === this._sv.sport);
+    if (pi < 0) pi = 0;
+    const sp = sportsAll[pi], view = this._sv.view, c = d.current || {};
+    const wc = cardOf(c.wind_dir_deg);
     const dl = sp.daily || [];
     const range = dl.length ? `${this._wd(dl[0].date)} – ${this._wd(dl[dl.length - 1].date)}` : "";
+    const headRight = view === "now"
+      ? `<div class="sd-now"><span class="pulse"></span><div><b>${d.now_time || "--:--"}</b><span>now</span></div></div>`
+      : `<div class="sd-now"><div><b>${range || "7 days"}</b><span>7-day</span></div></div>`;
+    const leftLower = view === "now" ? this._tideModule(d) : this._weekSummary(d, sp);
+    const facs = this._factors(sp.now || {});
     const right = view === "now"
-      ? `<div class="sd-now"><b>${d.now_time || "--:--"}</b><span>now</span></div>`
-      : `<div class="sd-now"><b>${range || "7 days"}</b><span>7-day</span></div>`;
+      ? this._selNow(sp) + this._hourlyTL(sp)
+        + `<div class="sd-strip">${this._nowStrip(c)}</div>`
+        + (this._config.show_factors !== false && facs ? `<div class="sd-facs">${facs}</div>` : "")
+      : this._selWeek(sp) + this._dayRows(sp);
 
-    let h = `<div class="sd">
+    return `<div class="sd">
       <div class="sd-hdr">
-        <div class="sd-id"><div class="sd-nm">${d.name}</div>
-          <div class="sd-sub">${d.water_type || ""}${wc && view === "now" ? " · wind from " + wc : ""}</div></div>
+        <div class="sd-id"><div class="sd-logo">S</div>
+          <div><div class="sd-nm">${d.name}</div>
+            <div class="sd-sub"><b>${d.water_type || ""}</b>${d.latitude != null ? " · " + d.latitude.toFixed(3) + ", " + d.longitude.toFixed(3) : ""} · Open-Meteo</div></div></div>
         <div class="sd-ctrl">
           <div class="sd-seg">
             <button data-act="view" data-v="now" class="${view === "now" ? "on" : ""}">Now</button>
             <button data-act="view" data-v="week" class="${view === "week" ? "on" : ""}">Week</button>
-          </div>${right}
+          </div>${headRight}
         </div>
       </div>
-      <div class="sd-pills">${sports.map((s) => {
-        const val = view === "week" ? this._peak(s)?.score ?? "—" : Math.round(s.now?.score ?? 0);
-        return `<div class="sd-pill ${s === sp ? "on" : ""}" data-act="sport" data-s="${s.sport}">
-          ${ICON(s.sport)}<span class="pn">${s.label || LABELS[s.sport] || s.sport}</span>
-          <span class="pv" style="color:${vcw((view === "week" ? this._peak(s)?.verdict : s.now?.verdict) || "poor")}">${val}</span></div>`;
-      }).join("")}</div>`;
-
-    h += view === "now" ? this._spotNow(d, sp) : this._spotWeek(d, sp);
-    return h + `</div>`;
+      <div class="sd-main">
+        <div class="sd-col">${this._mapHero(d, c, wc, view)}${leftLower}</div>
+        <div class="sd-col sd-sportcol">${this._pills(sportsAll, pi, view)}${right}</div>
+      </div>
+      ${this._tabs(spots, si, view)}
+    </div>`;
   }
 
   _wd(date) { try { return new Date(date).toLocaleDateString(undefined, { weekday: "short" }); } catch { return date; } }
   _peak(sp) { const d = sp.daily || []; return d.length ? d.reduce((a, b) => (b.score > a.score ? b : a), d[0]) : null; }
-  _gauge(score, col, lbl) {
-    const s = Math.max(0, Math.min(100, Math.round(score ?? 0)));
-    return `<div class="sd-ring" style="--c:${col};--p:${s}"><div class="sd-ri">
-      <b style="color:${col}">${score == null ? "—" : Math.round(score)}</b><i>${lbl}</i></div></div>`;
+
+  /* SVG progress ring (stroke-dasharray) — 720-panel gauge. */
+  _ring(score, col, size = 80, sw = 8) {
+    const r = size / 2 - sw, circ = 2 * Math.PI * r, off = circ * (1 - (score || 0) / 100);
+    return `<svg class="sd-ring-svg" viewBox="0 0 ${size} ${size}">
+      <circle class="gt" cx="${size / 2}" cy="${size / 2}" r="${r}" style="stroke-width:${sw}"/>
+      <circle class="ga" cx="${size / 2}" cy="${size / 2}" r="${r}" stroke="${col}" style="stroke-width:${sw}" stroke-dasharray="${circ.toFixed(1)}" stroke-dashoffset="${off.toFixed(1)}"/></svg>`;
   }
+
   _factors(now) {
     const order = ["wind", "gust", "direction", "wave", "swell", "temp", "tide", "kit"];
     const f = now.factors || {};
     return order.filter((k) => f[k] != null).map((k) =>
-      `<div class="sd-fac"><span>${k}</span><span class="fb"><i style="width:${f[k]}%"></i></span><b>${Math.round(f[k])}</b></div>`).join("");
+      `<div class="sd-fac"><span class="fl">${k}</span><span class="fb"><i style="width:${f[k]}%"></i></span><span class="fn">${Math.round(f[k])}</span></div>`).join("");
   }
-  _compass(deg, kn, gust) {
-    const calm = kn == null || deg == null, flow = deg == null ? 0 : (deg + 180) % 360;
-    const op = calm ? 0 : Math.max(0.5, Math.min(1, kn / 14));
-    return `<svg class="sd-rose ${calm ? "calm" : ""}" viewBox="0 0 120 120">
-      <circle cx="60" cy="60" r="48" fill="none" stroke="var(--divider-color,#444)"/>
-      <text class="t" x="60" y="22">N</text><text class="t" x="60" y="106">S</text>
-      <text class="t" x="104" y="64">E</text><text class="t" x="16" y="64">W</text>
-      <g transform="rotate(${flow} 60 60)" style="opacity:${op}"><polygon class="nd" points="60,16 67,64 60,55 53,64"/></g>
-      <circle class="hub" cx="60" cy="60" r="23"/>
-      ${calm ? `<text class="spd" x="60" y="65">Calm</text>`
-        : `<text class="spd" x="60" y="60">${f1(kn)}</text><text class="u" x="60" y="74">kn${gust != null ? " · g" + f1(gust) : ""}</text>`}
-    </svg>`;
+
+  /* ---- map hero: static OSM tile mosaic centred on the spot (no JS dep) ---- */
+  _isDark() {
+    try {
+      const cs = getComputedStyle(this._card);
+      const bg = (cs.getPropertyValue("--card-background-color").trim() || cs.backgroundColor);
+      const m = bg.match(/\d+(\.\d+)?/g);
+      if (!m || m.length < 3) return true;
+      const [r, g, b] = m.map(Number);
+      return (0.299 * r + 0.587 * g + 0.114 * b) < 128;
+    } catch { return true; }
   }
-  _tide(d) {
-    const t = d.tide;
-    if (!t || this._config.show_tide === false) return "";
-    const ar = t.state === "rising" ? "▲" : t.state === "falling" ? "▼" : "—", nx = t.next;
-    let spark = "";
-    if (t.levels && t.levels.length) {
-      const lv = t.levels, n = lv.length, lo = t.min, hi = t.max, rng = (hi - lo) || 1, W = 130, H = 30;
-      const X = (i) => i / (n - 1) * W, Y = (v) => v == null ? H / 2 : H - 3 - ((v - lo) / rng) * (H - 6);
-      let dp = ""; lv.forEach((v, i) => { if (v == null) return; dp += (dp ? "L" : "M") + X(i).toFixed(1) + " " + Y(v).toFixed(1) + " "; });
-      spark = `<svg class="sd-spark" viewBox="0 0 ${W} ${H}" preserveAspectRatio="none">
-        <path d="${dp}" fill="none" stroke="var(--primary-color,#03a9f4)" stroke-width="1.6"/>
-        <line x1="${X(0)}" y1="1" x2="${X(0)}" y2="${H - 1}" stroke="var(--secondary-text-color,#999)" stroke-dasharray="2 2"/></svg>`;
+  _tileMosaic(lat, lon, zoom = 11) {
+    const n = 2 ** zoom;
+    const xf = (lon + 180) / 360 * n;
+    const lr = lat * Math.PI / 180;
+    const yf = (1 - Math.log(Math.tan(lr) + 1 / Math.cos(lr)) / Math.PI) / 2 * n;
+    const xt = Math.floor(xf), yt = Math.floor(yf);
+    const mx = 256 + (xf - xt) * 256, my = 256 + (yf - yt) * 256;   // marker px within 3×3 mosaic
+    let imgs = "";
+    for (let dy = -1; dy <= 1; dy++) for (let dx = -1; dx <= 1; dx++) {
+      const tx = ((xt + dx) % n + n) % n, ty = yt + dy;
+      if (ty < 0 || ty >= n) continue;
+      imgs += `<img alt="" loading="lazy" src="https://tile.openstreetmap.org/${zoom}/${tx}/${ty}.png" style="left:${(dx + 1) * 256}px;top:${(dy + 1) * 256}px"/>`;
     }
-    return `<div class="sd-tide t-${t.state}">
-      <div class="sd-th"><span>Tide</span><span class="src">${t.source || "modelled"}</span></div>
-      <div class="sd-ts"><span class="ar">${ar}</span><span class="w">${cap(t.state)}</span></div>
-      ${nx ? `<div class="sd-tn">next <b>${nx.type}</b> ${nx.time}${nx.level != null ? ` · ${f1(nx.level, 2)}m` : ""}</div>` : ""}
-      ${spark}</div>`;
+    return `<div class="lmap${this._isDark() ? " dark" : ""}">
+      <div class="mos" style="margin-left:${(-mx).toFixed(1)}px;margin-top:${(-my).toFixed(1)}px">${imgs}</div>
+      <svg class="pin" viewBox="0 0 24 24"><path d="M12 2C8.1 2 5 5.1 5 9c0 5.2 7 13 7 13s7-7.8 7-13c0-3.9-3.1-7-7-7z"/><circle cx="12" cy="9" r="2.6"/></svg>
+      <a class="osm" href="https://www.openstreetmap.org/?mlat=${lat}&mlon=${lon}#map=${zoom}/${lat.toFixed(4)}/${lon.toFixed(4)}" target="_blank" rel="noopener noreferrer">© OSM</a>
+    </div>`;
+  }
+  _mapHero(d, c, wc, view) {
+    const lat = d.latitude, lon = d.longitude;
+    const map = (lat == null || lon == null) ? `<div class="sd-nomap">no location</div>` : this._tileMosaic(lat, lon);
+    const band = view === "now"
+      ? `<div class="wband"><div class="wfrom">${wc ? `Wind from <span>${wc}</span>` : "Calm"}</div><div class="wxy">${c.wind_speed_kn != null ? f1(c.wind_speed_kn) + " kn" : ""}${c.wind_gust_kn != null ? " · gust " + f1(c.wind_gust_kn) : ""}</div></div>`
+      : `<div class="wband"><div class="wfrom">${d.name}</div><div class="wxy">${lat != null ? lat.toFixed(3) + ", " + lon.toFixed(3) : ""}</div></div>`;
+    return `<div class="sd-map">${map}<div class="vign"></div>${band}</div>`;
   }
 
-  _spotNow(d, sp) {
-    const c = d.current || {}, now = sp.now || {}, col = vcw(now.verdict);
-    const best = sp.best, bestT = best?.time || (best?.in_hours != null ? "+" + best.in_hours + "h" : "—");
-    const ser = sp.hourly || [];
-    const bars = ser.slice(0, 24).map((p, i) => {
-      const sc = Math.max(4, Math.round(p.score ?? 0));
-      return `<div class="b ${i === 0 ? "now" : ""}" style="height:${sc}%;background:${vcw(p.verdict)}" title="${(p.datetime || "").slice(11, 16)} · ${Math.round(p.score ?? 0)}"></div>`;
-    }).join("");
-    const strip = (k, v, sub) => `<div class="sd-ns"><span class="k">${k}</span><b>${v}</b>${sub ? `<span class="s">${sub}</span>` : ""}</div>`;
-    return `<div class="sd-row2">
-        <div class="sd-wind">${this._compass(c.wind_dir_deg, c.wind_speed_kn, c.wind_gust_kn)}</div>
-        ${this._tide(d)}
-      </div>
-      <div class="sd-sel">
-        ${this._gauge(now.score, col, "now")}
-        <div class="sd-selr"><div class="nm">${sp.label}</div><div class="vd" style="color:${col}">${now.verdict || "—"}</div></div>
-        <div class="sd-best"><span class="bk">Best · 24h</span><b>${bestT}</b><span class="bs">${best ? Math.round(best.score) + " · " + (best.verdict || "") : ""}</span></div>
-      </div>
-      ${ser.length ? `<div class="sd-tl"><div class="tlh">Next 24h</div><div class="bars">${bars}</div></div>` : ""}
-      <div class="sd-strip">
-        ${strip("Wind", f1(c.wind_speed_kn), (cardOf(c.wind_dir_deg) || "") + " kn")}
-        ${strip("Gust", f1(c.wind_gust_kn), "kn")}
-        ${strip("Wave", c.wave_height_m != null ? f1(c.wave_height_m) : (c.wind_wave_height_m != null ? f1(c.wind_wave_height_m) : "—"), "m")}
-        ${strip("Swell", c.swell_height_m != null ? f1(c.swell_height_m) : "—", c.swell_period_s != null ? f1(c.swell_period_s) + "s" : "m")}
-      </div>
-      ${this._config.show_factors !== false && this._factors(now) ? `<div class="sd-facs">${this._factors(now)}</div>` : ""}`;
+  /* ---- tide module: state + next high/low + 24h modelled sea-level curve ---- */
+  _tideHours(nowTime, n) {
+    let h = parseInt((nowTime || "").slice(0, 2), 10); if (isNaN(h)) h = 0;
+    const out = []; for (let i = 0; i < n; i++) out.push(String((h + i) % 24).padStart(2, "0") + ":00");
+    return out;
+  }
+  _tideModule(d) {
+    const t = d.tide;
+    if (!t || this._config.show_tide === false) {
+      return `<div class="sd-tidep t-slack"><div class="th"><span class="k">Tide</span></div><div class="nxt">no tide model</div></div>`;
+    }
+    const arrow = t.state === "rising" ? "▲" : t.state === "falling" ? "▼" : "—", nx = t.next;
+    const lv = t.levels || [], n = lv.length, lo = t.min, hi = t.max, rng = (hi - lo) || 1;
+    const W = 268, H = 86, hours = this._tideHours(d.now_time, n);
+    const X = (i) => i / Math.max(1, n - 1) * W, Y = (v) => v == null ? H / 2 : H - 6 - ((v - lo) / rng) * (H - 12);
+    let dp = ""; lv.forEach((v, i) => { if (v == null) return; dp += (dp ? "L" : "M") + X(i).toFixed(1) + " " + Y(v).toFixed(1) + " "; });
+    const fillp = n ? `M0 ${H} L` + lv.map((v, i) => X(i).toFixed(1) + " " + Y(v).toFixed(1)).join(" L") + ` L${W} ${H} Z` : "";
+    const nowX = X(0), nxX = nx && nx.in_h != null ? X(nx.in_h) : null, nxY = nx && nx.level != null ? Y(nx.level) : null;
+    let labs = ""; for (let i = 0; i < n; i += 6) labs += `<text class="clab" x="${(X(i) + 2).toFixed(1)}" y="${H - 1}">${hours[i] || ""}</text>`;
+    return `<div class="sd-tidep t-${t.state}">
+      <div class="th"><span class="k">Tide</span><span class="model">${t.source || "modelled"}</span></div>
+      <div class="state"><span class="arrow">${arrow}</span><span class="word">${cap(t.state)}</span></div>
+      <div class="nxt">${nx ? `next <b>${nx.type}</b> at <b>${nx.time}</b>${nx.level != null ? ` <span class="dim">(${f1(nx.level, 2)}m)</span>` : ""}` : "between turning points"}</div>
+      <div class="curve"><svg viewBox="0 0 ${W} ${H}" preserveAspectRatio="none">
+        ${fillp ? `<path class="cfill" d="${fillp}"/>` : ""}<path class="cpath" d="${dp}"/>
+        <line class="cnow" x1="${nowX.toFixed(1)}" y1="2" x2="${nowX.toFixed(1)}" y2="${H - 2}"/>
+        ${lv[0] != null ? `<circle class="cnowdot" cx="${nowX.toFixed(1)}" cy="${Y(lv[0]).toFixed(1)}" r="3"/>` : ""}
+        ${nxX != null ? `<circle class="cdot" cx="${nxX.toFixed(1)}" cy="${nxY.toFixed(1)}" r="3.5"/>` : ""}
+        ${labs}
+      </svg></div>
+    </div>`;
   }
 
-  _spotWeek(d, sp) {
-    const dl = sp.daily || [], pk = this._peak(sp), col = pk ? vcw(pk.verdict) : vc("good");
-    const today = d.now_time != null ? (dl[0] && dl[0].date) : null;
-    const cc = pk || {}, wc = cardOf(cc.wind_bearing);
-    const good = dl.filter((e) => !["poor", "marginal"].includes(e.verdict)).length;
-    const tide = cc.tide || {};
-    const m = (k, v, sub) => `<div class="sd-st"><span class="k">${k}</span><b>${v}</b>${sub ? `<span class="s">${sub}</span>` : ""}</div>`;
-    const rows = dl.map((e) => {
-      const isP = e === pk, c2 = vcw(e.verdict);
-      return `<div class="sd-drow ${isP ? "best" : ""}">
-        <span class="dd">${e.date === today ? "Today" : this._wd(e.date)}</span>
-        <span class="db"><i style="width:${Math.max(4, e.score)}%;background:${c2}"></i></span>
-        <span class="dt">${(e.datetime || "").slice(11, 16)}</span>
-        <span class="ds" style="color:${c2}">${isP ? "★ " : ""}${Math.round(e.score)}</span></div>`;
-    }).join("");
+  /* ---- now-view pieces ---- */
+  _nowStrip(c) {
+    const cell = (amber, k, v, sub) => `<div class="ns ${amber ? "amber" : ""}"><div class="k">${k}</div><div class="v">${v}${sub ? `<small> ${sub}</small>` : ""}</div></div>`;
+    return cell(false, "Wind", f1(c.wind_speed_kn), "kn " + (cardOf(c.wind_dir_deg) || ""))
+      + cell(true, "Gust", f1(c.wind_gust_kn), "kn")
+      + cell(false, "Wave", c.wave_height_m != null ? f1(c.wave_height_m) : (c.wind_wave_height_m != null ? f1(c.wind_wave_height_m) : "—"), "m")
+      + cell(false, "Swell", c.swell_height_m != null ? f1(c.swell_height_m) : "—", c.swell_period_s != null ? f1(c.swell_period_s) + "s" : "m");
+  }
+  _selNow(sp) {
+    const now = sp.now || {}, col = vcw(now.verdict), best = sp.best;
+    const bestT = best ? (best.time || (best.in_hours != null ? "+" + best.in_hours + "h" : "—")) : "—";
     return `<div class="sd-sel">
-        ${this._gauge(pk?.score, col, "peak")}
-        <div class="sd-selr"><div class="nm">${sp.label}</div><div class="vd" style="color:${col}">${pk?.verdict || "—"}</div></div>
-        <div class="sd-best"><span class="bk">Peak day</span><b>${pk ? (pk.date === today ? "Today" : this._wd(pk.date)) : "—"}</b><span class="bs">${pk ? (pk.datetime || "").slice(11, 16) : ""}</span></div>
+      <div class="sd-gauge">${this._ring(now.score, col, 80, 8)}<div class="gn"><b style="color:${col}">${now.score == null ? "—" : Math.round(now.score)}</b><i>now</i></div></div>
+      <div class="sd-selr"><div class="nm">${sp.label}</div><div class="vd" style="color:${col}">${now.verdict || "—"}</div></div>
+      <div class="sd-best"><div class="bk">Best · 24h</div><div class="bt">${bestT}</div><div class="bs">${best ? Math.round(best.score) + " · " + (best.verdict || "") : ""}</div></div>
+    </div>`;
+  }
+  _hourlyTL(sp) {
+    const ser = (sp.hourly || []).slice(0, 24);
+    if (!ser.length) return `<div class="sd-tl"><div class="tlh"><span class="k">Next 24h</span></div><div class="none">no hourly forecast</div></div>`;
+    const bestI = sp.best ? sp.best.in_hours : null;
+    const bars = ser.map((p, i) => `<div class="b ${i === 0 ? "now" : ""} ${i === bestI ? "best" : ""}" style="height:${Math.max(6, Math.round(p.score ?? 0))}%;background:${vcw(p.verdict)}" title="${(p.datetime || "").slice(11, 16)} · ${Math.round(p.score ?? 0)}"></div>`).join("");
+    let axis = ""; ser.forEach((p, i) => { axis += `<div class="x">${i % 6 === 0 ? (p.datetime || "").slice(11, 16) : ""}</div>`; });
+    return `<div class="sd-tl"><div class="tlh"><span class="k">Outlook · next 24h</span><span class="span">hourly</span></div>
+      <div class="bars">${bars}</div><div class="axis">${axis}</div></div>`;
+  }
+
+  /* ---- week-view pieces ---- */
+  _selWeek(sp) {
+    const pk = this._peak(sp), col = pk ? vcw(pk.verdict) : vc("good");
+    const today = (sp.daily || [])[0] && sp.daily[0].date;
+    return `<div class="sd-sel week">
+      <div class="sd-gauge">${this._ring(pk ? pk.score : 0, col, 80, 8)}<div class="gn"><b style="color:${col}">${pk ? Math.round(pk.score) : "—"}</b><i>peak</i></div></div>
+      <div class="sd-selr"><div class="nm">${sp.label}</div><div class="vd" style="color:${col}">${pk ? pk.verdict : "—"}</div></div>
+      <div class="sd-best"><div class="bk">Peak day</div><div class="bt">${pk ? (pk.date === today ? "Today" : this._wd(pk.date)) : "—"}</div><div class="bs">${pk ? (pk.datetime || "").slice(11, 16) : ""}</div></div>
+    </div>`;
+  }
+  _dayRows(sp) {
+    const dl = sp.daily || [];
+    if (!dl.length) return `<div class="sd-drows"><div class="none">no daily forecast</div></div>`;
+    const pk = this._peak(sp), today = dl[0] && dl[0].date;
+    return `<div class="sd-drows">${dl.map((e) => {
+      const isP = e === pk, c2 = vcw(e.verdict);
+      return `<div class="sd-drow ${e.date === today ? "today" : ""} ${isP ? "best" : ""}">
+        <div class="dd">${e.date === today ? "Today" : this._wd(e.date)}</div>
+        <div class="dbar"><i style="width:${Math.max(4, e.score)}%;background:${c2}"></i></div>
+        <div class="dt">${(e.datetime || "").slice(11, 16)}</div>
+        <div class="dsc" style="color:${c2}">${isP ? `<span class="star">★</span>` : ""}${Math.round(e.score)}</div>
+      </div>`;
+    }).join("")}</div>`;
+  }
+  _weekSummary(d, sp) {
+    const dl = sp.daily || [], pk = this._peak(sp), good = dl.filter((e) => !["poor", "marginal"].includes(e.verdict)).length;
+    const col = pk ? vcw(pk.verdict) : vc("good"), cc = pk || {}, wc = cardOf(cc.wind_bearing);
+    const today = dl[0] && dl[0].date, tide = cc.tide || {};
+    const met = (cls, k, v, sub) => `<div class="st ${cls || ""}"><div class="sk">${k}</div><div class="sv">${v}${sub ? `<small> ${sub}</small>` : ""}</div></div>`;
+    return `<div class="sd-wsum">
+      <div class="k">Best day · ${sp.label}</div>
+      <div class="bigday"><span class="dn" style="color:${col}">${pk ? (pk.date === today ? "Today" : this._wd(pk.date)) : "—"}</span><span class="ds">${pk ? Math.round(pk.score) : "—"}</span><span class="dv" style="color:${col}">${pk ? pk.verdict : ""}</span></div>
+      <div class="psub">peak <b>${pk ? (pk.datetime || "").slice(11, 16) : "—"}</b> · ${good}/${dl.length} good+ days</div>
+      <div class="wgrid">
+        ${met("", "Wind", f1(cc.wind_speed_kn), "kn" + (wc ? " " + wc : ""))}
+        ${met("amber", "Gust", f1(cc.wind_gust_kn), "kn")}
+        ${met("", "Wave", cc.wave_height_m != null ? f1(cc.wave_height_m) : "—", "m")}
+        ${met("", "Swell", cc.swell_height_m != null ? f1(cc.swell_height_m) : "—", cc.swell_period_s != null ? f1(cc.swell_period_s) + "s" : "m")}
+        ${this._config.show_tide === false ? "" : met(tide.state ? "t-" + tide.state : "", "Tide", cap(tide.state), tide.height != null ? f1(tide.height, 2) + " m" : "")}
+        ${met("", "Water", cc.water_temp_c != null ? f1(cc.water_temp_c) : "—", "°C")}
       </div>
-      <div class="sd-bestpane">
-        <div class="bp-h">Best day${pk ? " · " + (pk.date === today ? "Today" : this._wd(pk.date)) + " " + (pk.datetime || "").slice(11, 16) : ""} · ${good}/${dl.length} good+ days</div>
-        <div class="sd-strip wrap">
-          ${m("Wind", f1(cc.wind_speed_kn), (wc || "") + " kn")}
-          ${m("Gust", f1(cc.wind_gust_kn), "kn")}
-          ${m("Wave", cc.wave_height_m != null ? f1(cc.wave_height_m) : "—", "m")}
-          ${m("Swell", cc.swell_height_m != null ? f1(cc.swell_height_m) : "—", cc.swell_period_s != null ? f1(cc.swell_period_s) + "s" : "m")}
-          ${this._config.show_tide === false ? "" : m("Tide", cap(tide.state), tide.height != null ? f1(tide.height, 2) + " m" : "")}
-          ${m("Water", cc.water_temp_c != null ? f1(cc.water_temp_c) : "—", "°C")}
-        </div>
-      </div>
-      <div class="sd-drows">${rows}</div>`;
+    </div>`;
+  }
+
+  /* ---- shared chrome: sport pills + spot tabs ---- */
+  _pills(sports, active, view) {
+    return `<div class="sd-pills">${sports.map((s, i) => {
+      const pk = this._peak(s), val = view === "week" ? (pk ? Math.round(pk.score) : "—") : Math.round(s.now?.score ?? 0);
+      const col = vcw((view === "week" ? pk?.verdict : s.now?.verdict) || "poor");
+      return `<div class="sd-pill ${i === active ? "on" : ""}" data-act="sport" data-s="${s.sport}">
+        ${ICON(s.sport)}<span class="pn">${s.label || LABELS[s.sport] || s.sport}</span>
+        <span class="pv" style="color:${col}">${val}</span></div>`;
+    }).join("")}</div>`;
+  }
+  _tabs(spots, active, view) {
+    if (spots.length < 2) return "";
+    return `<div class="sd-tabs">${spots.map((x, i) => {
+      const scores = (x.sports || []).map((y) => view === "week" ? (this._peak(y)?.score ?? 0) : (y.now?.score ?? 0));
+      const v = scores.length ? Math.max(...scores) : 0;
+      return `<div class="sd-tab ${i === active ? "on" : ""}" data-act="spot" data-i="${i}">
+        <div class="tn"><span class="tdot"></span>${x.name}</div>
+        <div class="tw"><span>${x.water_type || ""}</span><b>${Math.round(v)}</b></div></div>`;
+    }).join("")}</div>`;
   }
 
   _empty() { return `<div class="muted">No Swelligence sensors found. Add spots in the integration options.</div>`; }
@@ -465,7 +560,7 @@ class SwelligenceCardEditor extends HTMLElement {
     const base = [
       { name: "title", selector: { text: {} } },
       { name: "mode", required: true, selector: { select: { mode: "dropdown", options: [
-        { value: "spot", label: "Spot detail — now/week (one spot)" },
+        { value: "spot", label: "Spot detail — now/week (multi-spot tabs)" },
         { value: "podium", label: "Podium — top 3 per day" },
         { value: "timeline", label: "Opportunity timeline (7 days)" },
         { value: "heatgrid", label: "Heat-grid — now" },
@@ -474,7 +569,7 @@ class SwelligenceCardEditor extends HTMLElement {
     ];
     if (this._config.mode === "spot") {
       base.push(
-        { name: "spot", required: true, selector: { select: { mode: "dropdown", options: o.spots } } },
+        { name: "spot", selector: { select: { mode: "dropdown", options: o.spots } } },
         { name: "default_view", selector: { select: { mode: "dropdown", options: [
           { value: "now", label: "Now" }, { value: "week", label: "Week" } ] } } },
         { name: "show_tide", selector: { boolean: {} } },
@@ -504,7 +599,7 @@ class SwelligenceCardEditor extends HTMLElement {
       this._form.computeLabel = (s) => ({
         title: "Title", mode: "Mode", days: "Days to show (forecast modes)",
         show_score: "Show score number (rings)",
-        spot: "Spot (spot-detail mode)",
+        spot: "Initial spot (spot-detail — switch via tabs)",
         default_view: "Default view (spot-detail)",
         show_tide: "Show tide module",
         show_factors: "Show factor breakdown (Now)",
@@ -636,44 +731,138 @@ table.grid{border-collapse:separate;border-spacing:6px;width:100%;}
 .ps{font-weight:600;font-size:10px;color:var(--c-dim);line-height:1;} .pm.big .ps{font-size:11px;}
 .pi .icon{width:22px;height:22px;color:var(--c-ink);} .pm.big .pi .icon{width:26px;height:26px;}
 .pl{font-size:9.5px;color:var(--c-dim);}
-/* ---------- spot detail ---------- */
-.sd{display:flex;flex-direction:column;gap:12px;}
-.sd-hdr{display:flex;justify-content:space-between;align-items:flex-start;gap:10px;}
-.sd-nm{font-size:18px;font-weight:700;color:var(--c-ink);}
-.sd-sub{font-size:11px;color:var(--c-dim);text-transform:capitalize;margin-top:2px;}
-.sd-ctrl{display:flex;align-items:center;gap:10px;}
-.sd-seg{display:flex;border:1px solid var(--c-line);border-radius:9px;overflow:hidden;}
-.sd-seg button{font:inherit;cursor:pointer;border:0;background:transparent;color:var(--c-dim);font-size:12px;font-weight:700;padding:7px 13px;}
-.sd-seg button.on{background:var(--primary-color,#03a9f4);color:#fff;}
-.sd-now{text-align:right;} .sd-now b{display:block;font-size:15px;color:var(--c-ink);} .sd-now span{font-size:9px;text-transform:uppercase;letter-spacing:.12em;color:var(--c-dim);}
-.sd-pills{display:flex;gap:6px;flex-wrap:wrap;}
-.sd-pill{cursor:pointer;flex:1 1 auto;min-width:84px;display:flex;align-items:center;gap:6px;border:1px solid var(--c-line);border-radius:10px;padding:7px 9px;}
-.sd-pill.on{border-color:var(--primary-color,#03a9f4);background:color-mix(in srgb,var(--primary-color,#03a9f4) 12%,transparent);}
-.sd-pill .icon{width:16px;height:16px;color:var(--c-ink);} .sd-pill .pn{font-size:12px;font-weight:600;color:var(--c-ink);} .sd-pill .pv{font-size:14px;font-weight:800;margin-left:auto;}
-.sd-row2{display:flex;gap:10px;flex-wrap:wrap;}
-.sd-wind{flex:1 1 130px;display:flex;align-items:center;justify-content:center;min-width:120px;}
-.sd-rose{width:130px;height:130px;} .sd-rose .t{fill:var(--c-dim);font:700 11px sans-serif;text-anchor:middle;} .sd-rose .nd{fill:var(--primary-color,#03a9f4);} .sd-rose .hub{fill:var(--card-background-color,#1b1e25);stroke:var(--c-line);} .sd-rose .spd{fill:var(--c-ink);font:800 22px sans-serif;text-anchor:middle;} .sd-rose .u{fill:var(--c-dim);font:600 9px sans-serif;text-anchor:middle;}
-.sd-tide{flex:1 1 150px;min-width:150px;border:1px solid var(--c-line);border-radius:12px;padding:9px 11px;}
-.sd-th{display:flex;justify-content:space-between;font-size:10px;text-transform:uppercase;letter-spacing:.1em;color:var(--c-dim);} .sd-th .src{opacity:.7;}
-.sd-ts{display:flex;align-items:baseline;gap:7px;margin-top:3px;} .sd-ts .ar,.sd-ts .w{font-size:19px;font-weight:800;color:var(--c-ink);}
-.t-rising .ar,.t-rising .w{color:#39bdf8;} .t-falling .ar,.t-falling .w{color:#f0a83d;}
-.sd-tn{font-size:11px;color:var(--c-dim);margin-top:2px;} .sd-tn b{color:var(--c-ink);text-transform:capitalize;}
-.sd-spark{width:100%;height:30px;margin-top:5px;display:block;}
-.sd-sel{display:flex;align-items:center;gap:13px;border:1px solid var(--c-line);border-radius:12px;padding:11px 13px;}
-.sd-ring{width:60px;height:60px;border-radius:50%;flex:0 0 auto;position:relative;background:conic-gradient(var(--c) calc(var(--p)*1%),var(--c-track) 0);}
-.sd-ring::after{content:'';position:absolute;inset:5px;border-radius:50%;background:var(--card-background-color,#1b1e25);}
-.sd-ri{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;}
-.sd-ri b{font-size:20px;font-weight:800;line-height:1;} .sd-ri i{font-size:8px;font-style:normal;text-transform:uppercase;letter-spacing:.1em;color:var(--c-dim);}
-.sd-selr .nm{font-size:16px;font-weight:700;color:var(--c-ink);} .sd-selr .vd{font-size:12px;font-weight:700;text-transform:capitalize;}
-.sd-best{margin-left:auto;text-align:right;} .sd-best .bk{font-size:9px;text-transform:uppercase;letter-spacing:.1em;color:var(--c-dim);display:block;} .sd-best b{font-size:15px;color:var(--c-ink);} .sd-best .bs{display:block;font-size:11px;color:var(--c-dim);}
-.sd-tl{border:1px solid var(--c-line);border-radius:12px;padding:9px 11px;} .sd-tl .tlh{font-size:10px;text-transform:uppercase;letter-spacing:.12em;color:var(--c-dim);margin-bottom:7px;}
-.sd-tl .bars{display:flex;align-items:flex-end;gap:2px;height:60px;} .sd-tl .b{flex:1;border-radius:3px 3px 0 0;min-height:3px;align-self:flex-end;} .sd-tl .b.now{outline:1.5px solid var(--c-ink);outline-offset:1px;}
-.sd-strip{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;} .sd-strip.wrap{grid-template-columns:repeat(3,1fr);}
-.sd-ns,.sd-st{border:1px solid var(--c-line);border-radius:10px;padding:7px 9px;} .sd-ns .k,.sd-st .k{font-size:9px;text-transform:uppercase;letter-spacing:.08em;color:var(--c-dim);display:block;} .sd-ns b,.sd-st b{font-size:16px;font-weight:800;color:var(--c-ink);display:block;} .sd-ns .s,.sd-st .s{font-size:10px;color:var(--c-dim);}
-.sd-facs{display:grid;gap:5px;} .sd-fac{display:grid;grid-template-columns:64px 1fr 28px;align-items:center;gap:8px;font-size:11px;color:var(--c-dim);text-transform:capitalize;} .sd-fac .fb{height:6px;border-radius:4px;background:var(--c-track);overflow:hidden;} .sd-fac .fb i{display:block;height:100%;background:var(--primary-color,#03a9f4);} .sd-fac b{text-align:right;color:var(--c-ink);}
-.sd-bestpane{border:1px solid var(--c-line);border-radius:12px;padding:10px 12px;} .bp-h{font-size:11px;font-weight:600;color:var(--c-dim);margin-bottom:8px;}
-.sd-drows{display:flex;flex-direction:column;gap:6px;} .sd-drow{display:grid;grid-template-columns:46px 1fr 44px 40px;align-items:center;gap:9px;border:1px solid var(--c-line);border-radius:9px;padding:7px 11px;}
-.sd-drow.best{border-color:var(--primary-color,#03a9f4);} .sd-drow .dd{font-size:12px;font-weight:700;color:var(--c-ink);} .sd-drow .db{height:7px;border-radius:4px;background:var(--c-track);overflow:hidden;} .sd-drow .db i{display:block;height:100%;} .sd-drow .dt{font-size:10px;color:var(--c-dim);text-align:right;} .sd-drow .ds{font-size:15px;font-weight:800;text-align:right;}
+/* ---------- spot detail (720-panel layout, theme-aware) ---------- */
+.sd{--ac:var(--primary-color,#03a9f4);--ink:var(--primary-text-color,#eaf2f6);--mut:var(--secondary-text-color,#8ba4b3);
+  --dim:color-mix(in srgb,var(--secondary-text-color,#8ba4b3) 65%,transparent);
+  --line:var(--divider-color,rgba(150,178,198,.18));--line2:color-mix(in srgb,var(--secondary-text-color,#8ba4b3) 35%,transparent);
+  --panel:color-mix(in srgb,var(--primary-text-color,#fff) 4%,transparent);
+  --panel2:color-mix(in srgb,var(--primary-text-color,#fff) 6%,transparent);
+  --raise:color-mix(in srgb,var(--primary-text-color,#fff) 9%,transparent);
+  container-type:inline-size;display:flex;flex-direction:column;gap:12px;font-variant-numeric:tabular-nums;}
+/* header */
+.sd-hdr{display:flex;align-items:center;justify-content:space-between;gap:12px;}
+.sd-id{display:flex;align-items:center;gap:10px;min-width:0;}
+.sd-logo{width:38px;height:38px;border-radius:10px;flex:0 0 auto;display:grid;place-items:center;font-weight:800;font-size:18px;color:#04201c;background:radial-gradient(circle at 35% 30%,var(--ac),color-mix(in srgb,var(--ac) 55%,#000));}
+.sd-nm{font-size:20px;font-weight:800;color:var(--ink);line-height:1.05;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+.sd-sub{font-size:10.5px;font-weight:600;text-transform:uppercase;letter-spacing:.08em;color:var(--mut);margin-top:3px;}
+.sd-sub b{color:var(--ac);}
+.sd-ctrl{display:flex;align-items:center;gap:11px;flex:0 0 auto;}
+.sd-seg{display:flex;border:1px solid var(--line2);border-radius:10px;overflow:hidden;}
+.sd-seg button{font:inherit;cursor:pointer;border:0;background:transparent;color:var(--mut);font-size:12px;font-weight:800;text-transform:uppercase;letter-spacing:.05em;padding:8px 14px;}
+.sd-seg button.on{background:var(--ac);color:#04201c;}
+.sd-now{display:flex;align-items:center;gap:8px;text-align:right;}
+.sd-now b{display:block;font-size:17px;font-weight:800;color:var(--ink);line-height:1;}
+.sd-now span{font-size:9px;font-weight:700;letter-spacing:.18em;text-transform:uppercase;color:var(--ac);}
+.sd-now .pulse{width:8px;height:8px;border-radius:50%;background:var(--ac);animation:sdpulse 2.4s infinite;}
+@keyframes sdpulse{0%{box-shadow:0 0 0 0 color-mix(in srgb,var(--ac) 50%,transparent)}70%{box-shadow:0 0 0 8px transparent}100%{box-shadow:0 0 0 0 transparent}}
+/* main split */
+.sd-main{display:grid;grid-template-columns:minmax(0,290px) minmax(0,1fr);gap:12px;align-items:start;}
+.sd-col{min-width:0;display:flex;flex-direction:column;gap:11px;}
+/* map hero */
+.sd-map{position:relative;height:200px;border-radius:14px;overflow:hidden;border:1px solid var(--line);background:var(--panel2);}
+.sd-map .lmap{position:absolute;inset:0;overflow:hidden;}
+.sd-map .mos{position:absolute;left:50%;top:50%;width:768px;height:768px;}
+.sd-map .mos img{position:absolute;width:256px;height:256px;display:block;}
+.sd-map .lmap.dark .mos{filter:invert(1) hue-rotate(180deg) brightness(.85) contrast(.95) saturate(.7);}
+.sd-map .pin{position:absolute;left:50%;top:50%;width:26px;height:26px;transform:translate(-50%,-100%);fill:var(--ac);stroke:var(--card-background-color,#0d151d);stroke-width:1.2;z-index:2;filter:drop-shadow(0 2px 4px rgba(0,0,0,.6));}
+.sd-map .pin circle{fill:var(--card-background-color,#0d151d);stroke:none;}
+.sd-map .vign{position:absolute;inset:0;z-index:1;pointer-events:none;box-shadow:inset 0 0 46px 6px rgba(0,0,0,.45);}
+.sd-map .wband{position:absolute;left:0;right:0;bottom:0;z-index:3;pointer-events:none;padding:18px 12px 8px;display:flex;align-items:flex-end;justify-content:space-between;gap:8px;background:linear-gradient(0deg,rgba(0,0,0,.72),transparent);}
+.sd-map .wband .wfrom{font-size:11px;font-weight:700;letter-spacing:.07em;text-transform:uppercase;color:#fff;}
+.sd-map .wband .wfrom span{color:var(--ac);}
+.sd-map .wband .wxy{font-size:10px;color:rgba(255,255,255,.82);}
+.sd-map .osm{position:absolute;right:3px;top:3px;z-index:3;font-size:8px;color:var(--mut);background:color-mix(in srgb,var(--card-background-color,#000) 55%,transparent);padding:1px 4px;border-radius:4px;text-decoration:none;}
+.sd-nomap{position:absolute;inset:0;display:grid;place-items:center;color:var(--dim);font-size:12px;}
+/* tide module */
+.sd-tidep{flex:1;background:var(--panel2);border:1px solid var(--line);border-radius:14px;padding:12px 14px;display:flex;flex-direction:column;min-height:150px;}
+.sd-tidep .th{display:flex;align-items:center;justify-content:space-between;}
+.sd-tidep .th .k{font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.14em;color:var(--mut);}
+.sd-tidep .th .model{font-size:8.5px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:var(--dim);border:1px solid var(--line);border-radius:6px;padding:2px 6px;}
+.sd-tidep .state{display:flex;align-items:baseline;gap:9px;margin-top:7px;}
+.sd-tidep .state .arrow,.sd-tidep .state .word{font-size:22px;font-weight:800;color:var(--ink);}
+.sd-tidep.t-rising .arrow,.sd-tidep.t-rising .word{color:#39bdf8;}
+.sd-tidep.t-falling .arrow,.sd-tidep.t-falling .word{color:#f6a623;}
+.sd-tidep .nxt{font-size:12px;color:var(--mut);margin-top:5px;} .sd-tidep .nxt b{color:var(--ink);font-weight:800;} .sd-tidep .nxt .dim{color:var(--dim);}
+.sd-tidep .curve{flex:1;min-height:54px;margin-top:8px;position:relative;}
+.sd-tidep .curve svg{position:absolute;inset:0;width:100%;height:100%;}
+.sd-tidep .cpath{fill:none;stroke:var(--ac);stroke-width:2;stroke-linejoin:round;}
+.sd-tidep .cfill{fill:color-mix(in srgb,var(--ac) 12%,transparent);}
+.sd-tidep .cnow{stroke:var(--ink);stroke-width:1.4;stroke-dasharray:3 3;opacity:.6;}
+.sd-tidep .cdot{fill:#f6a623;} .sd-tidep .cnowdot{fill:var(--ink);}
+.sd-tidep .clab{fill:var(--dim);font:700 9px sans-serif;}
+/* sports column */
+.sd-sportcol{min-width:0;display:flex;flex-direction:column;gap:11px;}
+.sd-pills{display:grid;grid-auto-flow:column;grid-auto-columns:1fr;gap:7px;}
+.sd-pill{cursor:pointer;min-height:48px;border-radius:12px;border:1px solid var(--line);background:var(--panel2);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;padding:5px 4px;}
+.sd-pill .icon{width:16px;height:16px;color:var(--ink);}
+.sd-pill.on{border-color:var(--ac);background:color-mix(in srgb,var(--ac) 12%,transparent);}
+.sd-pill .pn{font-size:11.5px;font-weight:700;color:var(--ink);white-space:nowrap;}
+.sd-pill .pv{font-size:14px;font-weight:800;}
+/* selected sport head */
+.sd-sel{display:flex;align-items:center;gap:14px;background:var(--raise);border:1px solid var(--line2);border-radius:15px;padding:12px 14px;}
+.sd-gauge{position:relative;width:80px;height:80px;flex:0 0 auto;}
+.sd-ring-svg{width:80px;height:80px;transform:rotate(-90deg);}
+.sd-ring-svg .gt{fill:none;stroke:color-mix(in srgb,var(--mut) 26%,transparent);}
+.sd-ring-svg .ga{fill:none;stroke-linecap:round;}
+.sd-gauge .gn{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;}
+.sd-gauge .gn b{font-size:26px;font-weight:800;line-height:1;} .sd-gauge .gn i{font-size:8px;font-style:normal;text-transform:uppercase;letter-spacing:.14em;color:var(--ac);margin-top:1px;}
+.sd-selr .nm{font-size:19px;font-weight:800;color:var(--ink);} .sd-selr .vd{font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:.08em;}
+.sd-best{margin-left:auto;text-align:right;} .sd-best .bk{font-size:9px;font-weight:700;letter-spacing:.14em;text-transform:uppercase;color:var(--dim);} .sd-best .bt{font-size:17px;font-weight:800;color:var(--ink);margin-top:2px;} .sd-best .bs{font-size:11px;color:var(--mut);}
+/* hourly timeline */
+.sd-tl{background:var(--panel2);border:1px solid var(--line);border-radius:14px;padding:10px 12px 8px;}
+.sd-tl .tlh{display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;}
+.sd-tl .tlh .k{font-size:10.5px;font-weight:700;text-transform:uppercase;letter-spacing:.12em;color:var(--mut);}
+.sd-tl .tlh .span{font-size:9px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:var(--dim);border:1px solid var(--line);border-radius:6px;padding:2px 7px;}
+.sd-tl .bars{display:flex;align-items:flex-end;gap:2px;height:74px;}
+.sd-tl .b{flex:1;position:relative;border-radius:3px 3px 0 0;min-height:3px;align-self:flex-end;}
+.sd-tl .b.now{outline:1.5px solid var(--ink);outline-offset:1px;}
+.sd-tl .b.best::before{content:"★";position:absolute;top:-13px;left:50%;transform:translateX(-50%);font-size:10px;color:#f6a623;}
+.sd-tl .axis{display:flex;margin-top:6px;} .sd-tl .axis .x{flex:1;text-align:center;font-size:9px;font-weight:600;color:var(--dim);}
+.sd-tl .none,.sd-drows .none{height:74px;display:grid;place-items:center;color:var(--dim);font-size:12px;}
+/* now strip + factors */
+.sd-strip{display:grid;grid-template-columns:repeat(4,1fr);gap:7px;}
+.ns{background:var(--panel2);border:1px solid var(--line);border-radius:11px;padding:7px 9px;}
+.ns .k{font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:var(--mut);}
+.ns .v{font-size:17px;font-weight:800;color:var(--ink);margin-top:2px;} .ns .v small{font-size:10px;font-weight:600;color:var(--mut);}
+.ns.amber .v{color:#f6a623;}
+.sd-facs{display:grid;gap:6px;}
+.sd-fac{display:grid;grid-template-columns:64px 1fr 28px;align-items:center;gap:8px;font-size:10.5px;}
+.sd-fac .fl{color:var(--mut);text-transform:capitalize;font-weight:600;}
+.sd-fac .fb{height:6px;border-radius:4px;background:color-mix(in srgb,var(--mut) 18%,transparent);overflow:hidden;}
+.sd-fac .fb i{display:block;height:100%;border-radius:4px;background:linear-gradient(90deg,color-mix(in srgb,var(--ac) 55%,#000),var(--ac));}
+.sd-fac .fn{text-align:right;color:var(--mut);font-weight:700;}
+/* week summary */
+.sd-wsum{flex:1;background:var(--panel2);border:1px solid var(--line);border-radius:14px;padding:13px 14px;display:flex;flex-direction:column;gap:10px;}
+.sd-wsum .k{font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.14em;color:var(--mut);}
+.sd-wsum .bigday{display:flex;align-items:baseline;gap:10px;} .sd-wsum .bigday .dn{font-size:24px;font-weight:800;} .sd-wsum .bigday .ds{font-size:24px;font-weight:800;color:var(--ink);} .sd-wsum .bigday .dv{font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;margin-left:auto;}
+.sd-wsum .psub{font-size:11px;font-weight:600;color:var(--mut);} .sd-wsum .psub b{color:var(--ink);font-weight:800;}
+.sd-wsum .wgrid{display:grid;grid-template-columns:1fr 1fr;gap:9px;margin-top:auto;}
+.sd-wsum .st{background:var(--raise);border:1px solid var(--line);border-radius:11px;padding:9px 11px;position:relative;overflow:hidden;}
+.sd-wsum .st::before{content:"";position:absolute;left:0;top:0;bottom:0;width:3px;background:var(--ac);opacity:.5;}
+.sd-wsum .st.amber::before{background:#f6a623;} .sd-wsum .st.t-rising::before{background:#39bdf8;} .sd-wsum .st.t-falling::before{background:#f6a623;}
+.sd-wsum .st .sk{font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:var(--mut);}
+.sd-wsum .st .sv{font-size:20px;font-weight:800;color:var(--ink);margin-top:3px;} .sd-wsum .st.amber .sv{color:#f6a623;} .sd-wsum .st .sv small{font-size:10px;font-weight:600;color:var(--mut);}
+/* day rows */
+.sd-drows{display:flex;flex-direction:column;gap:6px;}
+.sd-drow{display:grid;grid-template-columns:52px 1fr 46px 40px;align-items:center;gap:10px;background:var(--panel2);border:1px solid var(--line);border-radius:10px;padding:8px 12px;}
+.sd-drow.best{border-color:color-mix(in srgb,var(--ac) 50%,transparent);}
+.sd-drow .dd{font-size:12.5px;font-weight:800;color:var(--ink);} .sd-drow.today .dd{color:var(--ac);}
+.sd-drow .dbar{height:8px;border-radius:5px;background:color-mix(in srgb,var(--mut) 18%,transparent);overflow:hidden;} .sd-drow .dbar i{display:block;height:100%;border-radius:5px;}
+.sd-drow .dt{font-size:10.5px;color:var(--mut);text-align:right;}
+.sd-drow .dsc{font-size:16px;font-weight:800;text-align:right;} .sd-drow .dsc .star{color:#f6a623;font-size:10px;}
+/* bottom spot tabs */
+.sd-tabs{display:grid;grid-auto-flow:column;grid-auto-columns:1fr;gap:10px;}
+.sd-tab{cursor:pointer;border-radius:13px;padding:10px 13px;display:flex;flex-direction:column;gap:4px;background:var(--panel2);border:1px solid var(--line);}
+.sd-tab.on{border-color:var(--ac);background:color-mix(in srgb,var(--ac) 12%,transparent);box-shadow:0 0 0 1px color-mix(in srgb,var(--ac) 32%,transparent);}
+.sd-tab .tn{font-size:15px;font-weight:800;color:var(--ink);display:flex;align-items:center;gap:8px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+.sd-tab .tdot{width:8px;height:8px;border-radius:50%;background:var(--mut);flex:0 0 auto;} .sd-tab.on .tdot{background:var(--ac);box-shadow:0 0 8px var(--ac);}
+.sd-tab .tw{font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:.08em;color:var(--mut);display:flex;justify-content:space-between;gap:8px;} .sd-tab .tw b{font-size:13px;font-weight:800;color:var(--ink);}
+/* responsive: stack columns when the card is narrow */
+@container (max-width:540px){
+  .sd-main{grid-template-columns:1fr;}
+  .sd-strip{grid-template-columns:repeat(2,1fr);}
+  .sd-tabs{grid-auto-flow:row;grid-auto-columns:auto;}
+}
 `;
 
 /* visual-editor priority list (light DOM — class-scoped with spr-) */
@@ -701,4 +890,4 @@ window.customCards.push({
   preview: true,
   documentationURL: "https://git.bagofholding.co.uk/foolycooly/swelligence",
 });
-console.info("%c SWELLIGENCE-CARD ", "background:#1f9d57;color:#fff", "v12 loaded (bundled with integration)");
+console.info("%c SWELLIGENCE-CARD ", "background:#1f9d57;color:#fff", "v13 loaded (bundled with integration)");
