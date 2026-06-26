@@ -2,6 +2,10 @@
 
 All notable changes per release. Versions follow semver; tags are `vX.Y.Z`.
 
+## v0.1.7 — 2026-06-26
+
+- feat(card): rework spot-detail mode to 720-panel layout + multi-spot tabs
+
 ## v0.1.6 — 2026-06-25
 
 - fix(card): use after_dependencies for frontend/http; make card reg non-fatal
