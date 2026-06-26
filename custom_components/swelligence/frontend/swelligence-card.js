@@ -313,7 +313,9 @@ class SwelligenceCard extends HTMLElement {
     const headRight = view === "now"
       ? `<div class="sd-now"><span class="pulse"></span><div><b>${d.now_time || "--:--"}</b><span>now</span></div></div>`
       : `<div class="sd-now"><div><b>${range || "7 days"}</b><span>7-day</span></div></div>`;
-    const leftLower = view === "now" ? this._tideModule(d) : this._weekSummary(d, sp);
+    const leftLower = view === "now"
+      ? this._tideModule(d) + this._daylight(d)
+      : this._weekSummary(d, sp);
     const right = view === "now"
       ? this._medallions(sportsAll, pi, view) + this._detail(sp, view) + this._hourlyTL(sp)
         + `<div class="sd-strip">${this._nowStrip(c)}</div>`
@@ -427,6 +429,22 @@ class SwelligenceCard extends HTMLElement {
         ${nxX != null ? `<circle class="cdot" cx="${nxX.toFixed(1)}" cy="${nxY.toFixed(1)}" r="3.5"/>` : ""}
         ${labs}
       </svg></div>
+    </div>`;
+  }
+
+  /* ---- daylight arc (NOW view only) ---- */
+  _daylight(d) {
+    const dl = d.daylight;
+    if (!dl || dl.remaining_min == null) return "";
+    const h = Math.floor(dl.remaining_min / 60), m = dl.remaining_min % 60;
+    const left = h > 0 ? `${h}h ${m}m` : `${m}m`;
+    return `<div class="sd-day">
+      <svg viewBox="0 0 110 52" class="sd-day-svg">
+        <path d="M8 46 A47 47 0 0 1 102 46" class="sd-day-track"/>
+        <path d="M8 46 A47 47 0 0 1 76 10" class="sd-day-arc"/>
+        <circle cx="76" cy="10" r="5" class="sd-day-sun"/>
+      </svg>
+      <div class="sd-day-meta"><span class="k">Daylight</span><b>${left}</b><span class="s">light left · sunset ${dl.sunset}</span></div>
     </div>`;
   }
 
@@ -835,6 +853,16 @@ table.grid{border-collapse:separate;border-spacing:6px;width:100%;}
 .sd-tidep .cnow{stroke:var(--ink);stroke-width:1.4;stroke-dasharray:3 3;opacity:.6;}
 .sd-tidep .cdot{fill:#f6a623;} .sd-tidep .cnowdot{fill:var(--ink);}
 .sd-tidep .clab{fill:var(--dim);font:700 9px sans-serif;}
+/* daylight arc panel */
+.sd-day{background:var(--panel,#0f1519);border:1px solid var(--line,#283036);border-radius:12px;padding:11px 12px;display:flex;align-items:center;gap:12px;}
+.sd-day-svg{width:104px;height:50px;flex:0 0 auto;}
+.sd-day-track{fill:none;stroke:color-mix(in srgb,var(--mut) 25%,transparent);stroke-width:3;}
+.sd-day-arc{fill:none;stroke:#4ab6ff;stroke-width:3;}
+.sd-day-sun{fill:var(--ac);}
+.sd-day-meta{display:flex;flex-direction:column;}
+.sd-day-meta .k{font-size:9px;letter-spacing:.12em;text-transform:uppercase;color:var(--mut);font-weight:700;}
+.sd-day-meta b{font-size:15px;font-weight:800;color:var(--ink);}
+.sd-day-meta .s{font-size:10px;color:var(--mut);}
 /* sports column */
 .sd-sportcol{min-width:0;display:flex;flex-direction:column;gap:11px;}
 /* medallion ring-row sport selector */
