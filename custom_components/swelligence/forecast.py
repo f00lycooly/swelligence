@@ -11,7 +11,8 @@ Kit recommendations are computed per timestep, since wind varies through the day
 
 from __future__ import annotations
 
-from datetime import timedelta
+from dataclasses import replace
+from datetime import datetime, timedelta, timezone
 
 from .providers.base import ForecastPoint, SpotForecast
 from .scoring import blend_kit, score_point
@@ -19,6 +20,38 @@ from .sizing import POWER_NA, recommend_kit
 from .sports import SportProfile
 
 DEFAULT_DAYLIGHT_PAD_H = 2
+
+
+def _naive(t: datetime) -> datetime:
+    """Drop tz info so naive-local point times compare cleanly."""
+    return t.replace(tzinfo=None) if t.tzinfo is not None else t
+
+
+def anchor_to_now(forecast: SpotForecast, *, now: datetime | None = None) -> SpotForecast:
+    """Trim leading past hours so ``points[0]`` is the current hour.
+
+    Open-Meteo returns hourly data from local midnight, so the raw series starts
+    at 00:00. The coordinator anchors it once per refresh so every consumer
+    (sensors, services, the card) sees a now-forward series and
+    ``forecast.current()`` genuinely means "now". Point times are naive *local*;
+    the provider's ``utc_offset_seconds`` converts UTC now into that frame.
+
+    Returns a shallow copy with a sliced point list (the source forecast — e.g.
+    the batch-loader cache — keeps its full series for the next refresh). A
+    no-op when nothing precedes the current hour, or when the whole series is in
+    the past (keeps the final point so ``current()`` still returns something).
+    """
+    pts = forecast.points
+    if not pts:
+        return forecast
+    offset = (forecast.source_meta or {}).get("utc_offset_seconds", 0) or 0
+    base = now or datetime.now(timezone.utc)
+    if base.tzinfo is None:
+        base = base.replace(tzinfo=timezone.utc)
+    now_local = (base.astimezone(timezone.utc) + timedelta(seconds=offset)).replace(tzinfo=None)
+    cur_hour = now_local.replace(minute=0, second=0, microsecond=0)
+    idx = next((i for i, p in enumerate(pts) if _naive(p.time) >= cur_hour), len(pts) - 1)
+    return forecast if idx <= 0 else replace(forecast, points=pts[idx:])
 
 
 def _in_daylight(point_time, daily_sun: dict, pad_h: int) -> bool:

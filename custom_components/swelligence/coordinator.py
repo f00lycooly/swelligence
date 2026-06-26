@@ -37,7 +37,7 @@ from .const import (
     WATER_TYPE_INLAND,
     WATER_TYPE_SEA,
 )
-from .forecast import daily_forecast, hourly_forecast
+from .forecast import anchor_to_now, daily_forecast, hourly_forecast
 from .llm import async_semantic_verdict
 from .authority import recommend_sources, resolve_overlay
 from .overlay import ensemble_marine, filled_domains, merge_marine, resolve_route
@@ -151,6 +151,11 @@ class SpotCoordinator(DataUpdateCoordinator[SpotData]):
             raise
         except Exception as err:  # noqa: BLE001
             raise UpdateFailed(f"Forecast fetch failed: {err}") from err
+
+        # Anchor to the current hour so points[0] == now (Open-Meteo returns from
+        # local midnight). Everything downstream — now score, hourly/daily slots,
+        # tide alignment, the card — depends on this being "now".
+        forecast = anchor_to_now(forecast)
 
         # Suppress nearest-coastal marine data that doesn't apply to this spot.
         apply_water_policy(forecast, water_type)

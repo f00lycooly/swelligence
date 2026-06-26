@@ -322,10 +322,11 @@ class SwelligenceCard extends HTMLElement {
           <div><div class="sd-nm">${d.name}</div>
             <div class="sd-sub"><b>${d.water_type || ""}</b>${d.latitude != null ? " · " + d.latitude.toFixed(3) + ", " + d.longitude.toFixed(3) : ""} · Open-Meteo</div></div></div>
         <div class="sd-ctrl">
+          ${headRight}
           <div class="sd-seg">
             <button data-act="view" data-v="now" class="${view === "now" ? "on" : ""}">Now</button>
             <button data-act="view" data-v="week" class="${view === "week" ? "on" : ""}">Week</button>
-          </div>${headRight}
+          </div>
         </div>
       </div>
       <div class="sd-main">
@@ -890,4 +891,4 @@ window.customCards.push({
   preview: true,
   documentationURL: "https://git.bagofholding.co.uk/foolycooly/swelligence",
 });
-console.info("%c SWELLIGENCE-CARD ", "background:#1f9d57;color:#fff", "v13 loaded (bundled with integration)");
+console.info("%c SWELLIGENCE-CARD ", "background:#1f9d57;color:#fff", "v14 loaded (bundled with integration)");
