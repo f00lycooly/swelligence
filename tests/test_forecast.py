@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 
 from swelligence.forecast import daily_forecast, hourly_forecast
 from swelligence.providers.base import ForecastPoint, SpotForecast
@@ -123,11 +123,52 @@ def test_anchor_to_now_noop_when_first_point_is_future():
 
 
 def test_anchor_to_now_all_past_keeps_last_point():
-    from datetime import timezone
-
     from swelligence.forecast import anchor_to_now
     fc = _hourly_from_midnight()
     now = datetime(2026, 6, 30, 9, 0, tzinfo=timezone.utc)  # after the series ends
     out = anchor_to_now(fc, now=now)
     assert len(out.points) == 1
     assert out.current().time == datetime(2026, 6, 28, 23, 0)
+
+
+# ---------------------------------------------------------------------------
+# daylight_remaining tests
+# ---------------------------------------------------------------------------
+
+from swelligence.forecast import daylight_remaining  # noqa: E402
+
+
+def _sun_forecast():
+    # Naive-local points starting "now" (07:00 local); +1h utc offset.
+    pts = [ForecastPoint(time=datetime(2026, 6, 26, 7, 0)),
+           ForecastPoint(time=datetime(2026, 6, 26, 8, 0))]
+    return SpotForecast(
+        provider="t",
+        latitude=50.7,
+        longitude=-1.7,
+        points=pts,
+        daily_sun={"2026-06-26": {"sunrise": datetime(2026, 6, 26, 5, 0),
+                                  "sunset": datetime(2026, 6, 26, 21, 18)}},
+        source_meta={"utc_offset_seconds": 3600},
+    )
+
+
+def test_daylight_remaining_counts_minutes_to_sunset():
+    fc = _sun_forecast()
+    # Real UTC now = 16:06Z -> +1h offset -> 17:06 local; sunset 21:18 -> 4h12m = 252 min.
+    now = datetime(2026, 6, 26, 16, 6, tzinfo=timezone.utc)
+    out = daylight_remaining(fc, now=now)
+    assert out == {"sunrise": "05:00", "sunset": "21:18", "remaining_min": 252}
+
+
+def test_daylight_remaining_clamps_after_sunset():
+    fc = _sun_forecast()
+    now = datetime(2026, 6, 26, 22, 0, tzinfo=timezone.utc)  # 23:00 local, past sunset
+    assert daylight_remaining(fc, now=now)["remaining_min"] == 0
+
+
+def test_daylight_remaining_none_without_sun_data():
+    fc = SpotForecast(provider="t", latitude=50.7, longitude=-1.7,
+                      points=[ForecastPoint(time=datetime(2026, 6, 26, 7, 0))],
+                      daily_sun={}, source_meta={})
+    assert daylight_remaining(fc, now=datetime(2026, 6, 26, 12, 0, tzinfo=timezone.utc)) is None
