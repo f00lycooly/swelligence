@@ -158,13 +158,22 @@ def test_daylight_remaining_counts_minutes_to_sunset():
     # Real UTC now = 16:06Z -> +1h offset -> 17:06 local; sunset 21:18 -> 4h12m = 252 min.
     now = datetime(2026, 6, 26, 16, 6, tzinfo=timezone.utc)
     out = daylight_remaining(fc, now=now)
-    assert out == {"sunrise": "05:00", "sunset": "21:18", "remaining_min": 252}
+    # span 05:00..21:18 = 978 min; elapsed to 17:06 = 726 min -> 726/978 = 0.742.
+    assert out == {"sunrise": "05:00", "sunset": "21:18", "remaining_min": 252, "progress": 0.742}
 
 
 def test_daylight_remaining_clamps_after_sunset():
     fc = _sun_forecast()
     now = datetime(2026, 6, 26, 22, 0, tzinfo=timezone.utc)  # 23:00 local, past sunset
-    assert daylight_remaining(fc, now=now)["remaining_min"] == 0
+    out = daylight_remaining(fc, now=now)
+    assert out["remaining_min"] == 0
+    assert out["progress"] == 1.0  # clamped at end of day
+
+
+def test_daylight_remaining_progress_zero_before_sunrise():
+    fc = _sun_forecast()
+    now = datetime(2026, 6, 26, 3, 0, tzinfo=timezone.utc)  # 04:00 local, before 05:00 sunrise
+    assert daylight_remaining(fc, now=now)["progress"] == 0.0
 
 
 def test_daylight_remaining_none_without_sun_data():
