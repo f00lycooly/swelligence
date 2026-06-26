@@ -2,6 +2,14 @@
 
 All notable changes per release. Versions follow semver; tags are `vX.Y.Z`.
 
+## v0.2.2 — 2026-06-26
+
+- feat(sensor): per-spot `*_detail` sensor exposing the full now/week payload as
+  flat/delimited attributes for the ESPHome conditions panel (HomeAutomation-4uq).
+  `_spot_detail` moved to a shared `detail.py` so the service and the panel sensor
+  share one source of truth; forecast arrays excluded from the recorder. Carries
+  the v0.2.0 `now.kit` + spot `daylight` additions through to the panel transport.
+
 ## v0.1.8 — 2026-06-26
 
 - fix(coordinator,card): now-anchor forecast; stabilise Now/Week toggle

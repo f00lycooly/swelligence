@@ -10,6 +10,7 @@ from homeassistant.helpers.entity_platform import AddEntitiesCallback
 
 from .authority import advice_message, provider_name
 from .confidence import aggregate_confidence
+from .detail import PANEL_UNRECORDED, panel_headline, spot_panel_payload
 from .entity import SwelligenceEntity
 from .quality import data_quality
 from .sports import SPORT_PROFILES
@@ -26,6 +27,9 @@ async def async_setup_entry(
     for coordinator in runtime.coordinators.values():
         # One diagnostic 'source advice' sensor per spot (not per sport).
         entities.append(SourceAdviceSensor(coordinator))
+        # One panel-detail sensor per spot: the full now/week payload flattened
+        # into bindable attributes for the ESPHome conditions panel.
+        entities.append(SpotDetailSensor(coordinator))
         for sport in coordinator.data.results:
             entities.append(SuitabilitySensor(coordinator, sport))
     async_add_entities(entities)
@@ -156,3 +160,31 @@ class SourceAdviceSensor(SwelligenceEntity, SensorEntity):
                 for r in recs
             ],
         }
+
+
+class SpotDetailSensor(SwelligenceEntity, SensorEntity):
+    """Per-spot now/week detail, flattened for the ESPHome conditions panel.
+
+    State is the spot's best current sport score; the full payload (tide curve,
+    raw conditions, next-24h timeline, 7-day peaks per sport) rides in flat /
+    delimited attributes the panel binds and splits in a lambda. The high-churn
+    forecast arrays are excluded from the recorder.
+    """
+
+    _attr_native_unit_of_measurement = PERCENTAGE
+    _attr_state_class = SensorStateClass.MEASUREMENT
+    _attr_icon = "mdi:sail-boat"
+    _unrecorded_attributes = PANEL_UNRECORDED
+
+    def __init__(self, coordinator) -> None:
+        super().__init__(coordinator, "detail")
+        self._attr_name = "Panel detail"
+
+    @property
+    def native_value(self) -> int | None:
+        return panel_headline(self.coordinator.data)
+
+    @property
+    def extra_state_attributes(self) -> dict:
+        data = self.coordinator.data
+        return spot_panel_payload(self.coordinator, data) if data else {}
