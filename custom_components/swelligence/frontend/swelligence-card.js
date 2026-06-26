@@ -44,8 +44,7 @@ const vcw = (v) => vc(vkey(v) in VERDICT ? vkey(v) : "poor"); // verdict word �
 const cap = (s) => (s ? s[0].toUpperCase() + s.slice(1) : "—");
 
 // kit power verdict -> palette colour
-const POWER_COL = { ideal: "#9bcf5f", underpowered: "#f0a83d", overpowered: "#e8593a" };
-const powerCol = (p) => POWER_COL[p] || "var(--mut)";       // no_kit / unknown -> grey
+const powerCol = (p) => p === "ideal" ? vc("good") : p === "underpowered" ? vc("marg") : p === "overpowered" ? vc("poor") : "var(--mut)";
 const facCol = (n) => (n == null ? "var(--mut)" : n >= 67 ? vc("good") : n >= 34 ? vc("marg") : vc("poor"));
 
 const ICON_DEFS = `
@@ -562,9 +561,23 @@ class SwelligenceCard extends HTMLElement {
 
   /* ---- detail card: verdict + best + kit arc + limiting factor + factor bars ---- */
   _detail(sp, view) {
-    const now = sp.now || {}, col = vcw(now.verdict), best = sp.best;
-    const bestT = best ? (best.time || (best.in_hours != null ? "+" + best.in_hours + "h" : "—")) : "—";
-    const bestLine = best ? `best <b>${bestT}</b> · ${Math.round(best.score)} ${best.verdict || ""}` : "";
+    const now = sp.now || {};
+    // Fix 1: branch on view for verdict/colour/secondary line
+    let col, verdictWord, secondLine;
+    if (view === "week") {
+      const pk = this._peak(sp);
+      col = vcw(pk?.verdict);
+      verdictWord = pk?.verdict ? pk.verdict.toUpperCase() : "—";
+      const pkDay = pk ? (pk.date === (sp.daily && sp.daily[0] && sp.daily[0].date) ? "Today" : this._wd(pk.date)) : "—";
+      const pkScore = pk ? Math.round(pk.score) : "—";
+      secondLine = `peak <b>${pkDay}</b> · ${pkScore}`;
+    } else {
+      col = vcw(now.verdict);
+      verdictWord = (now.verdict || "—").toUpperCase();
+      const best = sp.best;
+      const bestT = best ? (best.time || (best.in_hours != null ? "+" + best.in_hours + "h" : "—")) : "—";
+      secondLine = best ? `best <b>${bestT}</b> · ${Math.round(best.score)} ${best.verdict || ""}` : "";
+    }
     // Limiting factor: first reason, else lowest-scoring factor name.
     let limit = (now.reasons && now.reasons[0]) || "";
     if (!limit && now.factors) {
@@ -574,10 +587,10 @@ class SwelligenceCard extends HTMLElement {
     const facs = (this._config.show_factors !== false) ? this._factors(now) : "";
     return `<div class="sd-detail">
       <div class="sd-detail-top">
-        <div><div class="sd-detail-sp">${sp.label}</div>
-          <div class="sd-detail-vd" style="color:${col}">${(now.verdict || "—").toUpperCase()}</div>
-          <div class="sd-detail-best">${bestLine}</div></div>
-        ${view === "now" ? this._kitArc(now.kit, sp.sport) : ""}
+        <div><div class="sd-detail-sp">${sp.label || LABELS[sp.sport] || sp.sport}</div>
+          <div class="sd-detail-vd" style="color:${col}">${verdictWord}</div>
+          <div class="sd-detail-best">${secondLine}</div></div>
+        ${view === "now" && now.kit ? this._kitArc(now.kit, sp.sport) : ""}
       </div>
       ${view === "now" && limit ? `<div class="sd-detail-lf"><span class="dot" style="background:${col}"></span>${limit}</div>` : ""}
       ${view === "now" && facs ? `<div class="sd-detail-facs">${facs}</div>` : ""}
