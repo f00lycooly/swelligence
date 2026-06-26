@@ -2,6 +2,10 @@
 
 All notable changes per release. Versions follow semver; tags are `vX.Y.Z`.
 
+## v0.1.8 — 2026-06-26
+
+- fix(coordinator,card): now-anchor forecast; stabilise Now/Week toggle
+
 ## v0.1.7 — 2026-06-26
 
 - feat(card): rework spot-detail mode to 720-panel layout + multi-spot tabs
