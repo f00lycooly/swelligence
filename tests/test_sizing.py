@@ -10,7 +10,9 @@ from swelligence.sizing import (
     POWER_NO_KIT,
     POWER_OVER,
     POWER_UNDER,
+    KitRecommendation,
     ideal_size,
+    kit_payload,
     recommend_kit,
 )
 
@@ -102,3 +104,24 @@ def test_wing_sizing():
     rec = recommend_kit("wingfoil", 80, 16, [3, 4, 5])
     assert rec.ideal_size_m2 == 5.0
     assert rec.power == POWER_IDEAL
+
+
+def test_kit_payload_serialises_sized_recommendation():
+    rec = KitRecommendation("wingfoil", 5.2, 5.0, POWER_IDEAL, 0.95, "rig your 5m²")
+    assert kit_payload(rec) == {"rig_m2": 5.0, "ideal_m2": 5.2, "power": POWER_IDEAL}
+
+
+def test_kit_payload_none_for_na_sport():
+    # n/a sport (no size model) -> no kit gauge on the card.
+    rec = KitRecommendation("sup", None, None, POWER_NA, 1.0, "")
+    assert kit_payload(rec) is None
+
+
+def test_kit_payload_none_when_no_recommendation():
+    assert kit_payload(None) is None
+
+
+def test_kit_payload_keeps_no_kit_state():
+    # rig sport with empty quiver still surfaces its no_kit state.
+    rec = KitRecommendation("kitesurf", 9.0, None, POWER_NO_KIT, 0.0, "no kit configured")
+    assert kit_payload(rec) == {"rig_m2": None, "ideal_m2": 9.0, "power": POWER_NO_KIT}

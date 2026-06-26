@@ -99,3 +99,20 @@ def recommend_kit(
         summary = f"underpowered on your {nearest:g}m² (ideal ~{ideal:g}m²)"
 
     return KitRecommendation(sport, ideal, nearest, power, factor, summary)
+
+
+def kit_payload(kit: KitRecommendation | None) -> dict | None:
+    """Serialise a kit recommendation for the spot-detail card's ``now`` block.
+
+    Returns ``{"rig_m2", "ideal_m2", "power"}`` for a sized sport, or ``None``
+    when there is no recommendation or the sport has no size model (``POWER_NA``)
+    — so non-rig sports (swim/SUP/surf) render no kit gauge, while a rig sport
+    with an empty quiver still surfaces its ``no_kit`` state.
+    """
+    if kit is None or kit.power == POWER_NA:
+        return None
+    return {
+        "rig_m2": kit.owned_size_m2,
+        "ideal_m2": kit.ideal_size_m2,
+        "power": kit.power,
+    }

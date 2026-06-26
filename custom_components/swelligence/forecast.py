@@ -55,11 +55,14 @@ def anchor_to_now(forecast: SpotForecast, *, now: datetime | None = None) -> Spo
 
 
 def daylight_remaining(forecast: SpotForecast, *, now: datetime | None = None) -> dict | None:
-    """Sunrise/sunset (HH:MM) and minutes of daylight left, for the current day.
+    """Sunrise/sunset (HH:MM), minutes of daylight left, and elapsed-daylight
+    fraction, for the current day.
 
     Now-anchored: mirrors ``anchor_to_now``'s offset handling so the "now"
     reference is in the forecast's naive-local frame. Returns ``None`` when the
     day has no sun data. ``remaining_min`` is clamped at 0 after sunset.
+    ``progress`` is the fraction of the daylight span elapsed (0.0 at/before
+    sunrise, 1.0 at/after sunset) so a renderer can place a sun marker.
     """
     if forecast.current() is None:
         return None
@@ -73,10 +76,14 @@ def daylight_remaining(forecast: SpotForecast, *, now: datetime | None = None) -
         return None
     sunrise, sunset = _naive(info["sunrise"]), _naive(info["sunset"])
     remaining = int(max(0, (sunset - now_local).total_seconds() // 60))
+    span = (sunset - sunrise).total_seconds()
+    elapsed = (now_local - sunrise).total_seconds()
+    progress = round(min(1.0, max(0.0, elapsed / span)), 3) if span > 0 else 0.0
     return {
         "sunrise": sunrise.strftime("%H:%M"),
         "sunset": sunset.strftime("%H:%M"),
         "remaining_min": remaining,
+        "progress": progress,
     }
 
 

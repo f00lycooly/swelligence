@@ -314,7 +314,7 @@ class SwelligenceCard extends HTMLElement {
       : `<div class="sd-now"><div><b>${range || "7 days"}</b><span>7-day</span></div></div>`;
     const leftLower = view === "now"
       ? this._tideModule(d) + this._daylight(d)
-      : this._weekSummary(d, sp);
+      : this._weekSummary(sp);
     const right = view === "now"
       ? this._medallions(sportsAll, pi, view) + this._detail(sp, view) + this._hourlyTL(sp)
         + `<div class="sd-strip">${this._nowStrip(c)}</div>`
@@ -452,11 +452,16 @@ class SwelligenceCard extends HTMLElement {
     if (!dl || dl.remaining_min == null) return "";
     const h = Math.floor(dl.remaining_min / 60), m = dl.remaining_min % 60;
     const left = h > 0 ? `${h}h ${m}m` : `${m}m`;
+    // Sun position along the top semicircle (centre 55,46 r47) by daylight progress.
+    const p = dl.progress == null ? 1 : Math.min(1, Math.max(0, dl.progress));
+    const ang = p * Math.PI;
+    const sx = (55 - 47 * Math.cos(ang)).toFixed(1), sy = (46 - 47 * Math.sin(ang)).toFixed(1);
+    const elapsed = p > 0 ? `<path d="M8 46 A47 47 0 0 1 ${sx} ${sy}" class="sd-day-arc"/>` : "";
     return `<div class="sd-day">
       <svg viewBox="0 0 110 52" class="sd-day-svg">
         <path d="M8 46 A47 47 0 0 1 102 46" class="sd-day-track"/>
-        <path d="M8 46 A47 47 0 0 1 76 10" class="sd-day-arc"/>
-        <circle cx="76" cy="10" r="5" class="sd-day-sun"/>
+        ${elapsed}
+        <circle cx="${sx}" cy="${sy}" r="5" class="sd-day-sun"/>
       </svg>
       <div class="sd-day-meta"><span class="k">Daylight</span><b>${left}</b><span class="s">light left · sunset ${dl.sunset}</span></div>
     </div>`;
@@ -495,7 +500,7 @@ class SwelligenceCard extends HTMLElement {
       </div>`;
     }).join("")}</div>`;
   }
-  _weekSummary(d, sp) {
+  _weekSummary(sp) {
     const dl = sp.daily || [], pk = this._peak(sp), good = dl.filter((e) => !["poor", "marginal"].includes(e.verdict)).length;
     const col = pk ? vcw(pk.verdict) : vc("good"), cc = pk || {}, wc = cardOf(cc.wind_bearing);
     const today = dl[0] && dl[0].date, tide = cc.tide || {};
