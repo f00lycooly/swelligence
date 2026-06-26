@@ -77,3 +77,57 @@ def test_unsized_sport_has_no_kit_even_with_rider():
     slots = hourly_forecast(fc, SPORT_PROFILES["surf"], "surf", weight=80,
                             quiver_sizes=[9])
     assert all("kit_power" not in s for s in slots)
+
+
+def _hourly_from_midnight(offset_seconds: int = 0) -> SpotForecast:
+    """A 48h series from local midnight, naive-local times, with utc offset meta."""
+    base = datetime(2026, 6, 27, 0, 0)
+    pts = [ForecastPoint(time=base + timedelta(hours=h), wind_speed_kn=10) for h in range(48)]
+    return SpotForecast(provider="t", latitude=50.7, longitude=-1.7, points=pts,
+                        source_meta={"utc_offset_seconds": offset_seconds})
+
+
+def test_anchor_to_now_trims_leading_past_hours():
+    from datetime import timezone
+
+    from swelligence.forecast import anchor_to_now
+    fc = _hourly_from_midnight()
+    # 14:37 UTC, zero offset -> current hour is 14:00 local.
+    now = datetime(2026, 6, 27, 14, 37, tzinfo=timezone.utc)
+    out = anchor_to_now(fc, now=now)
+    assert out.current().time == datetime(2026, 6, 27, 14, 0)
+    assert len(out.points) == 48 - 14
+    # source forecast keeps its full series (anchoring returns a copy).
+    assert len(fc.points) == 48
+
+
+def test_anchor_to_now_respects_utc_offset():
+    from datetime import timezone
+
+    from swelligence.forecast import anchor_to_now
+    # BST: +3600s. 11:30 UTC -> 12:30 local -> current hour 12:00 local.
+    fc = _hourly_from_midnight(offset_seconds=3600)
+    now = datetime(2026, 6, 27, 11, 30, tzinfo=timezone.utc)
+    out = anchor_to_now(fc, now=now)
+    assert out.current().time == datetime(2026, 6, 27, 12, 0)
+
+
+def test_anchor_to_now_noop_when_first_point_is_future():
+    from datetime import timezone
+
+    from swelligence.forecast import anchor_to_now
+    fc = _hourly_from_midnight()
+    now = datetime(2026, 6, 26, 23, 30, tzinfo=timezone.utc)  # before the series starts
+    out = anchor_to_now(fc, now=now)
+    assert out is fc  # nothing trimmed
+
+
+def test_anchor_to_now_all_past_keeps_last_point():
+    from datetime import timezone
+
+    from swelligence.forecast import anchor_to_now
+    fc = _hourly_from_midnight()
+    now = datetime(2026, 6, 30, 9, 0, tzinfo=timezone.utc)  # after the series ends
+    out = anchor_to_now(fc, now=now)
+    assert len(out.points) == 1
+    assert out.current().time == datetime(2026, 6, 28, 23, 0)
