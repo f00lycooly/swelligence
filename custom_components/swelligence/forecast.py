@@ -54,6 +54,32 @@ def anchor_to_now(forecast: SpotForecast, *, now: datetime | None = None) -> Spo
     return forecast if idx <= 0 else replace(forecast, points=pts[idx:])
 
 
+def daylight_remaining(forecast: SpotForecast, *, now: datetime | None = None) -> dict | None:
+    """Sunrise/sunset (HH:MM) and minutes of daylight left, for the current day.
+
+    Now-anchored: mirrors ``anchor_to_now``'s offset handling so the "now"
+    reference is in the forecast's naive-local frame. Returns ``None`` when the
+    day has no sun data. ``remaining_min`` is clamped at 0 after sunset.
+    """
+    if forecast.current() is None:
+        return None
+    offset = (forecast.source_meta or {}).get("utc_offset_seconds", 0) or 0
+    base = now or datetime.now(timezone.utc)
+    if base.tzinfo is None:
+        base = base.replace(tzinfo=timezone.utc)
+    now_local = (base.astimezone(timezone.utc) + timedelta(seconds=offset)).replace(tzinfo=None)
+    info = forecast.daily_sun.get(now_local.date().isoformat())
+    if not info or not info.get("sunrise") or not info.get("sunset"):
+        return None
+    sunrise, sunset = _naive(info["sunrise"]), _naive(info["sunset"])
+    remaining = int(max(0, (sunset - now_local).total_seconds() // 60))
+    return {
+        "sunrise": sunrise.strftime("%H:%M"),
+        "sunset": sunset.strftime("%H:%M"),
+        "remaining_min": remaining,
+    }
+
+
 def _in_daylight(point_time, daily_sun: dict, pad_h: int) -> bool:
     info = daily_sun.get(point_time.date().isoformat())
     if not info or not info.get("sunrise") or not info.get("sunset"):
