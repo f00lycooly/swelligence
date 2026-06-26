@@ -335,7 +335,7 @@ class SwelligenceCard extends HTMLElement {
         </div>
       </div>
       <div class="sd-main">
-        <div class="sd-col">${this._mapHero(d, c, wc, view)}${leftLower}</div>
+        <div class="sd-col">${this._mapHero(d, c, wc, view, sp)}${leftLower}</div>
         <div class="sd-col sd-sportcol">${right}</div>
       </div>
       ${this._tabs(spots, si, view)}
@@ -390,13 +390,28 @@ class SwelligenceCard extends HTMLElement {
       <a class="osm" href="https://www.openstreetmap.org/?mlat=${lat}&mlon=${lon}#map=${zoom}/${lat.toFixed(4)}/${lon.toFixed(4)}" target="_blank" rel="noopener noreferrer">© OSM</a>
     </div>`;
   }
-  _mapHero(d, c, wc, view) {
+  _mapHero(d, c, wc, view, sp) {
     const lat = d.latitude, lon = d.longitude;
     const map = (lat == null || lon == null) ? `<div class="sd-nomap">no location</div>` : this._tileMosaic(lat, lon);
+    let compass = "";
+    if (view === "now" && c.wind_dir_deg != null) {
+      const dirFac = sp?.now?.factors?.direction;
+      const col = facCol(dirFac);
+      const rot = (c.wind_dir_deg + 180) % 360;
+      compass = `<svg class="sd-windc" viewBox="0 0 100 100">
+        <g transform="translate(50 50)">
+          <circle r="34" class="sd-windc-dial"/>
+          <text x="0" y="-25" class="sd-windc-n">N</text>
+          <g transform="rotate(${rot.toFixed(0)})" stroke="${col}" fill="${col}">
+            <line x1="0" y1="22" x2="0" y2="-16" stroke-width="5" stroke-linecap="round"/>
+            <path d="M0 -28 L8 -11 L0 -16 L-8 -11 Z"/>
+          </g>
+        </g></svg>`;
+    }
     const band = view === "now"
       ? `<div class="wband"><div class="wfrom">${wc ? `Wind from <span>${wc}</span>` : "Calm"}</div><div class="wxy">${c.wind_speed_kn != null ? f1(c.wind_speed_kn) + " kn" : ""}${c.wind_gust_kn != null ? " · gust " + f1(c.wind_gust_kn) : ""}</div></div>`
       : `<div class="wband"><div class="wfrom">${d.name}</div><div class="wxy">${lat != null ? lat.toFixed(3) + ", " + lon.toFixed(3) : ""}</div></div>`;
-    return `<div class="sd-map">${map}<div class="vign"></div>${band}</div>`;
+    return `<div class="sd-map">${map}<div class="vign"></div>${compass}${band}</div>`;
   }
 
   /* ---- tide module: state + next high/low + 24h modelled sea-level curve ---- */
@@ -836,6 +851,9 @@ table.grid{border-collapse:separate;border-spacing:6px;width:100%;}
 .sd-map .wband .wxy{font-size:10px;color:rgba(255,255,255,.82);}
 .sd-map .osm{position:absolute;right:3px;top:3px;z-index:3;font-size:8px;color:var(--mut);background:color-mix(in srgb,var(--card-background-color,#000) 55%,transparent);padding:1px 4px;border-radius:4px;text-decoration:none;}
 .sd-nomap{position:absolute;inset:0;display:grid;place-items:center;color:var(--dim);font-size:12px;}
+.sd-map .sd-windc{position:absolute;left:50%;top:46%;width:88px;height:88px;transform:translate(-50%,-50%);z-index:3;pointer-events:none;}
+.sd-windc-dial{fill:rgba(0,0,0,.32);stroke:rgba(255,255,255,.22);stroke-width:1.5;}
+.sd-windc-n{fill:var(--mut);font-size:10px;text-anchor:middle;font-family:inherit;}
 /* tide module */
 .sd-tidep{flex:1;background:var(--panel2);border:1px solid var(--line);border-radius:14px;padding:12px 14px;display:flex;flex-direction:column;min-height:150px;}
 .sd-tidep .th{display:flex;align-items:center;justify-content:space-between;}
