@@ -35,9 +35,11 @@ from .authority import advice_message
 from .batch import OpenMeteoBatchLoader
 from .confidence import aggregate_confidence
 from .coordinator import SpotCoordinator
+from .forecast import daylight_remaining
 from .overview import build_podium, build_sessions
 from .policy import marine_wanted
 from .providers import free_tier_min_interval_minutes, get_provider
+from .sizing import POWER_NA
 from .sports import SPORT_PROFILES, SportProfile, apply_overrides
 from .tide import tide_phase, tide_state
 
@@ -252,6 +254,11 @@ def _spot_detail(coordinator, data, sports_f: set) -> dict:
                 "suitable": res.now.suitable, "factors": res.now.factors,
                 "reasons": res.now.reasons, "completeness": res.now.completeness,
                 "nudges": res.now.nudges,
+                "kit": ({
+                    "rig_m2": res.kit.owned_size_m2,
+                    "ideal_m2": res.kit.ideal_size_m2,
+                    "power": res.kit.power,
+                } if res.kit and res.kit.power != POWER_NA else None),
             },
             "best": best,
             "hourly": hourly,
@@ -263,6 +270,7 @@ def _spot_detail(coordinator, data, sports_f: set) -> dict:
         "latitude": coordinator.spot["latitude"],
         "longitude": coordinator.spot["longitude"],
         "now_time": now_pt.time.strftime("%H:%M") if now_pt else None,
+        "daylight": daylight_remaining(forecast),
         "tide": tide_state(forecast),
         "current": {f: getattr(now_pt, f, None) for f in _NOW_FIELDS} if now_pt else {},
         "sports": sports,
