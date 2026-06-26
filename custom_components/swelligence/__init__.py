@@ -39,7 +39,7 @@ from .forecast import daylight_remaining
 from .overview import build_podium, build_sessions
 from .policy import marine_wanted
 from .providers import free_tier_min_interval_minutes, get_provider
-from .sizing import POWER_NA
+from .sizing import kit_payload
 from .sports import SPORT_PROFILES, SportProfile, apply_overrides
 from .tide import tide_phase, tide_state
 
@@ -254,11 +254,7 @@ def _spot_detail(coordinator, data, sports_f: set) -> dict:
                 "suitable": res.now.suitable, "factors": res.now.factors,
                 "reasons": res.now.reasons, "completeness": res.now.completeness,
                 "nudges": res.now.nudges,
-                "kit": ({
-                    "rig_m2": res.kit.owned_size_m2,
-                    "ideal_m2": res.kit.ideal_size_m2,
-                    "power": res.kit.power,
-                } if res.kit and res.kit.power != POWER_NA else None),
+                "kit": kit_payload(res.kit),
             },
             "best": best,
             "hourly": hourly,
