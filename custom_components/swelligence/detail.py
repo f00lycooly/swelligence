@@ -1,0 +1,196 @@
+"""Per-spot now/week detail payloads.
+
+Two consumers share the same source of truth so the panel and the Lovelace card
+never drift:
+
+* ``spot_detail`` — rich nested payload for the ``get_spot_detail`` service (the
+  spot-detail Lovelace card renders it directly; the screen derives nothing).
+* ``spot_panel_payload`` — the *same* data flattened into HA-attribute-friendly
+  scalars + delimited arrays. An ESPHome LVGL panel binds entity attributes and
+  has no on-device JSON parser, so nested structures are reshaped into flat
+  scalars and CSV/pipe-delimited strings it can split in a lambda.
+"""
+
+from __future__ import annotations
+
+from datetime import datetime
+
+from .forecast import daylight_remaining
+from .sizing import kit_payload
+from .sports import SPORT_PROFILES
+from .tide import tide_phase, tide_state
+
+# Raw now-conditions surfaced verbatim to the spot-detail card (normalised units).
+NOW_FIELDS = (
+    "wind_speed_kn", "wind_gust_kn", "wind_dir_deg", "wave_height_m", "wave_period_s",
+    "wave_dir_deg", "swell_height_m", "swell_period_s", "swell_peak_period_s",
+    "swell_dir_deg", "wind_wave_height_m", "current_speed_kn", "current_dir_deg",
+    "sea_level_m", "water_temp_c", "air_temp_c", "apparent_temp_c", "uv_index",
+    "visibility_m", "weather_code",
+)
+
+# Verdict -> 1-char code: keeps the per-hour / per-day verdict CSVs tiny so the
+# whole panel payload stays well under HA's attribute-size budget.
+VERDICT_CODE = {"epic": "e", "great": "g", "good": "o", "marginal": "m", "poor": "p"}
+
+# Array-valued (high-churn) panel attributes kept OUT of the recorder DB. Built
+# from the bounded sport set so every per-sport timeline/week CSV is covered.
+_ARRAY_SUFFIXES = (
+    "hourly_scores", "hourly_verdicts", "week_scores", "week_times", "week_verdicts",
+)
+PANEL_UNRECORDED = frozenset(
+    {"tide_levels"}
+    | {f"{sport}_{suf}" for sport in SPORT_PROFILES for suf in _ARRAY_SUFFIXES}
+)
+
+
+def spot_detail(coordinator, data, sports_f: set) -> dict:
+    """One spot's full now/week detail — every time-varying value ready to render
+    (the screen derives nothing). Live forecast is now-anchored (points[0] == now),
+    so hourly[0]/daily[0]/tide all align without slicing."""
+    forecast = data.forecast
+    now_pt = forecast.current()
+    sports: list[dict] = []
+    for sport, res in data.results.items():
+        if sports_f and sport not in sports_f:
+            continue
+        profile = coordinator.profile(sport)
+        # Continuous next-24h hourly (keep every hour; large pad disables the
+        # daylight filter) + the daytime-only daily peak (strict sunrise..sunset).
+        hourly = coordinator.build_forecast(sport, "hourly", pad_h=999, horizon=24)
+        daily = coordinator.build_forecast(sport, "daily", pad_h=0)
+        for entry in daily:
+            entry["tide"] = tide_phase(forecast, datetime.fromisoformat(entry["datetime"]))
+        best = None
+        if res.best is not None:
+            offset = res.best_offset_h
+            best = {
+                "score": round(res.best.score),
+                "in_hours": offset,
+                "verdict": res.best.verdict,
+                "time": hourly[offset]["datetime"][11:16]
+                if offset is not None and offset < len(hourly) else None,
+            }
+        sports.append({
+            "sport": sport,
+            "label": profile.label if profile else sport,
+            "now": {
+                "score": round(res.now.score), "verdict": res.now.verdict,
+                "suitable": res.now.suitable, "factors": res.now.factors,
+                "reasons": res.now.reasons, "completeness": res.now.completeness,
+                "nudges": res.now.nudges,
+                "kit": kit_payload(res.kit),
+            },
+            "best": best,
+            "hourly": hourly,
+            "daily": daily,
+        })
+    return {
+        "name": coordinator.spot["name"],
+        "water_type": coordinator.spot.get("water_type", "sea"),
+        "latitude": coordinator.spot["latitude"],
+        "longitude": coordinator.spot["longitude"],
+        "now_time": now_pt.time.strftime("%H:%M") if now_pt else None,
+        "daylight": daylight_remaining(forecast),
+        "tide": tide_state(forecast),
+        "current": {f: getattr(now_pt, f, None) for f in NOW_FIELDS} if now_pt else {},
+        "sports": sports,
+    }
+
+
+def _csv(values) -> str:
+    """Comma-join, rendering None as an empty field so positions stay aligned."""
+    return ",".join("" if v is None else str(v) for v in values)
+
+
+def _verdict_csv(slots) -> str:
+    return ",".join(VERDICT_CODE.get(s.get("verdict"), "") for s in slots)
+
+
+def _i(v):
+    return None if v is None else round(v)
+
+
+def spot_panel_payload(coordinator, data) -> dict:
+    """``spot_detail`` flattened for an ESPHome panel: flat scalars + delimited
+    arrays only (no nested dicts/lists), so the panel can bind each value and
+    split the CSV/pipe strings in a lambda."""
+    d = spot_detail(coordinator, data, set())
+    tide = d.get("tide") or {}
+    nxt = tide.get("next") or {}
+    cur = d.get("current") or {}
+    day = d.get("daylight") or {}
+
+    attrs: dict = {
+        "name": d["name"],
+        "water_type": d["water_type"],
+        "now_time": d["now_time"],
+        "lat": d["latitude"],
+        "lon": d["longitude"],
+        # Daylight: sunrise/sunset clock + minutes left + elapsed fraction
+        # (lets the panel place a sun marker / show a sunset countdown).
+        "sunrise": day.get("sunrise"),
+        "sunset": day.get("sunset"),
+        "daylight_remaining_min": day.get("remaining_min"),
+        "daylight_progress": day.get("progress"),
+        # Now conditions (raw units, verbatim from the scorer's inputs).
+        "wind_kn": cur.get("wind_speed_kn"),
+        "gust_kn": cur.get("wind_gust_kn"),
+        "wind_dir_deg": cur.get("wind_dir_deg"),
+        "wave_m": cur.get("wave_height_m"),
+        "swell_m": cur.get("swell_height_m"),
+        "swell_period_s": cur.get("swell_period_s"),
+        "water_temp_c": cur.get("water_temp_c"),
+        # Tide — honesty label carried verbatim (modelled vs overlay).
+        "tide_state": tide.get("state"),
+        "tide_source": tide.get("source"),
+        "tide_now_m": tide.get("now"),
+        "tide_levels": _csv(tide.get("levels") or []),
+        "tide_next_type": nxt.get("type"),
+        "tide_next_time": nxt.get("time"),
+        "tide_next_in_h": nxt.get("in_h"),
+        "tide_next_level_m": nxt.get("level"),
+    }
+
+    sports = d.get("sports") or []
+    # Fixed sport order drives the panel's selector pills + per-sport lookups.
+    attrs["sports"] = "|".join(s["sport"] for s in sports)
+    attrs["sport_labels"] = "|".join(s["label"] for s in sports)
+    for s in sports:
+        k = s["sport"]
+        now = s.get("now") or {}
+        best = s.get("best") or {}
+        hourly = s.get("hourly") or []
+        daily = s.get("daily") or []
+        attrs[f"{k}_now_score"] = now.get("score")
+        attrs[f"{k}_now_verdict"] = now.get("verdict")
+        attrs[f"{k}_now_suitable"] = now.get("suitable")
+        attrs[f"{k}_best_score"] = best.get("score")
+        attrs[f"{k}_best_in_h"] = best.get("in_hours")
+        attrs[f"{k}_best_verdict"] = best.get("verdict")
+        attrs[f"{k}_best_time"] = best.get("time")
+        # Kit sizing (rig sports only; None for swim/SUP/surf -> empty fields).
+        kit = now.get("kit") or {}
+        attrs[f"{k}_kit_power"] = kit.get("power")
+        attrs[f"{k}_kit_rig_m2"] = kit.get("rig_m2")
+        attrs[f"{k}_kit_ideal_m2"] = kit.get("ideal_m2")
+        # Next-24h timeline (lv_chart) + per-bar verdict colour codes.
+        attrs[f"{k}_hourly_scores"] = _csv(_i(h.get("score")) for h in hourly)
+        attrs[f"{k}_hourly_verdicts"] = _verdict_csv(hourly)
+        # 7-day daytime-peak rows: score, best-time, verdict colour.
+        attrs[f"{k}_week_scores"] = _csv(_i(e.get("score")) for e in daily)
+        attrs[f"{k}_week_times"] = ",".join(e["datetime"][11:16] for e in daily)
+        attrs[f"{k}_week_verdicts"] = _verdict_csv(daily)
+    return attrs
+
+
+def panel_headline(data) -> int | None:
+    """Best current sport score at the spot — the detail sensor's state / the
+    spot-tab headline number."""
+    results = getattr(data, "results", None) or {}
+    scores = [
+        round(res.now.score)
+        for res in results.values()
+        if res and res.now is not None
+    ]
+    return max(scores) if scores else None
