@@ -11,7 +11,10 @@ from swelligence.detail import (
     PANEL_UNRECORDED,
     VERDICT_CODE,
     _csv,
+    _factor_csv,
+    _rcsv,
     _verdict_csv,
+    flatten_detail,
     panel_headline,
 )
 from swelligence.sports import SPORT_PROFILES
@@ -52,7 +55,144 @@ def test_panel_headline_handles_no_data():
 def test_unrecorded_set_covers_every_sport_array_attribute():
     # Every per-sport timeline/week CSV must be excluded from the recorder.
     for sport in SPORT_PROFILES:
-        for suffix in ("hourly_scores", "hourly_verdicts",
-                       "week_scores", "week_times", "week_verdicts"):
+        for suffix in ("factors", "hourly_scores", "hourly_verdicts",
+                       "week_scores", "week_times", "week_verdicts",
+                       "week_wind", "week_gust", "week_dir", "week_wave",
+                       "week_swell", "week_per", "week_water",
+                       "week_tide_state", "week_tide_h"):
             assert f"{sport}_{suffix}" in PANEL_UNRECORDED
-    assert "tide_levels" in PANEL_UNRECORDED
+    for spot_array in ("tide_levels", "hours", "week_days", "week_dates"):
+        assert spot_array in PANEL_UNRECORDED
+
+
+def test_rcsv_rounds_and_holds_none():
+    assert _rcsv([10.46, None, 7.0]) == "10.5,,7.0"
+    assert _rcsv([95.4, None], 0) == "95,"          # n=0 -> int
+    assert _rcsv([-0.634, 0.1], 2) == "-0.63,0.1"
+
+
+def test_factor_csv_pairs_in_scorer_order_dropping_none():
+    # key:score pairs, rounded int, scorer's own order; None factors dropped.
+    assert _factor_csv({"wind": 67.2, "gust": 40.0, "wave": None}) == "wind:67,gust:40"
+    assert _factor_csv(None) == ""
+    assert _factor_csv({}) == ""
+
+
+def _slot(dt, score, verdict, **cond):
+    return {"datetime": dt, "score": score, "verdict": verdict, **cond}
+
+
+def _detail():
+    """A two-sport spot_detail dict (the shape spot_detail() emits): one sea spot
+    with a sheltered-style None wave on day 2, exercising alignment + None holes."""
+    return {
+        "name": "Avon", "water_type": "sea", "latitude": 50.7, "longitude": -1.7,
+        "now_time": "12:00",
+        "daylight": {"sunrise": "05:00", "sunset": "21:30",
+                     "remaining_min": 570, "progress": 0.42},
+        "tide": {"state": "rising", "source": "modelled", "now": -0.6,
+                 "levels": [-0.6, -0.4, None, 0.1],
+                 "next": {"type": "high", "time": "18:00", "in_h": 6, "level": 0.1}},
+        "current": {"wind_speed_kn": 13.2, "wind_gust_kn": 26.0, "wind_dir_deg": 94,
+                    "wave_height_m": 0.66, "wind_wave_height_m": 0.6,
+                    "swell_height_m": 0.2, "swell_period_s": 4.3, "water_temp_c": 19.6},
+        "sports": [
+            {
+                "sport": "kitesurf", "label": "Kitesurf",
+                "now": {"score": 81, "verdict": "great", "suitable": True,
+                        "factors": {"wind": 66.0, "gust": 100.0, "wave": 100.0},
+                        "kit": {"power": "powered", "rig_m2": 9.0, "ideal_m2": 8.4}},
+                "best": {"score": 83, "in_hours": 1, "verdict": "great", "time": "13:00"},
+                "hourly": [_slot("2026-06-25T12:00:00", 81, "great"),
+                           _slot("2026-06-25T13:00:00", 83, "great")],
+                "daily": [
+                    _slot("2026-06-25T13:00:00", 83, "great", date="2026-06-25",
+                          wind_speed_kn=14.0, wind_gust_kn=27.8, wind_bearing=96.4,
+                          wave_height_m=0.7, swell_height_m=0.2, swell_period_s=4.5,
+                          water_temp_c=19.7, tide={"state": "low", "height": -0.64}),
+                    _slot("2026-06-26T16:00:00", 79, "great", date="2026-06-26",
+                          wind_speed_kn=12.4, wind_gust_kn=23.9, wind_bearing=234.0,
+                          wave_height_m=None, swell_height_m=0.3, swell_period_s=3.7,
+                          water_temp_c=20.3, tide={"state": "rising", "height": -0.45}),
+                ],
+            },
+            {
+                "sport": "sup", "label": "SUP",
+                "now": {"score": 0, "verdict": "poor", "suitable": False,
+                        "factors": {"wind": 0.0, "gust": 0.0}, "kit": {}},
+                "best": {"score": 76, "in_hours": 19, "verdict": "great", "time": "07:00"},
+                "hourly": [_slot("2026-06-25T12:00:00", 0, "poor"),
+                           _slot("2026-06-25T13:00:00", 0, "poor")],
+                "daily": [
+                    _slot("2026-06-25T19:00:00", 30, "poor", date="2026-06-25",
+                          wind_speed_kn=10.5, wind_gust_kn=20.6, wind_bearing=94.0,
+                          wave_height_m=0.8, swell_height_m=0.3, swell_period_s=4.4,
+                          water_temp_c=19.9, tide={"state": "falling", "height": -0.09}),
+                    _slot("2026-06-26T07:00:00", 76, "great", date="2026-06-26",
+                          wind_speed_kn=6.0, wind_gust_kn=11.5, wind_bearing=282.0,
+                          wave_height_m=0.3, swell_height_m=0.3, swell_period_s=3.1,
+                          water_temp_c=19.7, tide={"state": "falling", "height": -0.19}),
+                ],
+            },
+        ],
+    }
+
+
+def test_flatten_exposes_now_strip_with_wind_wave_fallback_field():
+    a = flatten_detail(_detail())
+    assert a["wind_kn"] == 13.2 and a["gust_kn"] == 26.0 and a["wind_dir_deg"] == 94
+    assert a["wave_m"] == 0.66 and a["swell_m"] == 0.2
+    # wind_wave_m carried so the panel's Wave cell can fall back when wave is None.
+    assert a["wind_wave_m"] == 0.6
+
+
+def test_flatten_carries_tide_and_daylight_scalars():
+    a = flatten_detail(_detail())
+    assert a["tide_state"] == "rising" and a["tide_source"] == "modelled"
+    assert a["tide_next_type"] == "high" and a["tide_next_in_h"] == 6
+    assert a["tide_levels"] == "-0.6,-0.4,,0.1"      # None held as empty field
+    assert a["daylight_remaining_min"] == 570
+
+
+def test_flatten_spot_level_time_axes():
+    a = flatten_detail(_detail())
+    assert a["hours"] == "12:00,13:00"
+    # index 0 is "Today"; the rest are weekday abbreviations of their date.
+    assert a["week_days"] == "Today,Fri"            # 2026-06-26 is a Friday
+    assert a["week_dates"] == "2026-06-25,2026-06-26"
+
+
+def test_flatten_per_sport_week_conditions_align_and_hold_none():
+    a = flatten_detail(_detail())
+    assert a["kitesurf_week_scores"] == "83,79"
+    assert a["kitesurf_week_times"] == "13:00,16:00"
+    assert a["kitesurf_week_verdicts"] == "g,g"
+    assert a["kitesurf_week_wind"] == "14.0,12.4"
+    assert a["kitesurf_week_gust"] == "27.8,23.9"
+    assert a["kitesurf_week_dir"] == "96,234"       # rounded to int
+    assert a["kitesurf_week_wave"] == "0.7,"        # day-2 wave None -> empty slot
+    assert a["kitesurf_week_per"] == "4.5,3.7"
+    assert a["kitesurf_week_water"] == "19.7,20.3"
+    assert a["kitesurf_week_tide_state"] == "low,rising"
+    assert a["kitesurf_week_tide_h"] == "-0.64,-0.45"
+
+
+def test_flatten_week_peak_idx_points_to_max_score_day():
+    a = flatten_detail(_detail())
+    assert a["kitesurf_week_peak_idx"] == 0          # 83 > 79
+    assert a["sup_week_peak_idx"] == 1               # 76 > 30
+
+
+def test_flatten_factors_and_headline():
+    a = flatten_detail(_detail())
+    assert a["kitesurf_factors"] == "wind:66,gust:100,wave:100"
+    assert a["sports"] == "kitesurf|sup" and a["sport_labels"] == "Kitesurf|SUP"
+    # Headline = best-scoring sport right now (kitesurf 81 > sup 0).
+    assert a["headline_sport"] == "kitesurf" and a["headline_score"] == 81
+
+
+def test_flatten_handles_no_sports():
+    d = {"name": "X", "water_type": "sea", "latitude": 0, "longitude": 0,
+         "now_time": None, "daylight": {}, "tide": {}, "current": {}, "sports": []}
+    a = flatten_detail(d)
+    assert a["sports"] == "" and a["hours"] == "" and a["week_days"] == ""

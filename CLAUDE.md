@@ -127,6 +127,41 @@ Forgejo release. HACS reads tags/releases. Note: `hacs/action` store-validation
 returns 401 against Forgejo (GitHub-only); run it on a GitHub mirror if needed.
 Releases are public and hard to unpublish — confirm the version first.
 
+**Use the release helper — don't hand-bump.** `scripts/release.sh` does the whole
+dance: infers the next semver from conventional commits since the last `v*` tag,
+bumps `manifest.json`, prepends a `CHANGELOG.md` section, commits
+`chore(release): vX.Y.Z`, creates the annotated tag, pushes to Forgejo `origin`,
+then **forces a one-shot Forgejo→GitHub push-mirror sync** so the tag reaches
+GitHub immediately (the mirror is otherwise on an 8h timer — see automation note
+below).
+
+```bash
+scripts/release.sh                  # infer bump, apply, push, force mirror sync
+scripts/release.sh --dry-run        # show computed version + commits, change nothing
+scripts/release.sh --as 0.4.0       # force an explicit version
+scripts/release.sh --no-push        # bump + commit + tag locally only
+scripts/release.sh --no-mirror-sync # push, but leave GitHub for the next timer sync
+scripts/release.sh --strict         # abort if no feat/fix/perf/breaking commits
+```
+
+Bump rules are **0.x-aware** (pre-1.0: breaking→minor, feat→patch). Run on a
+clean working tree from an up-to-date `main` that has passed `pytest`. After the
+push, GitHub `.github/workflows/release.yml` validates `tag == manifest.version`,
+re-runs the test suite + hassfest + HACS validation, and publishes the Release
+HACS reads. The forced mirror sync is **best-effort** — if it fails (no stored
+credential / API non-200) the tag is still on Forgejo; the 8h timer or a manual
+Forgejo "Synchronize Now" are backstops.
+
+**Mirror automation:** the GitHub mirror is currently timer-driven
+(`interval: 8h`, `sync_on_commit: false`), so `release.sh` triggers the sync
+explicitly via the Forgejo `push_mirrors-sync` API. Two ways to make it
+event-driven server-side: (a) flip the mirror's `sync_on_commit` to `true`
+(native, zero-infra — syncs on every push, tags included, making the script's
+`curl` redundant); or (b) a `.forgejo/workflows/` Action on `push: tags: v*` that
+calls `push_mirrors-sync` — **blocked** until an `act_runner` is registered on
+the instance (none currently). The client-side trigger in `release.sh` is the
+chosen default precisely because it needs neither.
+
 ## Architecture Overview
 
 Home Assistant custom integration that turns marine/weather forecasts into a
@@ -161,6 +196,11 @@ with HA-only glue at the edges.
   (via batch loader) → water policy → tide gate → score each sport → optional LLM
   enrich. Entities (`sensor.py`, `binary_sensor.py`) expose the suitability score
   + `*_suitable`; raw values surface via the `get_forecast` service.
+- **Panel-detail entity** (`detail.py`, `SpotDetailSensor`) — one per spot,
+  flattening the full now/week payload into flat/delimited attributes the ESPHome
+  LVGL wall panel binds. The published attribute contract is documented in
+  [`docs/panel-contract.md`](docs/panel-contract.md) (cross-posted to the
+  HomeAutomation panel repo); keep it in sync with `flatten_detail`.
 - **Confidence** (`confidence.py`) — model-agreement signal, provider-agnostic.
   Currently dormant (single source); to be re-sourced from Open-Meteo `models=`
   (bead `swelligence-48w.1`).
