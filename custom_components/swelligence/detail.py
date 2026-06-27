@@ -36,10 +36,16 @@ VERDICT_CODE = {"epic": "e", "great": "g", "good": "o", "marginal": "m", "poor":
 # Array-valued (high-churn) panel attributes kept OUT of the recorder DB. Built
 # from the bounded sport set so every per-sport timeline/week CSV is covered.
 _ARRAY_SUFFIXES = (
-    "hourly_scores", "hourly_verdicts", "week_scores", "week_times", "week_verdicts",
+    "factors",
+    "hourly_scores", "hourly_verdicts",
+    "week_scores", "week_times", "week_verdicts",
+    "week_wind", "week_gust", "week_dir", "week_wave", "week_swell",
+    "week_per", "week_water", "week_tide_state", "week_tide_h",
 )
+# Spot-level (non-per-sport) high-churn arrays.
+_SPOT_ARRAYS = ("tide_levels", "hours", "week_days", "week_dates")
 PANEL_UNRECORDED = frozenset(
-    {"tide_levels"}
+    set(_SPOT_ARRAYS)
     | {f"{sport}_{suf}" for sport in SPORT_PROFILES for suf in _ARRAY_SUFFIXES}
 )
 
@@ -111,11 +117,29 @@ def _i(v):
     return None if v is None else round(v)
 
 
+def _rcsv(values, n: int = 1) -> str:
+    """CSV of values rounded to ``n`` dp (0 → int), None held as an empty field."""
+    return _csv(None if v is None else (round(v, n) if n else round(v)) for v in values)
+
+
+def _factor_csv(factors: dict | None) -> str:
+    """Per-sport factor breakdown as ``key:score`` pairs (rounded int), in the
+    scorer's own factor order, so the panel can render the breakdown bars without
+    a fixed key list (factor sets differ by sport — e.g. surf has swell, SUP
+    doesn't)."""
+    return ",".join(f"{k}:{round(v)}" for k, v in (factors or {}).items() if v is not None)
+
+
 def spot_panel_payload(coordinator, data) -> dict:
+    """``spot_detail`` flattened for an ESPHome panel — see ``flatten_detail``."""
+    return flatten_detail(spot_detail(coordinator, data, set()))
+
+
+def flatten_detail(d: dict) -> dict:
     """``spot_detail`` flattened for an ESPHome panel: flat scalars + delimited
     arrays only (no nested dicts/lists), so the panel can bind each value and
-    split the CSV/pipe strings in a lambda."""
-    d = spot_detail(coordinator, data, set())
+    split the CSV/pipe strings in a lambda. Pure (dict in, dict out) so the whole
+    encoding is unit-testable without a live coordinator."""
     tide = d.get("tide") or {}
     nxt = tide.get("next") or {}
     cur = d.get("current") or {}
@@ -138,6 +162,9 @@ def spot_panel_payload(coordinator, data) -> dict:
         "gust_kn": cur.get("wind_gust_kn"),
         "wind_dir_deg": cur.get("wind_dir_deg"),
         "wave_m": cur.get("wave_height_m"),
+        # wind-wave fallback for the now-strip Wave cell when total wave is
+        # unknown (sheltered spots often have wave_m None but a wind_wave value).
+        "wind_wave_m": cur.get("wind_wave_height_m"),
         "swell_m": cur.get("swell_height_m"),
         "swell_period_s": cur.get("swell_period_s"),
         "water_temp_c": cur.get("water_temp_c"),
@@ -156,6 +183,18 @@ def spot_panel_payload(coordinator, data) -> dict:
     # Fixed sport order drives the panel's selector pills + per-sport lookups.
     attrs["sports"] = "|".join(s["sport"] for s in sports)
     attrs["sport_labels"] = "|".join(s["label"] for s in sports)
+    # Spot-level time axes — identical across sports (shared daylight window), so
+    # carried once. `hours` labels the 24h timeline x-axis; `week_days`/
+    # `week_dates` label the weekly day rows (index 0 is always "Today", matching
+    # the card's daily[0]==today convention) and the header date range.
+    ref = sports[0] if sports else {}
+    attrs["hours"] = ",".join(h["datetime"][11:16] for h in ref.get("hourly") or [])
+    week = ref.get("daily") or []
+    attrs["week_days"] = ",".join(
+        "Today" if i == 0 else datetime.fromisoformat(e["datetime"]).strftime("%a")
+        for i, e in enumerate(week)
+    )
+    attrs["week_dates"] = ",".join(e["date"] for e in week)
     # Spot-level headline = the best-scoring sport right now. Statically named so
     # the panel's NOW gauge/verdict bind without knowing each spot's sport list
     # (per-sport attribute names like `kitesurf_now_score` vary by spot).
@@ -189,6 +228,8 @@ def spot_panel_payload(coordinator, data) -> dict:
         attrs[f"{k}_kit_power"] = kit.get("power")
         attrs[f"{k}_kit_rig_m2"] = kit.get("rig_m2")
         attrs[f"{k}_kit_ideal_m2"] = kit.get("ideal_m2")
+        # Optional factor-breakdown bars (key:score pairs, scorer's own order).
+        attrs[f"{k}_factors"] = _factor_csv(now.get("factors"))
         # Next-24h timeline (lv_chart) + per-bar verdict colour codes.
         attrs[f"{k}_hourly_scores"] = _csv(_i(h.get("score")) for h in hourly)
         attrs[f"{k}_hourly_verdicts"] = _verdict_csv(hourly)
@@ -196,6 +237,29 @@ def spot_panel_payload(coordinator, data) -> dict:
         attrs[f"{k}_week_scores"] = _csv(_i(e.get("score")) for e in daily)
         attrs[f"{k}_week_times"] = ",".join(e["datetime"][11:16] for e in daily)
         attrs[f"{k}_week_verdicts"] = _verdict_csv(daily)
+        # Peak-hour conditions per day (the best-day pane's detail readout —
+        # wind/gust/dir/wave/swell/period/water + tide phase/height annotated
+        # server-side). Aligned position-for-position with week_days/_scores.
+        attrs[f"{k}_week_wind"] = _rcsv(e.get("wind_speed_kn") for e in daily)
+        attrs[f"{k}_week_gust"] = _rcsv(e.get("wind_gust_kn") for e in daily)
+        attrs[f"{k}_week_dir"] = _csv(_i(e.get("wind_bearing")) for e in daily)
+        attrs[f"{k}_week_wave"] = _rcsv(e.get("wave_height_m") for e in daily)
+        attrs[f"{k}_week_swell"] = _rcsv(e.get("swell_height_m") for e in daily)
+        attrs[f"{k}_week_per"] = _rcsv(e.get("swell_period_s") for e in daily)
+        attrs[f"{k}_week_water"] = _rcsv(e.get("water_temp_c") for e in daily)
+        attrs[f"{k}_week_tide_state"] = _csv(
+            (e.get("tide") or {}).get("state") for e in daily
+        )
+        attrs[f"{k}_week_tide_h"] = _rcsv(
+            ((e.get("tide") or {}).get("height") for e in daily), 2
+        )
+        # Index of the peak (max-score) day so the panel anchors the best-day
+        # pane without an argmax in a lambda (thin renderer).
+        scores = [e.get("score") for e in daily]
+        attrs[f"{k}_week_peak_idx"] = (
+            max(range(len(scores)), key=lambda i: scores[i] if scores[i] is not None else -1)
+            if scores else None
+        )
     return attrs
 
 
