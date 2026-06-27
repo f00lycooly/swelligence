@@ -196,6 +196,11 @@ with HA-only glue at the edges.
   (via batch loader) → water policy → tide gate → score each sport → optional LLM
   enrich. Entities (`sensor.py`, `binary_sensor.py`) expose the suitability score
   + `*_suitable`; raw values surface via the `get_forecast` service.
+- **Panel-detail entity** (`detail.py`, `SpotDetailSensor`) — one per spot,
+  flattening the full now/week payload into flat/delimited attributes the ESPHome
+  LVGL wall panel binds. The published attribute contract is documented in
+  [`docs/panel-contract.md`](docs/panel-contract.md) (cross-posted to the
+  HomeAutomation panel repo); keep it in sync with `flatten_detail`.
 - **Confidence** (`confidence.py`) — model-agreement signal, provider-agnostic.
   Currently dormant (single source); to be re-sourced from Open-Meteo `models=`
   (bead `swelligence-48w.1`).
