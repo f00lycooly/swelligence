@@ -17,8 +17,8 @@ ForecastPoint + SportProfile
         │
         ▼
 ┌─────────────────────────────────────────────┐
-│ 1. Compute 6 factors, each → 0.0..1.0 or None │   wind, gust, direction,
-│    (None = not scored / no data)              │   wave, swell, temp
+│ 1. Compute 7 factors, each → 0.0..1.0 or None │   wind, gust, direction,
+│    (None = not scored / no data)              │   wave, swell, clean, temp
 └─────────────────────────────────────────────┘
         │
         ▼
@@ -40,7 +40,8 @@ ForecastPoint + SportProfile
         ▼
 ┌─────────────────────────────────────────────┐
 │ 4. TIDE gate: score ·= tide_factor (0.3..1.0) │   wrong-tide spots capped,
-│    if the spot is tide-dependent              │   never zeroed (floor 0.3)
+│    if the spot is tide-dependent (real events │   never zeroed (floor 0.3);
+│    else modelled sea_level_m fallback)        │   see §4 tide gate
 └─────────────────────────────────────────────┘
         │
         ▼
@@ -98,7 +99,7 @@ is now typed — so no recalibration is required for this change (broader fixtur
 
 ---
 
-## 2. The six factors
+## 2. The seven factors
 
 Each returns `(factor 0..1 | None, note)`. `None` ⇒ excluded from the mean.
 
@@ -145,10 +146,30 @@ Two modes, chosen by whether `wave_ideal_m` is set:
 Scores swell **quality**, not just height: `period × direction`.
 - `f_period = clamp01((period − 4) / (ideal − 4))` — below ~4 s is wind-chop;
   long-period groundswell scores higher (`swell_period_ideal_s`, surf = 11 s).
+- **Period source** — prefers the **peak** swell period (`swell_peak_period_s`)
+  over the mean (`swell_period_s`) when supplied (`_effective_swell_period`):
+  peak tracks the dominant, most energetic swell partition, the better surf-power
+  proxy. Mean is the fallback.
 - `f_dir` from the spot's `swell_dirs` window (gated **only** when the provider
   reports `swell_dir_deg`).
 - `factor = f_period · f_dir` (or just `f_period` if no swell direction).
-- `None` when the sport has no `swell_period_ideal_s` or no period data.
+- `None` when the sport has no `swell_period_ideal_s` or no period data (peak or
+  mean).
+
+### Sea cleanliness — `_clean_factor` (weight `weight_clean`, surf-type only)
+Scores sea **organisation** — distinct from swell *quality* above. A clean
+groundswell with little local windsea surfs well; the same swell under a big
+short-period wind wave is messy/blown-out, and a crossing secondary swell makes a
+confused, lumpy sea.
+- **Wind-wave dominance** — `factor = swell_height_m / (swell_height_m +
+  wind_wave_height_m)`: 1.0 = pure groundswell, → 0 as local windsea dominates.
+  Below `0.45` the note reads "messy windsea".
+- **Crossed swell** — when `secondary_swell_height_m` exceeds ~half the primary
+  swell height, a decaying penalty applies (full credit at 0.5×, zero by ~1.3×),
+  note "confused / crossed sea".
+- `None`/not-scored when the wind-wave split is unavailable (soft `missing_data`,
+  never essential) or the sea is essentially flat (`not_applicable` — the wave
+  factor already handles "flat").
 
 ### Water temperature — `_temp_factor` (weight `weight_temp`)
 - `t ≥ water_temp_min_c` → `1.0`
@@ -160,21 +181,22 @@ Scores swell **quality**, not just height: `period × direction`.
 
 Defaults (UK-calibrated; user-overridable per-spot). Wind/gust knots, wave metres.
 
-| Sport | water | wind min/ideal/max | gust max | wave (min/ideal/max) | swell ideal | temp min | weights (wind/dir/wave/swell/gust/temp) |
+| Sport | water | wind min/ideal/max | gust max | wave (min/ideal/max) | swell ideal | temp min | weights (wind/dir/wave/swell/clean/gust/temp) |
 |---|---|---|---|---|---|---|---|
-| kitesurf | sea | 12/20/35 | 40 | –/–/3.0 (flat) | – | – | 1.0 / 0.7 / 0.5 / 0 / 0.3 / 0.2 |
-| windsurf | sea | 12/22/40 | 45 | –/–/2.5 (flat) | – | – | 1.0 / 0.5 / 0.5 / 0 / 0.3 / 0.2 |
-| wingfoil | sea | 10/16/33 | 40 | –/–/2.5 (flat) | – | – | 1.0 / 0.6 / 0.5 / 0 / 0.3 / 0.2 |
-| **surf** | sea | 0/5/15 | 20 | 0.6/1.5/3.5 (desired) | 11 s | – | 0.6 / 0.8 / 1.0 / 0.7 / 0.3 / 0.2 |
-| sup | any | 0/4/12 | 15 | –/–/0.5 (flat) | – | – | 0.8 / 0.5 / 0.8 / 0 / 0.3 / 0.2 |
-| sailing | sea | 6/14/25 | 30 | –/–/2.0 (flat) | – | – | 1.0 / 0.3 / 0.5 / 0 / 0.3 / 0.2 |
-| seaswim | sea | 0/2/12 | 16 | –/–/0.6 (flat) | – | 12 °C | 0.7 / 0.1 / 1.0 / 0 / 0.3 / 1.0 |
-| wakeboard (inland) | inland | 0/3/12 | 16 | –/–/0.3 (flat) | – | – | 1.0 / 0.1 / 0.9 / 0 / 0.3 / 0.2 |
-| wakeboard (sea) | sea | 0/4/14 | 18 | –/–/0.6 (flat) | – | – | 0.9 / 0.2 / 1.0 / 0 / 0.3 / 0.2 |
+| kitesurf | sea | 12/20/35 | 40 | –/–/3.0 (flat) | – | – | 1.0 / 0.7 / 0.5 / 0 / 0 / 0.3 / 0.2 |
+| windsurf | sea | 12/22/40 | 45 | –/–/2.5 (flat) | – | – | 1.0 / 0.5 / 0.5 / 0 / 0 / 0.3 / 0.2 |
+| wingfoil | sea | 10/16/33 | 40 | –/–/2.5 (flat) | – | – | 1.0 / 0.6 / 0.5 / 0 / 0 / 0.3 / 0.2 |
+| **surf** | sea | 0/5/15 | 20 | 0.6/1.5/3.5 (desired) | 11 s | – | 0.6 / 0.8 / 1.0 / 0.7 / 0.5 / 0.3 / 0.2 |
+| sup | any | 0/4/12 | 15 | –/–/0.5 (flat) | – | – | 0.8 / 0.5 / 0.8 / 0 / 0 / 0.3 / 0.2 |
+| sailing | sea | 6/14/25 | 30 | –/–/2.0 (flat) | – | – | 1.0 / 0.3 / 0.5 / 0 / 0 / 0.3 / 0.2 |
+| seaswim | sea | 0/2/12 | 16 | –/–/0.6 (flat) | – | 12 °C | 0.7 / 0.1 / 1.0 / 0 / 0 / 0.3 / 1.0 |
+| wakeboard (inland) | inland | 0/3/12 | 16 | –/–/0.3 (flat) | – | – | 1.0 / 0.1 / 0.9 / 0 / 0 / 0.3 / 0.2 |
+| wakeboard (sea) | sea | 0/4/14 | 18 | –/–/0.6 (flat) | – | – | 0.9 / 0.2 / 1.0 / 0 / 0 / 0.3 / 0.2 |
 
 Read a row as: surf is mostly **wave (1.0) + direction (0.8, offshore) + swell
-quality (0.7)** with light wind; wind sports are **wind-dominant (1.0)** with
-chop only mildly penalised; sea-swim is **calm + warm** (wave 1.0, temp 1.0).
+quality (0.7) + cleanliness (0.5)** with light wind; wind sports are
+**wind-dominant (1.0)** with chop only mildly penalised; sea-swim is **calm +
+warm** (wave 1.0, temp 1.0). `clean` (sea-state organisation) is surf-only.
 
 > **Calibration:** the profiles are tuned against real Open-Meteo data for the
 > Christchurch spot set. **Re-run `validate_spots.py` + `analyze_history.py`
@@ -195,7 +217,16 @@ Tide-dependent spots (`CONF_TIDE_STATE` = high/low/mid) get a per-timestep
 events:
 `factor = max(0.3, 1 − 0.3·(hours_from_target / window_h))`.
 The score is multiplied by it — wrong tide caps the score (floor 30 % of
-conditions), it never hard-zeros. `state = any`/no events ⇒ no gate.
+conditions), it never hard-zeros. `state = any` ⇒ no gate.
+
+**Modelled fallback** — when no real overlay covers the spot, the coordinator
+synthesises indicative high/low events from the continuous modelled
+`sea_level_m` trajectory (`events_from_levels`: interior local maxima → high,
+minima → low) and runs the *same* gate over them, so a tide-dependent spot still
+gets an indicative gate (and `mid`/max-flow falls out as the midpoint between
+extrema). These synthetic events stay **local to the gate** — they are *not*
+written to `forecast.tide_events`, so `tide_state`/`tide_phase` still correctly
+label the trend `source = "modelled"` rather than masquerading as a real overlay.
 
 ### Kit blend (`blend_kit` + `sizing.py`, kite/wing only)
 With rider weight + quiver configured: `ideal_size = const · weight / wind`

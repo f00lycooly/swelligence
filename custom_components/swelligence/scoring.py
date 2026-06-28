@@ -170,17 +170,27 @@ def _wave_factor(h: float | None, p: SportProfile) -> tuple[float | None, str]:
     return None, ""
 
 
+def _effective_swell_period(point) -> float | None:
+    """The swell period to score with — *peak* period when the provider supplies
+    it (the better surf-power proxy: it tracks the dominant, most energetic swell
+    partition), else the mean period."""
+    if point.swell_peak_period_s is not None:
+        return point.swell_peak_period_s
+    return point.swell_period_s
+
+
 def _swell_factor(point, p: SportProfile) -> tuple[float | None, str]:
     """Swell *quality* for surf-type sports: period (groundswell) × direction.
 
     Long-period swell scores higher than short-period windswell; when the spot
     has a swell window (``swell_dirs``) and the provider reports swell direction,
     swell from outside the window is gated down. ``None`` when the sport doesn't
-    care about swell or no swell-period data is available.
+    care about swell or no swell-period data is available. Prefers the peak swell
+    period over the mean when available (better groundswell power proxy).
     """
-    if p.swell_period_ideal_s is None or point.swell_period_s is None:
+    period = _effective_swell_period(point)
+    if p.swell_period_ideal_s is None or period is None:
         return None, ""
-    period = point.swell_period_s
     lo = 4.0  # below ~4s is wind-chop, not rideable groundswell
     ideal = max(p.swell_period_ideal_s, lo + 1)
     f_period = max(0.0, min(1.0, (period - lo) / (ideal - lo)))
@@ -197,6 +207,47 @@ def _swell_factor(point, p: SportProfile) -> tuple[float | None, str]:
     else:
         note = f"{period:.0f}s swell"
     return round(factor, 3), note
+
+
+#: Below this combined sea height (m) the sea is essentially flat and
+#: "cleanliness" carries no meaning — the wave factor already scores "flat".
+_CLEAN_FLAT_M = 0.1
+#: Below this swell-to-windsea ratio the surf reads as messy/blown-out windsea.
+_CLEAN_MESSY_RATIO = 0.45
+#: A secondary swell above this fraction of the primary starts to confuse the sea.
+_CROSS_SWELL_FRACTION = 0.5
+
+
+def _clean_factor(point, p: SportProfile) -> tuple[float | None, str]:
+    """Sea-cleanliness for surf-type sports: organised groundswell vs messy
+    local windsea, dragged down by a strong crossing secondary swell.
+
+    The dominant signal is the swell-to-windsea height ratio (1.0 = pure
+    groundswell, →0 = pure windsea slop). A secondary swell comparable in size to
+    the primary flags a confused/crossed sea and applies a further penalty.
+    Returns ``(None, "")`` when the wind-wave split is unavailable or the sea is
+    essentially flat (cleanliness is then meaningless).
+    """
+    swell_h = point.swell_height_m
+    wind_wave_h = point.wind_wave_height_m
+    if swell_h is None or wind_wave_h is None:
+        return None, ""
+    total = swell_h + wind_wave_h
+    if total < _CLEAN_FLAT_M:
+        return None, ""
+    factor = swell_h / total
+    note = "messy windsea" if factor < _CLEAN_MESSY_RATIO else ""
+
+    sec = point.secondary_swell_height_m
+    if sec is not None and swell_h > 0.05:
+        cross = sec / swell_h
+        if cross > _CROSS_SWELL_FRACTION:
+            # Full credit at the threshold, decaying to 0 once the secondary
+            # reaches ~1.3× the primary (thoroughly confused sea).
+            penalty = max(0.0, 1.0 - (cross - _CROSS_SWELL_FRACTION) / 0.8)
+            factor *= penalty
+            note = "confused / crossed sea"
+    return round(max(0.0, min(1.0, factor)), 3), note
 
 
 def _temp_factor(t: float | None, p: SportProfile) -> tuple[float | None, str]:
@@ -255,13 +306,25 @@ def _wave_eval(h: float | None, p: SportProfile) -> FactorEval:
 def _swell_eval(point, p: SportProfile) -> FactorEval:
     if p.swell_period_ideal_s is None:
         return FactorEval(None, NOT_APPLICABLE)  # sport doesn't score swell
-    if point.swell_period_s is None:
+    if _effective_swell_period(point) is None:
         return FactorEval(None, MISSING_DATA, "swell data unavailable")
     f, note = _swell_factor(point, p)
     # If we have a swell bearing but no window to gate it against, the spot is
     # under-configured for surf quality — nudge, but still score on period.
     nudge = _SWELL_DIR_NUDGE if (point.swell_dir_deg is not None and not p.swell_dirs) else ""
     return FactorEval(f, APPLICABLE, note, nudge)
+
+
+def _clean_eval(point, p: SportProfile) -> FactorEval:
+    if p.weight_clean <= 0:
+        return FactorEval(None, NOT_APPLICABLE)  # sport doesn't score cleanliness
+    if point.wind_wave_height_m is None or point.swell_height_m is None:
+        # No wind-wave split — a refinement signal, never essential; stay soft.
+        return FactorEval(None, MISSING_DATA, "sea-state split unavailable")
+    f, note = _clean_factor(point, p)
+    if f is None:  # flat sea — cleanliness carries no meaning here
+        return FactorEval(None, NOT_APPLICABLE)
+    return FactorEval(f, APPLICABLE, note)
 
 
 def _temp_eval(t: float | None, p: SportProfile) -> FactorEval:
@@ -281,6 +344,7 @@ def score_point(point: ForecastPoint, profile: SportProfile) -> ScoreResult:
         ("direction", profile.weight_dir, _wind_dir_eval(point.wind_dir_deg, profile.wind_dirs)),
         ("wave", profile.weight_wave, _wave_eval(point.wave_height_m, profile)),
         ("swell", profile.weight_swell, _swell_eval(point, profile)),
+        ("clean", profile.weight_clean, _clean_eval(point, profile)),
         ("temp", profile.weight_temp, _temp_eval(point.water_temp_c, profile)),
     ]
 

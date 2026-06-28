@@ -53,7 +53,13 @@ from .providers.domains import TIDE, stamp_sources
 from .scoring import ScoreResult, best_window, blend_kit, score_point
 from .sizing import POWER_NA, KitRecommendation, recommend_kit
 from .sports import SportProfile
-from .tide import DEFAULT_TIDE_WINDOW_H, TIDE_STATE_ANY, tide_factor, to_utc_naive
+from .tide import (
+    DEFAULT_TIDE_WINDOW_H,
+    TIDE_STATE_ANY,
+    events_from_levels,
+    tide_factor,
+    to_utc_naive,
+)
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -359,7 +365,21 @@ class SpotCoordinator(DataUpdateCoordinator[SpotData]):
             events = self._cached_overlay_tides()
         if not events:
             events = await self._tide_overlay_events(session)
+
         if not events:
+            # No real overlay: synthesise indicative high/low events from the
+            # modelled sea_level_m trajectory so a tide-dependent spot still gets
+            # a gate. These stay LOCAL to the gate — they are NOT written to
+            # forecast.tide_events (which would make tide_state/tide_phase mislabel
+            # modelled tides as a real overlay). Both events and point times are
+            # the forecast's naive-local basis, so no UTC collapse is needed.
+            modelled_events = events_from_levels(forecast.points)
+            if not modelled_events:
+                return
+            forecast.source_meta["tide"] = f"state={state} window={window}h modelled"
+            for point in forecast.points:
+                factor, _ = tide_factor(modelled_events, point.time, state, window)
+                point.tide_factor = factor
             return
 
         # Collapse points (naive local) and events (UTC) to one UTC basis.

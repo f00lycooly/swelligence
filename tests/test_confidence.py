@@ -92,3 +92,37 @@ def test_aggregate_none_without_signal():
 def test_every_scale_field_is_a_known_point_field():
     fields = set(ForecastPoint.__dataclass_fields__)
     assert set(FIELD_UNCERTAINTY_SCALE).issubset(fields)
+
+
+# --- newly-scored fields (48w.7: surf-quality trio) -------------------------
+
+def test_new_scored_fields_have_uncertainty_scales():
+    # Fields wired into scoring by 48w.7 must carry a confidence scale so 48w.1's
+    # aggregate sees them.
+    for field in ("swell_peak_period_s", "wind_wave_height_m", "secondary_swell_height_m"):
+        assert field in FIELD_UNCERTAINTY_SCALE
+        assert field_confidence(field, [1.0, 1.0]) == 1.0
+
+
+def test_aggregate_includes_clean_factor_fields_for_surf():
+    # Surf scores cleanliness (wind-wave + secondary swell), so their agreement
+    # must feed the aggregate confidence.
+    point = _point({
+        "wave_height_m": 0.9,
+        "swell_peak_period_s": 0.9,
+        "wind_wave_height_m": 0.8,
+        "secondary_swell_height_m": 0.8,
+    })
+    agg = aggregate_confidence(point, SPORT_PROFILES["surf"])
+    assert agg is not None
+    assert "wind_wave_height_m" in agg["fields"]
+    assert "swell_peak_period_s" in agg["fields"]
+
+
+def test_clean_fields_ignored_for_non_surf_sport():
+    # Kitesurf doesn't score cleanliness -> wind-wave confidence must not count.
+    point = _point({"wind_speed_kn": 0.9, "wind_wave_height_m": 0.1})
+    agg = aggregate_confidence(point, SPORT_PROFILES["kitesurf"])
+    assert agg is not None
+    assert "wind_wave_height_m" not in agg["fields"]
+    assert agg["value"] == 0.9

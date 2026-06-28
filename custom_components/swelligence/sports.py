@@ -48,6 +48,9 @@ class SportProfile:
     weight_dir: float = 0.5
     weight_wave: float = 0.5
     weight_swell: float = 0.0
+    # Sea-cleanliness (surf-type): organised groundswell vs messy local windsea,
+    # plus a crossed-swell (confused sea) penalty. 0 = sport doesn't score it.
+    weight_clean: float = 0.0
     weight_gust: float = 0.3
     weight_temp: float = 0.2
     # Factors whose provider data is *essential* to assess this sport. When an
@@ -88,6 +91,7 @@ SPORT_PROFILES: dict[str, SportProfile] = {
         wave_min_m=0.6, wave_ideal_m=1.5, wave_max_m=3.5,
         swell_period_ideal_s=11,
         weight_wind=0.6, weight_dir=0.8, weight_wave=1.0, weight_swell=0.7,
+        weight_clean=0.5,
         essential_factors=frozenset({"wave", "swell"}),
     ),
     "sup": SportProfile(
