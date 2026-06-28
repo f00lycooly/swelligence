@@ -75,14 +75,16 @@ payload in nested attributes.** Rationale:
 - **Unique ID:** `swelligence_<entry_id>_config`.
 - **Entity category:** `diagnostic` (configuration metadata, not a live reading).
 - **Icon:** `mdi:cog-outline`.
-- **State:** an 8-char **config hash** — a stable hash over the normalised
-  topology (everything in §4 *except* `generated_at`). It changes **iff** the
-  topology changes, so automations can trigger on "config changed" and the
-  generator can cache-bust / skip a no-op rebuild. (State stays well under HA's
-  255-char limit; the real content is in attributes.)
-- **Recorder:** attributes **excluded from the recorder** (large, nested, rarely
-  changing) — read live state. The short `state` hash *may* be recorded so its
-  history shows when config changed.
+- **State:** a legible **`"<n> spots · <m> sports"`** summary (the at-a-glance
+  value; the full topology is in the attributes). The precise change-detection
+  signal lives in the **`config_hash`** attribute — a stable 8-char hash over the
+  normalised topology (everything in §4 *except* `generated_at`) that changes
+  **iff** the topology changes, so automations trigger on it and the generator
+  cache-busts / skips a no-op rebuild. (Earlier drafts used the hash *as* the
+  state, but it read like a commit SHA — the summary is friendlier; the hash is
+  one attribute away.)
+- **Recorder:** the large nested attributes (`spots`/`sports`/`rider`) are
+  **excluded from the recorder** — read live state.
 
 ---
 
@@ -92,7 +94,7 @@ A nested object. Field names are illustrative; pin them at implementation.
 
 ```jsonc
 {
-  "config_hash": "a1b2c3d4",        // == state; present in attrs for convenience
+  "config_hash": "a1b2c3d4",        // change-detection signal (state is the summary)
   "generated_at": "2026-06-28T14:00:00+01:00",
   "manifest_version": "0.2.3",      // contract/version pin for the generator
 
@@ -200,7 +202,8 @@ This removes all hand-hardcoding of spot/sport/kit substitutions from the panel.
 ## 8. Acceptance criteria (for the implementation bead)
 
 - A hub `Config` sensor exists on a `(DOMAIN, entry_id)` hub device; state is the
-  8-char config hash; full topology in nested attributes per §4; attributes
+  `"<n> spots · <m> sports"` summary; `config_hash` (8-char) is an attribute;
+  full topology in nested attributes per §4; the nested attributes are
   recorder-excluded.
 - `entity_id`s in the payload are resolved from the entity registry by
   `unique_id`, with the derived slug pattern only as a pre-registration fallback;

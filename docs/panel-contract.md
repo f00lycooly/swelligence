@@ -300,7 +300,8 @@ breaking the binding). A new sport must add a row consciously.
 
 > **Topology / config source of truth** — a hub **`sensor.swelligence_config`**
 > entity exposes the install topology (spots, sports, kit) + derived entity-ids +
-> per-spot pill slots in nested attributes (state = an 8-char config hash), for
+> per-spot pill slots in nested attributes (state = a `"<n> spots · <m> sports"`
+> summary; the `config_hash` attribute is the change-detection signal), for
 > dashboards & build-time panel codegen. It is **not** bound live by the LVGL
 > panel. Contract: [`docs/panel-config-sensor-spec.md`](panel-config-sensor-spec.md).
 

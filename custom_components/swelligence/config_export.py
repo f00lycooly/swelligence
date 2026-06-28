@@ -41,6 +41,17 @@ def _config_hash(payload: dict) -> str:
     return hashlib.sha1(blob.encode()).hexdigest()[:8]
 
 
+def config_summary(payload: dict) -> str:
+    """Human-readable one-line summary for the sensor STATE — ``"<n> spots · <m>
+    sports"``. The precise change-detection signal stays in the ``config_hash``
+    attribute; this is the legible at-a-glance value."""
+    n_spots = len(payload.get("spots") or [])
+    n_sports = len(payload.get("sports") or [])
+    spot_w = "spot" if n_spots == 1 else "spots"
+    sport_w = "sport" if n_sports == 1 else "sports"
+    return f"{n_spots} {spot_w} · {n_sports} {sport_w}"
+
+
 def build_config_payload(
     *,
     spots: list[dict],

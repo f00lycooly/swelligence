@@ -30,7 +30,7 @@ near-windless low-tide hour (score 35.8 / "marginal").
 | Suitable now | `binary_sensor.swelligence_<spot>_<sport>_suitable_now` | `on`/`off` | `on` ⇔ score ≥ 55 (`SUITABLE_THRESHOLD`) |
 | Source advice | `sensor.swelligence_<spot>_source_advice` | count of "better source available" nudges (`0` = best) | diagnostic, one per spot |
 | Panel detail | `sensor.swelligence_<spot>_panel_detail` | spot's best current score | one per spot; full now/week payload flattened to flat/CSV attributes for the ESPHome panel. Full contract: [panel-contract.md](panel-contract.md) |
-| Config | `sensor.swelligence_config` | 8-char config hash | diagnostic, **one per entry** on the `Swelligence` hub device; install topology (spots/sports/kit + derived entity-ids + pill slots) in nested attributes. Contract: [panel-config-sensor-spec.md](panel-config-sensor-spec.md) |
+| Config | `sensor.swelligence_config` | `"<n> spots · <m> sports"` summary | diagnostic, **one per entry** on the `Swelligence` hub device; install topology (spots/sports/kit + derived entity-ids + pill slots) in nested attributes; the `config_hash` attribute is the precise change-detection signal. Contract: [panel-config-sensor-spec.md](panel-config-sensor-spec.md) |
 
 `<spot>` and `<sport>` are slugified (`Wing foil` → `wing_foil`).
 
@@ -61,11 +61,12 @@ near-windless low-tide hour (score 35.8 / "marginal").
 The install topology as a single source of truth for Lovelace/automations and a
 build-time panel generator (**not** consumed live by the LVGL panel). Nested
 attributes (the big ones — `spots`/`sports`/`rider` — are excluded from the
-recorder). State is `config_hash`, so it changes iff the topology changes.
+recorder). The **state** is a legible `"<n> spots · <m> sports"` summary; the
+`config_hash` attribute is the precise change-detection signal.
 
 | Attribute | Type | Meaning |
 |---|---|---|
-| `config_hash` | str | 8-char hash over the topology (mirrors the state); for change-detection / codegen cache-bust |
+| `config_hash` | str | 8-char hash over the topology; changes iff the topology changes — for change-detection (trigger automations on it) / codegen cache-bust |
 | `generated_at` | ISO | when this payload was built (excluded from the hash) |
 | `manifest_version` | str | integration version, for the generator to pin against |
 | `sports` | list | enabled sports in priority order: `{key, label, slug}` |

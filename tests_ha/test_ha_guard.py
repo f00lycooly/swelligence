@@ -247,13 +247,12 @@ def test_config_sensor_builds_payload_against_real_ha(hass, options_entry) -> No
     sensor = SwelligenceConfigSensor(hass, options_entry, "9.9.9")
     sensor.hass = hass
 
-    # State = 8-char config hash; stable across rebuilds (generated_at excluded).
-    state = sensor.native_value
-    assert isinstance(state, str) and len(state) == 8
-    assert sensor.native_value == state
+    # State = human-readable summary (1 spot, 3 enabled sports in _OPTIONS).
+    assert sensor.native_value == "1 spot · 3 sports"
 
     attrs = sensor.extra_state_attributes
-    assert attrs["config_hash"] == state
+    # Precise change-detection signal stays an attribute: an 8-char hash.
+    assert isinstance(attrs["config_hash"], str) and len(attrs["config_hash"]) == 8
     assert attrs["manifest_version"] == "9.9.9"
     # Enabled sports (priority order) carry key/label/slug.
     assert [s["key"] for s in attrs["sports"]] == ["surf", "kitesurf", "windsurf"]

@@ -7,7 +7,7 @@ injected, so this runs without Home Assistant. Spec: docs/panel-config-sensor-sp
 
 from __future__ import annotations
 
-from swelligence.config_export import build_config_payload
+from swelligence.config_export import build_config_payload, config_summary
 
 
 def _slug(s: str) -> str:
@@ -118,6 +118,19 @@ def test_hash_ignores_generated_at_but_tracks_topology():
     # A real topology change moves the hash.
     moved = _build(spots=[{**_SPOTS[0], "name": "Avon Beach"}])["config_hash"]
     assert moved != a
+
+
+def test_config_summary_is_human_readable():
+    # The sensor STATE: a legible "<n> spots · <m> sports" summary, not the hash.
+    assert config_summary(_build()) == "1 spot · 3 sports"
+
+
+def test_config_summary_pluralisation_and_empty():
+    p = _build(spots=[_SPOTS[0], {**_SPOTS[0], "id": "b", "name": "B"}],
+               enabled=["kitesurf"])
+    assert config_summary(p) == "2 spots · 1 sport"
+    empty = _build(spots=[], enabled=[])
+    assert config_summary(empty) == "0 spots · 0 sports"
 
 
 def test_unknown_enabled_sport_is_dropped():
