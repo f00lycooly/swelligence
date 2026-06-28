@@ -2,12 +2,9 @@
 
 All notable changes per release. Versions follow semver; tags are `vX.Y.Z`.
 
-## Unreleased
+## v0.2.5 — 2026-06-28
 
-- change(sensor): `sensor.swelligence_config` state is now a legible
-  `"<n> spots · <m> sports"` summary instead of the raw config hash (which read
-  like a git commit SHA). The precise change-detection signal moves to the
-  `config_hash` attribute — trigger automations on that, not the state.
+- fix(sensor): config sensor state as readable summary, not raw hash (5g2)
 
 ## v0.2.4 — 2026-06-28
 
