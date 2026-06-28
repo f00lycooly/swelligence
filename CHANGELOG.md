@@ -2,6 +2,16 @@
 
 All notable changes per release. Versions follow semver; tags are `vX.Y.Z`.
 
+## Unreleased
+
+- feat(sensor): per-sport `SuitabilitySensor` gains an additive `best_time`
+  (`HH:MM`, local) attribute — the clock time of the best 24h slot — so the
+  panel's selected-sport detail shows "best · HH:MM" without computing it
+  on-device. Derived from a shared `detail.best_clock` helper reused by the panel
+  detail sensor so both stay in lock-step (swelligence-d1r.1). Per-sport sensor
+  contract documented in `docs/panel-contract.md` §7; sport-label→entity-id slug
+  mapping pinned by a `tests_ha` guard (d1r.2 / d1r.3).
+
 ## v0.2.3 — 2026-06-26
 
 - feat(sensor): spot-level `headline_*` panel attributes (best-scoring sport now:

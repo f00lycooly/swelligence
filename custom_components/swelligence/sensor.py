@@ -10,7 +10,7 @@ from homeassistant.helpers.entity_platform import AddEntitiesCallback
 
 from .authority import advice_message, provider_name
 from .confidence import aggregate_confidence
-from .detail import PANEL_UNRECORDED, panel_headline, spot_panel_payload
+from .detail import PANEL_UNRECORDED, best_clock, panel_headline, spot_panel_payload
 from .entity import SwelligenceEntity
 from .quality import data_quality
 from .sports import SPORT_PROFILES
@@ -95,6 +95,9 @@ class SuitabilitySensor(SwelligenceEntity, SensorEntity):
             attrs["best_score"] = res.best.score
             attrs["best_in_hours"] = res.best_offset_h
             attrs["best_verdict"] = res.best.verdict
+            best_time = best_clock(self.coordinator.data.forecast, res.best_offset_h)
+            if best_time is not None:
+                attrs["best_time"] = best_time
         if res.kit is not None:
             attrs["recommended_size_m2"] = res.kit.ideal_size_m2
             attrs["rig_size_m2"] = res.kit.owned_size_m2

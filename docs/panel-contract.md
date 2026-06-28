@@ -220,7 +220,87 @@ std::vector<std::string> csv(const std::string &s) {
 
 ---
 
-## 7. Versioning
+## 7. Per-sport sensors (pills / selected detail)
+
+Alongside the one `Panel detail` CSV sensor above, the integration creates **one
+`sensor` entity per (spot, sport)** — `SuitabilitySensor`. These deliver the
+per-sport NOW / best / kit **scalars** as idiomatic HA entities the panel binds
+**by fixed name**, instead of packing them into the detail sensor's CSV blobs.
+
+> **Principle: scalars → entities; time-series arrays → detail-sensor attributes.**
+> A single NOW/best/kit value per sport is an entity (native history, Lovelace,
+> automations, direct panel binding). A 24-point hourly curve or a 7-day array is
+> *not* entity-shaped — those stay as the aligned `<s>_hourly_*` / `<s>_week_*`
+> CSV arrays on the `Panel detail` sensor (§4), unchanged.
+
+### The entity
+
+- **Entity ID:** `sensor.swelligence_<spot_slug>_<sport_slug>_suitability`
+  — HA slugifies the device (`Swelligence: <spot>`) + entity name
+  (`<sport label> suitability`). **Confirm the exact ID per spot in Developer
+  Tools → States.** The `<sport_slug>` segment is `slugify(<sport label>)` and is
+  **pinned/tested** (see the mapping below).
+- **Unique ID:** `swelligence_<spot_id>_<sport>_score`.
+- **State:** NOW suitability score `0–100` (`%`, `measurement`).
+
+### `unavailable` = hide (varying sport count, for free)
+
+A spot is configured for only some sports. A sport the spot does **not** score
+yields an **`unavailable`** entity (not a missing one). So the panel binds a
+**fixed superset of sport slots** per spot and **hides any pill whose sensor is
+`unavailable`** — no array, no dynamic names, no count negotiation.
+
+### Attributes
+
+| Attribute | Type | Notes |
+|---|---|---|
+| `sport` | string | Sport key (e.g. `kitesurf`). |
+| `sport_label` | string | Display label (e.g. `Wing foil`). |
+| `verdict` | string | Full word (`epic`/`great`/`good`/`marginal`/`poor`) — pill ring colour. |
+| `suitable` | bool | Score ≥ suitability threshold. |
+| `factors` | dict | `{factor: score}` breakdown (bar rows); factor set differs by sport. |
+| `reasons` | list | Short condition notes (top line). |
+| `best_score` | int | Best score in the next 24h. Present only when a best slot exists. |
+| `best_in_hours` | int | Hours from now to that best slot. |
+| `best_verdict` | string | Verdict of the best slot. |
+| `best_time` | `HH:MM` | **Clock time of the best slot (local).** Present only when a best slot exists; same helper as the detail sensor's `<s>_best_time`. |
+| `recommended_size_m2` | float | Rig sports only — ideal kit size. |
+| `rig_size_m2` | float | Nearest owned rig size. |
+| `power` | string | Kit power match (rig sports). |
+| `kit_summary` | string | One-line kit advice. |
+| `confidence` / `confidence_label` | float / string | Model-agreement confidence, where available. |
+| `data_quality` | dict | Per-sport data-availability summary. |
+| `data_sources` | dict | Per-domain provider provenance. |
+| `completeness` / `nudges` | dict / list | Factor-completeness states + config hints, where notable. |
+| `ai_rating` / `ai_summary` | int / string | LLM explanation, where enabled. |
+
+This serves the **pills** (state + `verdict` + `sport_label`) and most of the
+**selected-sport detail** (`verdict`, `best_*`, `factors`, `reasons`, full kit).
+
+### Sport label → entity-id slug (pinned)
+
+The panel hard-references these ids via substitutions, so the slug is stable and
+**guarded by a test** (`tests_ha`: a label rename fails CI rather than silently
+breaking the binding). A new sport must add a row consciously.
+
+| Sport key | Label | entity-id slug |
+|---|---|---|
+| `kitesurf` | Kitesurf | `kitesurf` |
+| `windsurf` | Windsurf | `windsurf` |
+| `wingfoil` | Wing foil | `wing_foil` |
+| `surf` | Surf | `surf` |
+| `sup` | SUP | `sup` |
+| `sailing` | Sailing | `sailing` |
+| `seaswim` | Sea swim | `sea_swim` |
+| `wakeboard_inland` | Wakeboard (inland) | `wakeboard_inland` |
+| `wakeboard_sea` | Wakeboard (sea) | `wakeboard_sea` |
+
+> Full rationale + the considered alternative (CSV-packed per-sport scalars) live
+> in [`docs/panel-sport-entities-spec.md`](panel-sport-entities-spec.md).
+
+---
+
+## 8. Versioning
 
 The integration's `manifest.json` `version` is the contract version. Pin the panel
 config against a known version and re-check this table after upgrading. Additive
