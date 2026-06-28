@@ -140,3 +140,18 @@ the panel binding. If a label must change, it's then a conscious, tested change.
 - A test pins the `sport → entity_id suffix` mapping for current sport labels.
 - No breaking change to existing sensor/attribute names; additive only.
 - `CHANGELOG.md` notes the additive `best_time` attribute.
+
+---
+
+## 7. Future work (deferred — `swelligence-d1r.4`)
+
+A hub-level **config/setup source-of-truth sensor** enumerating the full topology
+(spots: id/name/water_type/lat/lon; per-spot sports; owned kit sizes) is a natural
+next step — single source of truth for Lovelace/automations and, eventually,
+**build-time codegen** of the panel (a generator reads it and emits the panel's
+spot/sport/kit substitutions + active pill slots, removing all hand-hardcoding).
+
+It is **not** consumed live by the LVGL panel: the panel can neither parse nested
+JSON nor bind dynamically-named entities at runtime. Until that sensor is specced
+(by the maintainer), the panel uses **substitutions + the per-sport entities
+above + HA card/controls** for configuration. To be specced separately.
