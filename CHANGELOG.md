@@ -2,24 +2,17 @@
 
 All notable changes per release. Versions follow semver; tags are `vX.Y.Z`.
 
-## Unreleased
+## v0.2.4 — 2026-06-28
 
-- feat(sensor): hub `sensor.swelligence_config` — a config/setup source-of-truth
-  entity (one per entry, on a new `Swelligence` hub device) exposing the install
-  topology (spots/sports/rider kit) plus derived per-sport entity-ids + per-spot
-  pill slots in nested attributes, so Lovelace/automations and a build-time panel
-  generator read it instead of hand-hardcoding. State = an 8-char config hash
-  (change-detection / codegen cache-bust); entity-ids resolved from the registry
-  by unique_id; no secrets in the payload; nested attrs recorder-excluded.
-  Pure builder in `config_export.py` (swelligence-d1r.4;
-  `docs/panel-config-sensor-spec.md`).
-- feat(sensor): per-sport `SuitabilitySensor` gains an additive `best_time`
-  (`HH:MM`, local) attribute — the clock time of the best 24h slot — so the
-  panel's selected-sport detail shows "best · HH:MM" without computing it
-  on-device. Derived from a shared `detail.best_clock` helper reused by the panel
-  detail sensor so both stay in lock-step (swelligence-d1r.1). Per-sport sensor
-  contract documented in `docs/panel-contract.md` §7; sport-label→entity-id slug
-  mapping pinned by a `tests_ha` guard (d1r.2 / d1r.3).
+- feat(sensor): hub config/setup source-of-truth sensor (d1r.4)
+- docs(panel): spec the hub config/setup source-of-truth sensor (d1r.4)
+- feat(sensor): per-sport best_time attribute + panel sensor contract (d1r)
+- feat(scoring): wire Open-Meteo detail fields into surf quality + tide gate (48w.7)
+- docs(panel): note deferred config/setup sensor as future work (d1r.4)
+- docs(panel): spec for per-sport sensor entities (panel right column)
+- docs(panel): document the panel-detail entity attribute contract
+- docs: document release.sh + GitHub-mirror automation in CLAUDE.md
+- feat(sensor): complete panel-detail payload for the LVGL conditions screen
 
 ## v0.2.3 — 2026-06-26
 
