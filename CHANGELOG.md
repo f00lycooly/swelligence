@@ -2,6 +2,13 @@
 
 All notable changes per release. Versions follow semver; tags are `vX.Y.Z`.
 
+## Unreleased
+
+- change(sensor): `sensor.swelligence_config` state is now a legible
+  `"<n> spots · <m> sports"` summary instead of the raw config hash (which read
+  like a git commit SHA). The precise change-detection signal moves to the
+  `config_hash` attribute — trigger automations on that, not the state.
+
 ## v0.2.4 — 2026-06-28
 
 - feat(sensor): hub config/setup source-of-truth sensor (d1r.4)

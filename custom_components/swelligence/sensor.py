@@ -14,7 +14,7 @@ from homeassistant.util import dt as dt_util, slugify
 
 from .authority import advice_message, provider_name
 from .confidence import aggregate_confidence
-from .config_export import build_config_payload
+from .config_export import build_config_payload, config_summary
 from .const import CONF_RIDER, CONF_SPORTS, CONF_SPOTS, DOMAIN
 from .detail import PANEL_UNRECORDED, best_clock, panel_headline, spot_panel_payload
 from .entity import SwelligenceEntity
@@ -259,7 +259,9 @@ class SwelligenceConfigSensor(SensorEntity):
 
     @property
     def native_value(self) -> str:
-        return self._payload()["config_hash"]
+        # Legible "<n> spots · <m> sports"; precise change-detection lives in the
+        # config_hash attribute (state-length cap-safe, friendlier than a hash).
+        return config_summary(self._payload())
 
     @property
     def extra_state_attributes(self) -> dict:
