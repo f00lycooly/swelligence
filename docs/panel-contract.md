@@ -298,10 +298,11 @@ breaking the binding). A new sport must add a row consciously.
 > Full rationale + the considered alternative (CSV-packed per-sport scalars) live
 > in [`docs/panel-sport-entities-spec.md`](panel-sport-entities-spec.md).
 
-> **Topology / config source of truth** (spots, sports, kit + derived entity-ids,
-> for dashboards & build-time panel codegen — *not* bound live by the LVGL panel)
-> is specced separately in
-> [`docs/panel-config-sensor-spec.md`](panel-config-sensor-spec.md).
+> **Topology / config source of truth** — a hub **`sensor.swelligence_config`**
+> entity exposes the install topology (spots, sports, kit) + derived entity-ids +
+> per-spot pill slots in nested attributes (state = an 8-char config hash), for
+> dashboards & build-time panel codegen. It is **not** bound live by the LVGL
+> panel. Contract: [`docs/panel-config-sensor-spec.md`](panel-config-sensor-spec.md).
 
 ---
 

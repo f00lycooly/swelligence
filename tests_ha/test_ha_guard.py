@@ -22,6 +22,7 @@ from custom_components.swelligence.const import (
     CONF_SPOTS,
     DOMAIN,
 )
+from custom_components.swelligence.sensor import SwelligenceConfigSensor
 
 # Every HA-facing module in the package. A wrong import in any of these raises
 # at import time against real Home Assistant.
@@ -44,6 +45,7 @@ HA_MODULES = [
     "tide",
     "batch",
     "overlay",
+    "config_export",
     "geocoding",
     "providers",
     "providers.base",
@@ -235,3 +237,57 @@ async def test_options_spot_prefs_chain_renders(hass, options_entry) -> None:
     )
     assert result["type"] == FlowResultType.FORM
     assert result["step_id"] == "spot_prefs_edit"
+
+
+# --- Hub config/setup sensor (d1r.4) ----------------------------------------
+
+def test_config_sensor_builds_payload_against_real_ha(hass, options_entry) -> None:
+    """The hub Config sensor wiring works against real HA (registry resolver,
+    slugify, dt, device) — not just imports. No network: builds from options."""
+    sensor = SwelligenceConfigSensor(hass, options_entry, "9.9.9")
+    sensor.hass = hass
+
+    # State = 8-char config hash; stable across rebuilds (generated_at excluded).
+    state = sensor.native_value
+    assert isinstance(state, str) and len(state) == 8
+    assert sensor.native_value == state
+
+    attrs = sensor.extra_state_attributes
+    assert attrs["config_hash"] == state
+    assert attrs["manifest_version"] == "9.9.9"
+    # Enabled sports (priority order) carry key/label/slug.
+    assert [s["key"] for s in attrs["sports"]] == ["surf", "kitesurf", "windsurf"]
+
+    spot = attrs["spots"][0]
+    assert spot["id"] == "test_spot" and spot["slug"] == "test_spot"
+    assert spot["sports"] == ["surf", "kitesurf"]  # configured set
+    # Pills are the fixed superset; windsurf is unconfigured for this spot.
+    pills = {p["sport"]: p for p in spot["pills"]}
+    assert set(pills) == {"surf", "kitesurf", "windsurf"}
+    assert pills["windsurf"]["configured"] is False
+    # No entities registered in this bare test -> derived entity-id fallback.
+    assert pills["surf"]["entity_id"] == "sensor.swelligence_test_spot_surf_suitability"
+    assert spot["detail_entity_id"] == "sensor.swelligence_test_spot_panel_detail"
+
+    # Hub device identity + recorder exclusion of the big nested attributes.
+    assert (DOMAIN, options_entry.entry_id) in sensor.device_info["identifiers"]
+    assert {"spots", "sports", "rider"} <= sensor._unrecorded_attributes
+
+
+def test_config_sensor_resolves_registered_entity_ids(hass, options_entry) -> None:
+    """When the suitability entity is registered, its real entity_id is used."""
+    from homeassistant.helpers import entity_registry as er
+
+    from custom_components.swelligence.const import DOMAIN as D
+
+    registry = er.async_get(hass)
+    entry = registry.async_get_or_create(
+        "sensor", D, "swelligence_test_spot_surf_score",
+        config_entry=options_entry, suggested_object_id="custom_surf_id",
+    )
+
+    sensor = SwelligenceConfigSensor(hass, options_entry, "9.9.9")
+    sensor.hass = hass
+    spot = sensor.extra_state_attributes["spots"][0]
+    surf = next(p for p in spot["pills"] if p["sport"] == "surf")
+    assert surf["entity_id"] == entry.entity_id  # registry wins over derivation
