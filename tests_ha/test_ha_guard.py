@@ -60,6 +60,41 @@ def test_all_modules_import(module: str) -> None:
     importlib.import_module(f"custom_components.swelligence.{module}")
 
 
+# The ESPHome wall panel hard-references the per-sport suitability entities via
+# substitutions: sensor.swelligence_<spot>_<sport>_suitability, where <sport> is
+# HA's slugify() of the sport LABEL (the SuitabilitySensor name is
+# f"{label} suitability", composed under has_entity_name). Pin that label->slug
+# mapping so a future label rename fails CI loudly instead of silently breaking
+# the panel binding (spec: docs/panel-sport-entities-spec.md §3.3, bead d1r.3).
+_SPORT_ENTITY_SUFFIX = {
+    "kitesurf": "kitesurf",
+    "windsurf": "windsurf",
+    "wingfoil": "wing_foil",
+    "surf": "surf",
+    "sup": "sup",
+    "sailing": "sailing",
+    "seaswim": "sea_swim",
+    "wakeboard_inland": "wakeboard_inland",
+    "wakeboard_sea": "wakeboard_sea",
+}
+
+
+def test_sport_entity_id_suffix_is_pinned() -> None:
+    """The slugified sport label (the panel-bound entity-id segment) is stable."""
+    from homeassistant.util import slugify
+
+    from custom_components.swelligence.sports import SPORT_PROFILES
+
+    # Every built-in sport is pinned (a new sport must add a mapping consciously).
+    assert set(SPORT_PROFILES) == set(_SPORT_ENTITY_SUFFIX)
+    for key, profile in SPORT_PROFILES.items():
+        assert slugify(profile.label) == _SPORT_ENTITY_SUFFIX[key], (
+            f"{key}: label {profile.label!r} slugifies to "
+            f"{slugify(profile.label)!r}, breaking the panel's entity-id binding "
+            f"(expected {_SPORT_ENTITY_SUFFIX[key]!r})"
+        )
+
+
 async def test_config_user_flow_renders(hass) -> None:
     """The initial config-flow step builds its schema without HA rejecting it."""
     result = await hass.config_entries.flow.async_init(

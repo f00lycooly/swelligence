@@ -7,6 +7,8 @@ from __future__ import annotations
 
 from types import SimpleNamespace
 
+from datetime import datetime
+
 from swelligence.detail import (
     PANEL_UNRECORDED,
     VERDICT_CODE,
@@ -14,10 +16,39 @@ from swelligence.detail import (
     _factor_csv,
     _rcsv,
     _verdict_csv,
+    best_clock,
     flatten_detail,
     panel_headline,
 )
 from swelligence.sports import SPORT_PROFILES
+
+
+# --- best_clock (shared best-slot HH:MM helper, d1r.1) ----------------------
+
+def _fc(*hours):
+    """A now-anchored forecast: points[i].time at the given local hours."""
+    pts = [SimpleNamespace(time=datetime(2026, 6, 25, h, 0)) for h in hours]
+    return SimpleNamespace(points=pts)
+
+
+def test_best_clock_returns_local_hhmm_at_offset():
+    fc = _fc(12, 13, 14, 15)
+    assert best_clock(fc, 0) == "12:00"
+    assert best_clock(fc, 3) == "15:00"
+
+
+def test_best_clock_none_when_no_best():
+    assert best_clock(_fc(12, 13), None) is None
+
+
+def test_best_clock_none_when_offset_out_of_range():
+    fc = _fc(12, 13)
+    assert best_clock(fc, 5) is None
+    assert best_clock(fc, -1) is None
+
+
+def test_best_clock_none_when_no_points():
+    assert best_clock(SimpleNamespace(points=[]), 0) is None
 
 
 def test_csv_renders_none_as_empty_field_keeping_positions():

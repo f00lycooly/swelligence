@@ -50,6 +50,23 @@ PANEL_UNRECORDED = frozenset(
 )
 
 
+def best_clock(forecast, best_offset_h) -> str | None:
+    """Local ``HH:MM`` of the best-window slot, from the now-anchored forecast.
+
+    ``best_offset_h`` indexes ``forecast.points`` (it's the index ``best_window``
+    returned), so the slot time is ``points[offset].time`` — the authoritative
+    source. Shared by the per-sport :class:`SuitabilitySensor` and the panel
+    detail sensor so both render the same clock for the same offset. ``None`` when
+    there is no best slot or the offset falls outside the available points.
+    """
+    if best_offset_h is None:
+        return None
+    points = forecast.points
+    if 0 <= best_offset_h < len(points):
+        return points[best_offset_h].time.strftime("%H:%M")
+    return None
+
+
 def spot_detail(coordinator, data, sports_f: set) -> dict:
     """One spot's full now/week detail — every time-varying value ready to render
     (the screen derives nothing). Live forecast is now-anchored (points[0] == now),
@@ -69,13 +86,11 @@ def spot_detail(coordinator, data, sports_f: set) -> dict:
             entry["tide"] = tide_phase(forecast, datetime.fromisoformat(entry["datetime"]))
         best = None
         if res.best is not None:
-            offset = res.best_offset_h
             best = {
                 "score": round(res.best.score),
-                "in_hours": offset,
+                "in_hours": res.best_offset_h,
                 "verdict": res.best.verdict,
-                "time": hourly[offset]["datetime"][11:16]
-                if offset is not None and offset < len(hourly) else None,
+                "time": best_clock(forecast, res.best_offset_h),
             }
         sports.append({
             "sport": sport,
