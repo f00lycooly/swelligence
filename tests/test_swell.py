@@ -60,3 +60,22 @@ def test_score_point_rewards_clean_groundswell():
     s_wind = score_point(windswell, SURF)
     assert s_clean.score > s_wind.score
     assert "swell" in s_clean.factors
+
+
+def test_peak_period_preferred_over_mean_period():
+    # Peak period is the better surf-power proxy: a long peak with a short mean
+    # (mixed sea) should still read as powerful groundswell.
+    f_peak, note = _swell_factor(pt(swell_period_s=6, swell_peak_period_s=13), SURF)
+    assert f_peak == 1.0 and "groundswell" in note
+    # Mean only, short -> windswell.
+    f_mean, _ = _swell_factor(pt(swell_period_s=6), SURF)
+    assert f_mean < f_peak
+
+
+def test_peak_period_alone_is_scorable():
+    # Provider may give peak period without mean — still scorable, not missing.
+    f, _ = _swell_factor(pt(swell_peak_period_s=12), SURF)
+    assert f == 1.0
+    res = score_point(pt(wind_speed_kn=4, wave_height_m=1.4, swell_peak_period_s=12), SURF)
+    assert "swell" in res.factors
+    assert "swell" not in res.completeness  # not flagged missing

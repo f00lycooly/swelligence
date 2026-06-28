@@ -70,7 +70,12 @@ def fetch_history(lat, lon, water, past_days):
     marine = None
     if marine_wanted(water):
         marine = _get(_MARINE_URL, {**common,
-            "hourly": "wave_height,wave_period,wave_direction,sea_surface_temperature"})
+            "hourly": (
+                "wave_height,wave_period,wave_direction,"
+                "swell_wave_height,swell_wave_period,swell_wave_peak_period,swell_wave_direction,"
+                "wind_wave_height,secondary_swell_wave_height,"
+                "sea_surface_temperature"
+            )})
     if not wind or "hourly" not in wind:
         return []
     wh = wind["hourly"]
@@ -94,6 +99,12 @@ def fetch_history(lat, lon, water, past_days):
             wave_height_m=_at(mh.get("wave_height", []), mi),
             wave_period_s=_at(mh.get("wave_period", []), mi),
             wave_dir_deg=_at(mh.get("wave_direction", []), mi),
+            swell_height_m=_at(mh.get("swell_wave_height", []), mi),
+            swell_period_s=_at(mh.get("swell_wave_period", []), mi),
+            swell_peak_period_s=_at(mh.get("swell_wave_peak_period", []), mi),
+            swell_dir_deg=_at(mh.get("swell_wave_direction", []), mi),
+            wind_wave_height_m=_at(mh.get("wind_wave_height", []), mi),
+            secondary_swell_height_m=_at(mh.get("secondary_swell_wave_height", []), mi),
             water_temp_c=_at(mh.get("sea_surface_temperature", []), mi),
         ))
     fc = SpotForecast(provider="open_meteo", latitude=lat, longitude=lon, points=pts)

@@ -33,6 +33,37 @@ DEFAULT_TIDE_WINDOW_H = 2.0
 TIDE_FLOOR = 0.3
 
 
+def events_from_levels(points) -> list:
+    """Synthesise high/low water events from a modelled sea-level trajectory.
+
+    When no real tide overlay covers a spot, Open-Meteo's continuous
+    ``sea_level_m`` series still describes the tide; its interior local maxima are
+    high waters and local minima are low waters. Turning them into the same
+    discrete :class:`TideEvent` shape lets the *existing* event-based tide gate
+    (:func:`tide_factor`) apply unchanged — including ``mid``/max-flow, which
+    falls out as the midpoint between consecutive extrema. Events carry the
+    points' own time basis; the caller keeps ``when`` in that same basis.
+
+    Returns ``[]`` when there is too little data or the series has no interior
+    extreme (monotonic / flat).
+    """
+    from .providers.base import TideEvent
+
+    levels = [getattr(p, "sea_level_m", None) for p in points]
+    if sum(1 for l in levels if l is not None) < 3:
+        return []
+    events: list = []
+    for i in range(1, len(levels) - 1):
+        a, b, c = levels[i - 1], levels[i], levels[i + 1]
+        if None in (a, b, c):
+            continue
+        if b > a and b >= c:
+            events.append(TideEvent(time=points[i].time, kind="high", height_m=round(b, 2)))
+        elif b < a and b <= c:
+            events.append(TideEvent(time=points[i].time, kind="low", height_m=round(b, 2)))
+    return events
+
+
 def to_utc_naive(dt: datetime, *, local_offset_seconds: int = 0) -> datetime:
     """Collapse a datetime to a UTC-naive basis.
 

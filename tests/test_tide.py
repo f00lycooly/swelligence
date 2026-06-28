@@ -141,3 +141,42 @@ def test_tide_phase_prefers_overlay_event():
     fc.tide_events = [TideEvent(time=base + _td(hours=3), kind="high", height_m=1.9)]
     ph = tide_phase(fc, base + _td(hours=3))
     assert ph["state"] == "high" and ph["source"] == "overlay"
+
+
+# --- events_from_levels (synthetic events from modelled sea_level_m) ---------
+
+from swelligence.tide import events_from_levels  # noqa: E402
+
+
+def _points_from_levels(levels):
+    base = _dt(2026, 6, 25, 12, 0)
+    return [ForecastPoint(time=base + _td(hours=i), sea_level_m=l)
+            for i, l in enumerate(levels)]
+
+
+def test_events_from_levels_finds_high_and_low():
+    # Peak at index 3 (0.2), trough at index 6 (-0.5).
+    pts = _points_from_levels([-0.6, -0.4, -0.1, 0.2, 0.0, -0.3, -0.5, -0.4])
+    evs = events_from_levels(pts)
+    highs = [e for e in evs if e.kind == "high"]
+    lows = [e for e in evs if e.kind == "low"]
+    assert highs and highs[0].time == _dt(2026, 6, 25, 15)  # index 3
+    assert highs[0].height_m == 0.2
+    assert lows and lows[0].time == _dt(2026, 6, 25, 18)  # index 6
+
+
+def test_events_from_levels_empty_when_no_data():
+    pts = _points_from_levels([None, None, None])
+    assert events_from_levels(pts) == []
+    # Monotonic / no interior extreme -> no events.
+    assert events_from_levels(_points_from_levels([0.0, 0.1, 0.2, 0.3])) == []
+
+
+def test_synthetic_events_drive_the_tide_gate():
+    # A spot wanting 'high' tide should peak at the modelled high water.
+    pts = _points_from_levels([-0.6, -0.4, -0.1, 0.2, 0.0, -0.3, -0.5])
+    evs = events_from_levels(pts)
+    f_at_high, _ = tide_factor(evs, _dt(2026, 6, 25, 15), "high", 2.0)
+    f_off, _ = tide_factor(evs, _dt(2026, 6, 25, 12), "high", 2.0)
+    assert f_at_high == 1.0
+    assert f_off < f_at_high

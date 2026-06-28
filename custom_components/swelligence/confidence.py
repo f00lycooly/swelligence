@@ -36,7 +36,12 @@ FIELD_UNCERTAINTY_SCALE: dict[str, float] = {
     "wave_dir_deg": 45.0,
     "swell_height_m": 0.5,
     "swell_period_s": 3.0,
+    "swell_peak_period_s": 3.0,
     "swell_dir_deg": 45.0,
+    # Sea-state split (drives the surf 'clean' factor) — wind-wave dominance and
+    # crossing secondary swell. Same physical scale as the primary swell height.
+    "wind_wave_height_m": 0.5,
+    "secondary_swell_height_m": 0.5,
     "water_temp_c": 2.0,
     "air_temp_c": 3.0,
 }
@@ -126,7 +131,10 @@ _FACTOR_FIELDS: tuple[tuple[str, str], ...] = (
     ("wind_dir_deg", "weight_dir"),
     ("wave_height_m", "weight_wave"),
     ("swell_period_s", "weight_swell"),
+    ("swell_peak_period_s", "weight_swell"),
     ("swell_dir_deg", "weight_swell"),
+    ("wind_wave_height_m", "weight_clean"),
+    ("secondary_swell_height_m", "weight_clean"),
     ("water_temp_c", "weight_temp"),
 )
 
