@@ -26,9 +26,11 @@ near-windless low-tide hour (score 35.8 / "marginal").
 
 | Entity | `entity_id` pattern | State | Notes |
 |---|---|---|---|
-| Suitability | `sensor.swelligence_<spot>_<sport>_suitability` | `0`–`100` score (`%`, `measurement`) | the headline; attributes carry the breakdown |
+| Suitability | `sensor.swelligence_<spot>_<sport>_suitability` | `0`–`100` score (`%`, `measurement`) | the headline; attributes carry the breakdown. One per (spot, sport); `unavailable` for a sport the spot doesn't score |
 | Suitable now | `binary_sensor.swelligence_<spot>_<sport>_suitable_now` | `on`/`off` | `on` ⇔ score ≥ 55 (`SUITABLE_THRESHOLD`) |
 | Source advice | `sensor.swelligence_<spot>_source_advice` | count of "better source available" nudges (`0` = best) | diagnostic, one per spot |
+| Panel detail | `sensor.swelligence_<spot>_panel_detail` | spot's best current score | one per spot; full now/week payload flattened to flat/CSV attributes for the ESPHome panel. Full contract: [panel-contract.md](panel-contract.md) |
+| Config | `sensor.swelligence_config` | 8-char config hash | diagnostic, **one per entry** on the `Swelligence` hub device; install topology (spots/sports/kit + derived entity-ids + pill slots) in nested attributes. Contract: [panel-config-sensor-spec.md](panel-config-sensor-spec.md) |
 
 `<spot>` and `<sport>` are slugified (`Wing foil` → `wing_foil`).
 
@@ -43,7 +45,7 @@ near-windless low-tide hour (score 35.8 / "marginal").
 | `reasons` | list[str] | human condition notes | `["1kn","flat (0.3m)","short-period swell (3s)"]` |
 | `completeness` | dict[str,str] | factors that are **not** plainly scored: `not_configured` (spot metadata gap) or `missing_data` (provider gap). See [scoring.md §2a](scoring.md). | `{"direction":"not_configured"}` |
 | `nudges` | list[str] | actionable config hints (separate from `reasons`) | `["set offshore wind directions for sharper scoring","set swell directions for sharper surf scoring"]` |
-| `best_score` / `best_in_hours` / `best_verdict` | float / int / str | best timestep in the next 24 h | `42.1` / `3` / `"marginal"` |
+| `best_score` / `best_in_hours` / `best_verdict` / `best_time` | float / int / str / `HH:MM` | best timestep in the next 24 h (`best_*` present only when a best slot exists; `best_time` is its local clock) | `42.1` / `3` / `"marginal"` / `"15:00"` |
 | `data_sources` | dict[str,str] | provider per domain | `{"wind":"open_meteo","wave":"open_meteo","air":"open_meteo","water":"open_meteo"}` |
 | `data_quality` | dict | provenance summary, issues, grid-cell distance | `{"summary":"wind: open_meteo; swell: open_meteo","issues":[],"grid_distance_km":1.3}` |
 | `confidence` / `confidence_label` | float / str | model-agreement signal — **only when** multi-model is sourced (dormant single-source) | *(absent here)* |
@@ -53,6 +55,26 @@ near-windless low-tide hour (score 35.8 / "marginal").
 ### Source-advice sensor attributes
 `{ "ok": bool, "summary": str, "recommendations": [ {domain, current, suggested, current_name, suggested_name, message} ] }`.
 `ok:true` / empty `recommendations` ⇒ on the best reachable source for every domain.
+
+### Config sensor attributes
+
+The install topology as a single source of truth for Lovelace/automations and a
+build-time panel generator (**not** consumed live by the LVGL panel). Nested
+attributes (the big ones — `spots`/`sports`/`rider` — are excluded from the
+recorder). State is `config_hash`, so it changes iff the topology changes.
+
+| Attribute | Type | Meaning |
+|---|---|---|
+| `config_hash` | str | 8-char hash over the topology (mirrors the state); for change-detection / codegen cache-bust |
+| `generated_at` | ISO | when this payload was built (excluded from the hash) |
+| `manifest_version` | str | integration version, for the generator to pin against |
+| `sports` | list | enabled sports in priority order: `{key, label, slug}` |
+| `rider` | dict | `{weight_kg, quiver}` — kit only; **no** secrets |
+| `spots` | list | per spot: `{id, name, slug, water_type, latitude, longitude, tide_state, sports, detail_entity_id, pills}` |
+| `spots[].pills` | list | fixed superset of sport slots: `{sport, label, slug, entity_id, configured}` — `entity_id` resolved from the registry (derived-slug fallback); `configured=false` ⇒ hide/omit the slot |
+
+Secrets (API keys, the AI-task entity, provider credentials) are **never** in this
+payload. Full rationale + consumption: [panel-config-sensor-spec.md](panel-config-sensor-spec.md).
 
 ---
 

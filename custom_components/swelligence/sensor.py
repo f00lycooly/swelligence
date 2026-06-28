@@ -6,10 +6,16 @@ from homeassistant.components.sensor import SensorEntity, SensorStateClass
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.const import PERCENTAGE, EntityCategory
 from homeassistant.core import HomeAssistant
+from homeassistant.helpers import entity_registry as er
+from homeassistant.helpers.device_registry import DeviceInfo
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
+from homeassistant.loader import async_get_integration
+from homeassistant.util import dt as dt_util, slugify
 
 from .authority import advice_message, provider_name
 from .confidence import aggregate_confidence
+from .config_export import build_config_payload
+from .const import CONF_RIDER, CONF_SPORTS, CONF_SPOTS, DOMAIN
 from .detail import PANEL_UNRECORDED, best_clock, panel_headline, spot_panel_payload
 from .entity import SwelligenceEntity
 from .quality import data_quality
@@ -32,6 +38,9 @@ async def async_setup_entry(
         entities.append(SpotDetailSensor(coordinator))
         for sport in coordinator.data.results:
             entities.append(SuitabilitySensor(coordinator, sport))
+    # One hub-level config/setup source-of-truth sensor per entry (d1r.4).
+    integration = await async_get_integration(hass, DOMAIN)
+    entities.append(SwelligenceConfigSensor(hass, entry, integration.version))
     async_add_entities(entities)
 
 
@@ -191,3 +200,67 @@ class SpotDetailSensor(SwelligenceEntity, SensorEntity):
     def extra_state_attributes(self) -> dict:
         data = self.coordinator.data
         return spot_panel_payload(self.coordinator, data) if data else {}
+
+
+class SwelligenceConfigSensor(SensorEntity):
+    """Hub-level config/setup source of truth for the install topology (d1r.4).
+
+    One per entry, on a hub device. State is an 8-char config hash (changes iff
+    the topology changes — for change-detection / codegen cache-bust); the full
+    codegen-ready topology (spots/sports/kit + derived entity-ids + pill slots)
+    rides in nested attributes. NOT consumed live by the LVGL panel — it feeds
+    Lovelace/automations and a build-time panel generator. See
+    ``docs/panel-config-sensor-spec.md``. The big nested attributes are excluded
+    from the recorder; the short hash state may be recorded so its history shows
+    when config changed.
+    """
+
+    _attr_entity_category = EntityCategory.DIAGNOSTIC
+    _attr_icon = "mdi:cog-outline"
+    _attr_name = "Config"
+    _attr_should_poll = False
+    _unrecorded_attributes = frozenset({"spots", "sports", "rider"})
+
+    def __init__(self, hass: HomeAssistant, entry: ConfigEntry, version: str | None) -> None:
+        self.hass = hass
+        self._entry = entry
+        self._version = version
+        self._attr_unique_id = f"{DOMAIN}_{entry.entry_id}_config"
+        self._attr_device_info = DeviceInfo(
+            identifiers={(DOMAIN, entry.entry_id)},
+            name="Swelligence",
+            manufacturer="Swelligence",
+            model="Hub",
+            configuration_url="https://git.bagofholding.co.uk/foolycooly/swelligence",
+        )
+
+    def _payload(self) -> dict:
+        options = self._entry.options
+        data = self._entry.data
+        spots = options.get(CONF_SPOTS) or data.get(CONF_SPOTS, [])
+        enabled = (
+            options.get(CONF_SPORTS) or data.get(CONF_SPORTS) or list(SPORT_PROFILES)
+        )
+        rider = options.get(CONF_RIDER) or data.get(CONF_RIDER, {})
+        registry = er.async_get(self.hass)
+
+        def resolve(unique_id: str) -> str | None:
+            return registry.async_get_entity_id("sensor", DOMAIN, unique_id)
+
+        return build_config_payload(
+            spots=spots,
+            enabled_sports=enabled,
+            rider=rider,
+            manifest_version=self._version,
+            generated_at=dt_util.now().isoformat(),
+            slugify=slugify,
+            resolve_entity_id=resolve,
+        )
+
+    @property
+    def native_value(self) -> str:
+        return self._payload()["config_hash"]
+
+    @property
+    def extra_state_attributes(self) -> dict:
+        return self._payload()
