@@ -7,10 +7,11 @@ bind. It is generated from the integration source (`custom_components/swelligenc
 detail.py::flatten_detail`); when the two disagree, the code wins — re-check this doc
 against the entity's live attributes in **Developer Tools → States**.
 
-Reflects the integration as of PR #35 (the per-spot detail entity + full week
-payload). Core NOW fields landed in v0.2.1–v0.2.3; the WEEK peak-hour conditions,
-day/hour axes, `wind_wave_m`, `*_week_peak_idx`, and `*_factors` land in the release
-following PR #35.
+Reflects the integration as of **v0.2.5**. The per-spot detail entity + full week
+payload landed across v0.2.1–v0.2.4 (PR #35 onward: WEEK peak-hour conditions,
+day/hour axes, `wind_wave_m`, `*_week_peak_idx`, `*_factors`). The per-sport
+`SuitabilitySensor` entities (§7), their `best_time` attribute, and the hub
+`sensor.swelligence_config` topology source of truth landed in v0.2.4–v0.2.5.
 
 ---
 
