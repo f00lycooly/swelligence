@@ -152,6 +152,9 @@ next step — single source of truth for Lovelace/automations and, eventually,
 spot/sport/kit substitutions + active pill slots, removing all hand-hardcoding).
 
 It is **not** consumed live by the LVGL panel: the panel can neither parse nested
-JSON nor bind dynamically-named entities at runtime. Until that sensor is specced
-(by the maintainer), the panel uses **substitutions + the per-sport entities
-above + HA card/controls** for configuration. To be specced separately.
+JSON nor bind dynamically-named entities at runtime. Until that sensor is built,
+the panel uses **substitutions + the per-sport entities above + HA card/controls**
+for configuration.
+
+**Now specced:** [`docs/panel-config-sensor-spec.md`](panel-config-sensor-spec.md)
+(a hub `sensor.swelligence_config` carrying a codegen-ready topology payload).

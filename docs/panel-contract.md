@@ -298,6 +298,11 @@ breaking the binding). A new sport must add a row consciously.
 > Full rationale + the considered alternative (CSV-packed per-sport scalars) live
 > in [`docs/panel-sport-entities-spec.md`](panel-sport-entities-spec.md).
 
+> **Topology / config source of truth** (spots, sports, kit + derived entity-ids,
+> for dashboards & build-time panel codegen — *not* bound live by the LVGL panel)
+> is specced separately in
+> [`docs/panel-config-sensor-spec.md`](panel-config-sensor-spec.md).
+
 ---
 
 ## 8. Versioning
