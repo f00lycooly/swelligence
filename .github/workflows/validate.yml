@@ -31,24 +31,13 @@ jobs:
       # suite in tests/ cannot). Kept as a separate tree/job from the pure tests.
       - run: pytest tests_ha -o asyncio_mode=auto
 
-  hassfest:
-    name: Hassfest
-    # Forgejo-only: the `tinkernet-host` runner exists on this Forgejo instance,
-    # not on the GitHub mirror. On GitHub this job is skipped — release.yml runs
-    # hassfest there on ubuntu-latest instead (no container-workspace issue on
-    # GitHub-hosted runners), and the push mirror would otherwise leave this job
-    # queued forever against a runner label GitHub doesn't have.
-    if: ${{ !contains(github.server_url, 'github.com') }}
-    # Host-mode (tinkernet-host), not ubuntu-latest: hassfest is a Docker
-    # container action that bind-mounts ${{ github.workspace }} into a sibling
-    # container via the host daemon. In a containerised (ubuntu-latest) job the
-    # workspace is a docker *volume*, so the host path is empty and hassfest
-    # reports "No integrations found!". Host-mode gives it a real host workspace.
-    runs-on: tinkernet-host
-    steps:
-      - uses: actions/checkout@v4
-      - uses: home-assistant/actions/hassfest@master
-
-  # HACS validation runs in release.yml (tag-triggered, on the GitHub mirror)
-  # where hacs/action can reach the GitHub API. It returns 401 against Forgejo,
-  # so it is intentionally not part of this push/PR validation here.
+  # hassfest is NOT run here. It is a Docker container action that bind-mounts
+  # ${{ github.workspace }} into a sibling container via the host daemon; the
+  # Forgejo `act_runner` always executes jobs inside a container, so the
+  # workspace is a docker *volume* and the bind-mount sees an empty host path —
+  # hassfest then reports "No integrations found!". A `tinkernet-host` runner
+  # label did not change this (act_runner still containerises the job). Since
+  # release.yml runs hassfest authoritatively on every tag on the GitHub mirror
+  # (ubuntu-latest, where the bind-mount works), the duplicate here only ever
+  # produced a false red. HACS validation likewise runs in release.yml on GitHub
+  # (hacs/action returns 401 against Forgejo).
