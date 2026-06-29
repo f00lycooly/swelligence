@@ -87,6 +87,7 @@ class SwelligenceCard extends HTMLElement {
       view: config.default_view || "now",
       spotIdx: null,                // selected tab; resolved from config.spot on first load
       spotInit: config.spot || null,
+      hour: 0,                      // scrubbed hour in the NOW outlook (0 = live now)
     };
   }
   getCardSize() { return this._config.mode === "podium" ? 7 : this._config.mode === "spot" ? 8 : 5; }
@@ -117,6 +118,16 @@ class SwelligenceCard extends HTMLElement {
     this._root.append(style, this._card);
     // tap handling for the interactive spot mode (view toggle, sport select)
     this._body.addEventListener("click", (e) => this._onClick(e));
+    // drag-scrub the 24h outlook (pointer down on bars, then move)
+    this._body.addEventListener("pointerdown", (e) => {
+      if (!e.target.closest(".sd-tl .bars")) return;
+      this._scrubbing = true;
+      try { e.target.setPointerCapture?.(e.pointerId); } catch {}
+      this._onScrub(e); e.preventDefault();
+    });
+    this._body.addEventListener("pointermove", (e) => { if (this._scrubbing) this._onScrub(e); });
+    this._body.addEventListener("pointerup", () => { this._scrubbing = false; });
+    this._body.addEventListener("pointercancel", () => { this._scrubbing = false; });
     // periodic refresh of forecast data
     this._timer = setInterval(() => { this._loadOverview(); this._loadDetail(); }, 300000);
   }
@@ -125,11 +136,24 @@ class SwelligenceCard extends HTMLElement {
   _onClick(e) {
     const el = e.target.closest("[data-act]");
     if (!el) return;
-    if (el.dataset.act === "view") this._sv.view = el.dataset.v;
-    else if (el.dataset.act === "sport") this._sv.sport = el.dataset.s;
-    else if (el.dataset.act === "spot") { this._sv.spotIdx = +el.dataset.i; this._sv.sport = null; }
+    // Changing view / sport / spot resets the scrub to "now"; scrubbing an hour
+    // keeps the current view but focuses that hour across every element.
+    if (el.dataset.act === "view") { this._sv.view = el.dataset.v; this._sv.hour = 0; }
+    else if (el.dataset.act === "sport") { this._sv.sport = el.dataset.s; this._sv.hour = 0; }
+    else if (el.dataset.act === "spot") { this._sv.spotIdx = +el.dataset.i; this._sv.sport = null; this._sv.hour = 0; }
+    else if (el.dataset.act === "hour") { this._sv.hour = +el.dataset.h; }
     else return;
     this._render();
+  }
+
+  /* Drag-scrub across the 24h outlook: map pointer-x over the bars to an hour. */
+  _onScrub(e) {
+    const bars = e.target.closest(".sd-tl .bars");
+    if (!bars) return;
+    const n = bars.children.length || 24;
+    const r = bars.getBoundingClientRect();
+    const h = Math.max(0, Math.min(n - 1, Math.floor((e.clientX - r.left) / r.width * n)));
+    if (h !== this._sv.hour) { this._sv.hour = h; this._render(); }
   }
 
   async _loadDetail() {
@@ -321,19 +345,21 @@ class SwelligenceCard extends HTMLElement {
     let pi = sportsAll.findIndex((s) => s.sport === this._sv.sport);
     if (pi < 0) pi = 0;
     const sp = sportsAll[pi], view = this._sv.view, c = d.current || {};
-    this._curRef = () => c;
-    const wc = cardOf(c.wind_dir_deg);
+    const frame = view === "now" ? this._frame(sp, d) : null;
+    const met = frame ? frame.met : c;
+    this._curRef = () => met;
+    const wc = cardOf(met.wind_dir_deg);
     const dl = sp.daily || [];
     const range = dl.length ? `${this._wd(dl[0].date)} – ${this._wd(dl[dl.length - 1].date)}` : "";
     const headRight = view === "now"
-      ? `<div class="sd-now"><span class="pulse"></span><div><b>${d.now_time || "--:--"}</b><span>now</span></div></div>`
+      ? `<div class="sd-now"><span class="pulse${frame.isNow ? "" : " off"}"></span><div><b>${frame.time || d.now_time || "--:--"}</b><span>${frame.isNow ? "now" : frame.label}</span></div></div>`
       : `<div class="sd-now"><div><b>${range || "7 days"}</b><span>7-day</span></div></div>`;
     const leftLower = view === "now"
       ? this._tideModule(d) + this._daylight(d)
       : this._weekSummary(sp);
     const right = view === "now"
-      ? this._medallions(sportsAll, pi, view) + this._detail(sp, view) + this._hourlyTL(sp)
-        + `<div class="sd-strip">${this._nowStrip(c)}</div>`
+      ? this._medallions(sportsAll, pi, view) + this._detail(sp, view, frame) + this._hourlyTL(sp)
+        + `<div class="sd-strip">${this._nowStrip(met)}</div>`
       : this._medallions(sportsAll, pi, view) + this._detail(sp, view) + this._dayRows(sp);
 
     return `<div class="sd">
@@ -350,7 +376,7 @@ class SwelligenceCard extends HTMLElement {
         </div>
       </div>
       <div class="sd-main">
-        <div class="sd-col">${this._mapHero(d, c, wc, view, sp)}${leftLower}</div>
+        <div class="sd-col">${this._mapHero(d, met, wc, view, sp, frame)}${leftLower}</div>
         <div class="sd-col sd-sportcol">${right}</div>
       </div>
       ${this._tabs(spots, si, view)}
@@ -359,6 +385,62 @@ class SwelligenceCard extends HTMLElement {
 
   _wd(date) { try { return new Date(date).toLocaleDateString(undefined, { weekday: "short" }); } catch { return date; } }
   _peak(sp) { const d = sp.daily || []; return d.length ? d.reduce((a, b) => (b.score > a.score ? b : a), d[0]) : null; }
+
+  /* Focused-hour view model for the NOW scrubber. Hour 0 reads the richest
+     "now" payload (+ live current met, reasons, full kit object); a scrubbed
+     hour reads that hourly slot (kit from its flat kit_* fields, met from its
+     own fields). Every NOW renderer binds to this so the whole card follows. */
+  _frame(sp, d) {
+    const hourly = sp.hourly || [];
+    let h = this._sv.hour || 0;
+    if (h < 0) h = 0;
+    if (hourly.length && h >= hourly.length) h = hourly.length - 1;
+    const slot = hourly[h] || {};
+    const time = (slot.datetime || "").slice(11, 16);
+    if (h === 0) {
+      const now = sp.now || {}, c = d.current || {};
+      return {
+        hour: 0, isNow: true, label: "NOW", time: d.now_time || time,
+        score: now.score, verdict: now.verdict, factors: now.factors || {},
+        safety_flags: now.safety_flags || [], hard_gated: !!now.hard_gated,
+        warnings: now.warnings || [],
+        kit: now.kit || null, reasons: now.reasons || [], met: { ...c },
+      };
+    }
+    const kit = slot.kit_power
+      ? { power: slot.kit_power, rig_m2: slot.kit_rig_m2, ideal_m2: slot.kit_ideal_m2 } : null;
+    return {
+      hour: h, isNow: false, label: "+" + h + "h", time,
+      score: slot.score, verdict: slot.verdict, factors: slot.factors || {},
+      safety_flags: slot.safety_flags || [], hard_gated: !!slot.hard_gated,
+      warnings: slot.warnings || [],
+      kit, reasons: [],
+      met: {
+        wind_speed_kn: slot.wind_speed_kn, wind_gust_kn: slot.wind_gust_kn,
+        wind_dir_deg: slot.wind_bearing, wave_height_m: slot.wave_height_m,
+        wind_wave_height_m: slot.wind_wave_height_m, swell_height_m: slot.swell_height_m,
+        swell_period_s: slot.swell_period_s, water_temp_c: slot.water_temp_c,
+        apparent_temp_c: slot.apparent_temp_c, precip_mm: slot.precip_mm,
+        precip_prob_pct: slot.precip_prob_pct, weather_code: slot.weather_code,
+      },
+    };
+  }
+
+  /* Safety cell: advisory safety_flags for the focused hour + a tier glyph.
+     Glyph severity: hard weather gate -> storm; else a danger flag -> warning;
+     else a caution flag -> caution; else clear. */
+  _safetyCell(frame) {
+    const flags = frame.safety_flags || [];
+    const hasDanger = flags.some((f) => f.severity === "danger");
+    const glyph = frame.hard_gated ? "⛈️" : hasDanger ? "⚠️" : flags.length ? "△" : "✓";
+    const cls = frame.hard_gated || hasDanger ? "danger" : flags.length ? "caution" : "ok";
+    const body = flags.length
+      ? flags.map((f) => `<div class="sf-row sf-${f.severity}">${f.message}</div>`).join("")
+      : `<div class="sf-ok">no safety flags</div>`;
+    return `<div class="sd-safety ${cls}">
+      <div class="sf-k">Safety <span class="sf-glyph">${glyph}</span></div>
+      <div class="sf-body">${body}</div></div>`;
+  }
 
   /* SVG progress ring (stroke-dasharray) — 720-panel gauge. */
   _ring(score, col, size = 80, sw = 8) {
@@ -405,12 +487,12 @@ class SwelligenceCard extends HTMLElement {
       <a class="osm" href="https://www.openstreetmap.org/?mlat=${lat}&mlon=${lon}#map=${zoom}/${lat.toFixed(4)}/${lon.toFixed(4)}" target="_blank" rel="noopener noreferrer">© OSM</a>
     </div>`;
   }
-  _mapHero(d, c, wc, view, sp) {
+  _mapHero(d, c, wc, view, sp, frame) {
     const lat = d.latitude, lon = d.longitude;
     const map = (lat == null || lon == null) ? `<div class="sd-nomap">no location</div>` : this._tileMosaic(lat, lon);
     let compass = "";
     if (view === "now" && c.wind_dir_deg != null) {
-      const dirFac = sp?.now?.factors?.direction;
+      const dirFac = frame ? frame.factors?.direction : sp?.now?.factors?.direction;
       const col = facCol(dirFac);
       const rot = (c.wind_dir_deg + 180) % 360;
       compass = `<svg class="sd-windc" viewBox="0 0 100 100">
@@ -500,9 +582,10 @@ class SwelligenceCard extends HTMLElement {
     const ser = (sp.hourly || []).slice(0, 24);
     if (!ser.length) return `<div class="sd-tl"><div class="tlh"><span class="k">Next 24h</span></div><div class="none">no hourly forecast</div></div>`;
     const bestI = sp.best ? sp.best.in_hours : null;
-    const bars = ser.map((p, i) => `<div class="b ${i === 0 ? "now" : ""} ${i === bestI ? "best" : ""}" style="height:${Math.max(6, Math.round(p.score ?? 0))}%;background:${vcw(p.verdict)}" title="${(p.datetime || "").slice(11, 16)} · ${Math.round(p.score ?? 0)}"></div>`).join("");
+    const selH = this._sv.hour || 0;
+    const bars = ser.map((p, i) => `<div class="b ${i === 0 ? "now" : ""} ${i === bestI ? "best" : ""} ${i === selH ? "sel" : ""}" data-act="hour" data-h="${i}" style="height:${Math.max(6, Math.round(p.score ?? 0))}%;background:${vcw(p.verdict)}" title="${(p.datetime || "").slice(11, 16)} · ${Math.round(p.score ?? 0)}"></div>`).join("");
     let axis = ""; ser.forEach((p, i) => { axis += `<div class="x">${i % 6 === 0 ? (p.datetime || "").slice(11, 16) : ""}</div>`; });
-    return `<div class="sd-tl"><div class="tlh"><span class="k">Outlook · next 24h</span><span class="span">hourly</span></div>
+    return `<div class="sd-tl"><div class="tlh"><span class="k">Outlook · next 24h</span><span class="span">tap / drag to scrub</span></div>
       <div class="bars">${bars}</div><div class="axis">${axis}</div></div>`;
   }
 
@@ -587,9 +670,9 @@ class SwelligenceCard extends HTMLElement {
   }
 
   /* ---- detail card: verdict + best + kit arc + limiting factor + factor bars ---- */
-  _detail(sp, view) {
-    const now = sp.now || {};
-    // Fix 1: branch on view for verdict/colour/secondary line
+  _detail(sp, view, frame) {
+    // NOW view binds to the scrubbed-hour frame; WEEK view to the daily peak.
+    const f = view === "now" ? (frame || {}) : {};
     let col, verdictWord, secondLine;
     if (view === "week") {
       const pk = this._peak(sp);
@@ -599,29 +682,43 @@ class SwelligenceCard extends HTMLElement {
       const pkScore = pk ? Math.round(pk.score) : "—";
       secondLine = `peak <b>${pkDay}</b> · ${pkScore}`;
     } else {
-      col = vcw(now.verdict);
-      verdictWord = (now.verdict || "—").toUpperCase();
-      const best = sp.best;
-      const bestT = best ? (best.time || (best.in_hours != null ? "+" + best.in_hours + "h" : "—")) : "—";
-      secondLine = best ? `best <b>${bestT}</b> · ${Math.round(best.score)} ${best.verdict || ""}` : "";
+      col = vcw(f.verdict);
+      verdictWord = (f.verdict || "—").toUpperCase();
+      // When scrubbed off "now", the second line names the focused hour; at now
+      // it points at the best upcoming slot (unchanged behaviour).
+      if (f.isNow) {
+        const best = sp.best;
+        const bestT = best ? (best.time || (best.in_hours != null ? "+" + best.in_hours + "h" : "—")) : "—";
+        secondLine = best ? `best <b>${bestT}</b> · ${Math.round(best.score)} ${best.verdict || ""}` : "";
+      } else {
+        secondLine = `at <b>${f.time || f.label}</b> · ${Math.round(f.score ?? 0)} ${f.verdict || ""}`;
+      }
     }
-    // Limiting factor: first reason, else lowest-scoring factor name.
-    let limit = (now.reasons && now.reasons[0]) || "";
-    if (!limit && now.factors) {
-      const ent = Object.entries(now.factors).filter(([, v]) => v != null);
+    // Limiting factor: first reason (now only), else lowest-scoring factor name.
+    let limit = (f.reasons && f.reasons[0]) || "";
+    if (!limit && f.factors) {
+      const ent = Object.entries(f.factors).filter(([, v]) => v != null);
       if (ent.length) { const [k] = ent.sort((a, b) => a[1] - b[1])[0]; limit = `limited by ${k}`; }
     }
-    const facs = (this._config.show_factors !== false) ? this._factors(now) : "";
+    const facs = (view === "now" && this._config.show_factors !== false) ? this._factors({ factors: f.factors }) : "";
+    const readout = view === "now"
+      ? `<div class="sd-readout">
+          <div class="ro-cell"><div class="ro-k">Suitability</div>
+            <div class="ro-ring">${this._ring(f.score ?? 0, col, 72, 7)}<span class="ro-num" style="color:${col}">${Math.round(f.score ?? 0)}</span></div></div>
+          <div class="ro-cell"><div class="ro-k">Kit</div>${f.kit ? this._kitArc(f.kit, sp.sport) : `<div class="ro-na">—</div>`}</div>
+          <div class="ro-cell">${this._safetyCell(f)}</div>
+        </div>`
+      : "";
     return `<div class="sd-detail">
       <div class="sd-detail-top">
         <div><div class="sd-detail-sp">${sp.label || LABELS[sp.sport] || sp.sport}</div>
           <div class="sd-detail-vd" style="color:${col}">${verdictWord}</div>
-          ${view === "now" && (now.warnings && now.warnings.length)
-            ? `<div class="sd-detail-warn">${(now.suitable === false ? "⛈️" : "⚠️")} ${now.warnings.map((w) => w.replace("_", " ")).join(", ")}</div>`
+          ${view === "now" && (f.warnings || []).length
+            ? `<div class="sd-detail-warn">⚠️ ${f.warnings.map((w) => w.split("_").join(" ")).join(", ")}</div>`
             : ""}
           <div class="sd-detail-best">${secondLine}</div></div>
-        ${view === "now" && now.kit ? this._kitArc(now.kit, sp.sport) : ""}
       </div>
+      ${readout}
       ${view === "now" && limit ? `<div class="sd-detail-lf"><span class="dot" style="background:${col}"></span>${limit}</div>` : ""}
       ${view === "now" ? this._wxLine() : ""}
       ${view === "now" && facs ? `<div class="sd-detail-facs">${facs}</div>` : ""}
@@ -887,6 +984,7 @@ table.grid{border-collapse:separate;border-spacing:6px;width:100%;}
 .sd-now b{display:block;font-size:17px;font-weight:800;color:var(--ink);line-height:1;}
 .sd-now span{font-size:9px;font-weight:700;letter-spacing:.18em;text-transform:uppercase;color:var(--ac);}
 .sd-now .pulse{width:8px;height:8px;border-radius:50%;background:var(--ac);animation:sdpulse 2.4s infinite;}
+.sd-now .pulse.off{background:var(--mut);animation:none;}
 @keyframes sdpulse{0%{box-shadow:0 0 0 0 color-mix(in srgb,var(--ac) 50%,transparent)}70%{box-shadow:0 0 0 8px transparent}100%{box-shadow:0 0 0 0 transparent}}
 /* main split */
 .sd-main{display:grid;grid-template-columns:minmax(0,290px) minmax(0,1fr);gap:12px;align-items:start;}
@@ -960,6 +1058,24 @@ table.grid{border-collapse:separate;border-spacing:6px;width:100%;}
 .sd-detail-sp{font-size:15px;font-weight:800;color:var(--ink);}
 .sd-detail-vd{font-weight:700;margin:2px 0 6px;}
 .sd-detail-best{font-size:11px;color:var(--mut);} .sd-detail-best b{color:var(--ink);}
+.sd-detail-warn{font-size:10.5px;color:#f6a623;font-weight:700;margin:2px 0 4px;}
+/* NOW readout row: suitability ring · kit arc · safety cell */
+.sd-readout{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-top:8px;background:var(--panel);border:1px solid var(--line);border-radius:13px;padding:9px 8px;}
+.sd-readout .ro-cell{display:flex;flex-direction:column;align-items:center;justify-content:flex-start;gap:5px;min-width:0;}
+.sd-readout .ro-cell + .ro-cell{border-left:1px solid var(--line);}
+.ro-k{font-size:9px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:var(--mut);}
+.ro-ring{position:relative;width:62px;height:62px;}
+.ro-ring .sd-ring-svg{width:100%;height:100%;}
+.ro-num{position:absolute;inset:0;display:grid;place-items:center;font-size:20px;font-weight:800;}
+.ro-na{font-size:13px;font-weight:800;color:var(--mut);height:62px;display:grid;place-items:center;}
+.sd-safety{display:flex;flex-direction:column;align-items:center;gap:5px;width:100%;}
+.sd-safety .sf-k{font-size:9px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:var(--mut);}
+.sd-safety .sf-glyph{font-size:12px;}
+.sd-safety .sf-body{display:flex;flex-direction:column;gap:3px;align-items:center;text-align:center;}
+.sd-safety .sf-row{font-size:9.5px;font-weight:700;line-height:1.2;}
+.sd-safety .sf-danger{color:#e8593a;} .sd-safety .sf-caution{color:#f6a623;}
+.sd-safety .sf-ok{font-size:9.5px;font-weight:600;color:var(--dim);}
+.sd-safety.danger .sf-glyph{filter:drop-shadow(0 0 4px rgba(232,89,58,.5));}
 .sd-kit{display:flex;flex-direction:column;align-items:center;flex:0 0 auto;}
 .sd-kit-svg{width:92px;height:58px;}
 .sd-kit-track{fill:none;stroke:color-mix(in srgb,var(--mut) 25%,transparent);stroke-width:9;stroke-linecap:round;}
@@ -976,8 +1092,10 @@ table.grid{border-collapse:separate;border-spacing:6px;width:100%;}
 .sd-tl .tlh .k{font-size:10.5px;font-weight:700;text-transform:uppercase;letter-spacing:.12em;color:var(--mut);}
 .sd-tl .tlh .span{font-size:9px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:var(--dim);border:1px solid var(--line);border-radius:6px;padding:2px 7px;}
 .sd-tl .bars{display:flex;align-items:flex-end;gap:2px;height:74px;}
-.sd-tl .b{flex:1;position:relative;border-radius:3px 3px 0 0;min-height:3px;align-self:flex-end;}
+.sd-tl .b{flex:1;position:relative;border-radius:3px 3px 0 0;min-height:3px;align-self:flex-end;cursor:pointer;opacity:.62;transition:opacity .1s;}
+.sd-tl .bars{touch-action:none;}
 .sd-tl .b.now{outline:1.5px solid var(--ink);outline-offset:1px;}
+.sd-tl .b.sel{opacity:1;outline:2px solid var(--ink);outline-offset:1px;}
 .sd-tl .b.best::before{content:"★";position:absolute;top:-13px;left:50%;transform:translateX(-50%);font-size:10px;color:#f6a623;}
 .sd-tl .axis{display:flex;margin-top:6px;} .sd-tl .axis .x{flex:1;text-align:center;font-size:9px;font-weight:600;color:var(--dim);}
 .sd-tl .none,.sd-drows .none{height:74px;display:grid;place-items:center;color:var(--dim);font-size:12px;}
