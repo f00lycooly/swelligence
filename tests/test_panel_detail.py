@@ -227,3 +227,48 @@ def test_flatten_handles_no_sports():
          "now_time": None, "daylight": {}, "tide": {}, "current": {}, "sports": []}
     a = flatten_detail(d)
     assert a["sports"] == "" and a["hours"] == "" and a["week_days"] == ""
+
+
+def test_flatten_surfaces_comfort_and_marine_now_fields():
+    from swelligence.detail import flatten_detail
+
+    d = {
+        "name": "X", "water_type": "sea", "now_time": "12:00",
+        "latitude": 1.0, "longitude": 2.0,
+        "current": {
+            "precip_mm": 2.1, "precip_prob_pct": 70, "air_temp_c": 14.0,
+            "apparent_temp_c": 11.0, "uv_index": 3, "visibility_m": 8000,
+            "cloud_pct": 40, "weather_code": 61, "wave_period_s": 7.0,
+            "wave_dir_deg": 220, "swell_dir_deg": 230, "current_speed_kn": 0.5,
+            "current_dir_deg": 180,
+        },
+        "sports": [],
+    }
+    a = flatten_detail(d)
+    assert a["precip_mm"] == 2.1
+    assert a["precip_prob_pct"] == 70
+    assert a["apparent_temp_c"] == 11.0
+    assert a["visibility_m"] == 8000
+    assert a["wave_period_s"] == 7.0
+    assert a["current_speed_kn"] == 0.5
+
+
+def test_flatten_emits_weekly_weather_csvs():
+    from swelligence.detail import flatten_detail
+
+    daily = [
+        {"date": "2026-06-29", "datetime": "2026-06-29T12:00", "score": 60,
+         "verdict": "good", "precip_mm": 0.0, "precip_prob_pct": 10, "air_temp_c": 15.0},
+        {"date": "2026-06-30", "datetime": "2026-06-30T12:00", "score": 40,
+         "verdict": "marginal", "precip_mm": 3.4, "precip_prob_pct": 80, "air_temp_c": 12.0},
+    ]
+    d = {
+        "name": "X", "water_type": "sea", "now_time": "12:00",
+        "latitude": 1.0, "longitude": 2.0, "current": {},
+        "sports": [{"sport": "surf", "label": "Surf", "now": {}, "best": {},
+                    "hourly": [], "daily": daily}],
+    }
+    a = flatten_detail(d)
+    assert a["surf_week_rain"] == "0.0,3.4"
+    assert a["surf_week_rain_prob"] == "10,80"
+    assert a["surf_week_air"] == "15.0,12.0"

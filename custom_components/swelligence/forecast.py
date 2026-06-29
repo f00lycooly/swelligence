@@ -130,6 +130,10 @@ def _slot(
         "water_temp_c": point.water_temp_c,
         "apparent_temp_c": point.apparent_temp_c,
         "weather_code": point.weather_code,
+        "precip_mm": point.precip_mm,
+        "precip_prob_pct": point.precip_prob_pct,
+        "air_temp_c": point.air_temp_c,
+        "cloud_pct": point.cloud_pct,
     }
     if kit is not None:
         slot["kit_ideal_m2"] = kit.ideal_size_m2

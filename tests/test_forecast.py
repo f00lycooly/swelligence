@@ -79,6 +79,21 @@ def test_unsized_sport_has_no_kit_even_with_rider():
     assert all("kit_power" not in s for s in slots)
 
 
+def test_slot_carries_precip_and_air():
+    from swelligence.forecast import _slot
+    from swelligence.providers.base import ForecastPoint
+    from datetime import datetime
+    from swelligence.sports import SPORT_PROFILES
+
+    profile = next(iter(SPORT_PROFILES.values()))
+    p = ForecastPoint(time=datetime(2026, 6, 29, 12), wind_speed_kn=15,
+                      precip_mm=1.2, precip_prob_pct=55, air_temp_c=13.0)
+    slot = _slot(p, profile, profile.key, 0, None)
+    assert slot["precip_mm"] == 1.2
+    assert slot["precip_prob_pct"] == 55
+    assert slot["air_temp_c"] == 13.0
+
+
 def _hourly_from_midnight(offset_seconds: int = 0) -> SpotForecast:
     """A 48h series from local midnight, naive-local times, with utc offset meta."""
     base = datetime(2026, 6, 27, 0, 0)
