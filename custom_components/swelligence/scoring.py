@@ -94,6 +94,10 @@ class ScoreResult:
     #: hard-fail that caps the score raises the flag (see ``safety.py``). Never
     #: changes the score.
     safety_flags: list = field(default_factory=list)
+    #: Whether a *hard*-tier weather hazard capped this slot (thunderstorm etc.).
+    #: Reports the cap the safety gate already applies — lets consumers pick a
+    #: hazard glyph from the tier instead of proxying on ``not suitable``.
+    hard_gated: bool = False
 
 
 def _band(score: float) -> str:
@@ -429,9 +433,11 @@ def score_point(point: ForecastPoint, profile: SportProfile) -> ScoreResult:
     # is advisory only. Mirrors the tide gate's per-point application — this is
     # the single choke point every consumer (now / best / timelines) hits.
     warnings: list[str] = []
+    hard_gated = False
     for hz in point.hazards or []:
         warnings.append(hz.kind)
         if hz.tier == _TIER_HARD:
+            hard_gated = True
             score = min(score, HARD_GATE_CAP)
             reasons.append(hz.reason)
 
@@ -445,6 +451,7 @@ def score_point(point: ForecastPoint, profile: SportProfile) -> ScoreResult:
         nudges=nudges,
         warnings=warnings,
         safety_flags=derive_safety_flags(profile, flag_factors),
+        hard_gated=hard_gated,
     )
 
 
@@ -469,6 +476,7 @@ def blend_kit(result: ScoreResult, kit_factor: float) -> ScoreResult:
         nudges=list(result.nudges),
         warnings=list(result.warnings),
         safety_flags=list(result.safety_flags),
+        hard_gated=result.hard_gated,
     )
 
 

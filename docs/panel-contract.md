@@ -145,6 +145,7 @@ Statically named so the NOW gauge binds without knowing each spot's sport list.
 | `headline_verdict` | string | Full word (`epic`…`poor`). |
 | `headline_suitable` | bool | |
 | `headline_warnings` | **pipe** string | Active hazard codes for the headline sport right now, pipe-delimited (`thunderstorm\|fog\|squall\|heavy_rain`). **Empty string = none.** |
+| `headline_hard_gated` | bool | A **hard**-tier weather hazard is capping the headline sport right now — pick the hazard glyph from this, not from "not suitable". |
 
 ---
 
@@ -168,6 +169,8 @@ are positional and aligned with the spot-level axes (`week_days` / `hours`).
 | `<s>_kit_rig_m2` | float | Recommended owned rig size; empty if N/A. |
 | `<s>_kit_ideal_m2` | float | Ideal rig size; empty if N/A. |
 | `<s>_now_warnings` | **pipe** string | Active hazard codes for this sport right now, pipe-delimited (`thunderstorm\|fog\|squall\|heavy_rain`). **Empty string = none.** |
+| `<s>_now_safety` | **pipe** string | Advisory safety markers right now as `severity:kind` pairs, pipe-delimited (e.g. `danger:too_strong\|caution:gusty`). Severity ∈ `danger`/`caution`; kind ∈ `too_strong`/`too_big`/`too_choppy`/`gusty` (more in later versions). **Empty string = none.** Separate from `_now_warnings` (weather hazards) — this is water-sport condition safety. |
+| `<s>_now_hard_gated` | bool | A **hard**-tier weather hazard is capping this sport right now — pick the hazard glyph from this, not from "not suitable". |
 | `<s>_factors` | `k:score,…` | Optional factor breakdown — `key:score` pairs (rounded int), in the scorer's own order (factor set differs by sport). e.g. `wind:66,gust:100,wave:100`. |
 
 ### NOW — 24h timeline (aligns with `hours`)
@@ -339,3 +342,9 @@ The integration's `manifest.json` `version` is the contract version. Pin the pan
 config against a known version and re-check this table after upgrading. Additive
 fields (new attributes) are backward-compatible; a removal or rename will bump and be
 called out in `CHANGELOG.md`.
+
+Post-v0.2.x additions (NOW-view scrubber, bd `swelligence-erf`): `<s>_now_safety`,
+`<s>_now_hard_gated`, and `headline_hard_gated`. The `get_spot_detail` service
+payload additionally carries per-hour `factors`, `safety_flags`, and `hard_gated`
+on each `hourly[]` slot (consumed by the card's scrubber; not flattened to panel
+attributes — the panel reads the service payload for per-hour scrub).

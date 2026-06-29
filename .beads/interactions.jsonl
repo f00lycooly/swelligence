@@ -75,3 +75,4 @@
 {"id":"int-753da9fb","kind":"field_change","created_at":"2026-06-29T09:37:21.160045087Z","actor":"foolycooly","issue_id":"swelligence-0no.6","extra":{"field":"status","new_value":"closed","old_value":"in_progress","reason":"Closed"}}
 {"id":"int-39363b00","kind":"field_change","created_at":"2026-06-29T09:44:28.051122512Z","actor":"foolycooly","issue_id":"swelligence-0no.7","extra":{"field":"status","new_value":"closed","old_value":"in_progress","reason":"Closed"}}
 {"id":"int-5859a97f","kind":"field_change","created_at":"2026-06-29T09:49:49.907510199Z","actor":"foolycooly","issue_id":"swelligence-0no.8","extra":{"field":"status","new_value":"closed","old_value":"in_progress","reason":"Closed"}}
+{"id":"int-a5b54df0","kind":"field_change","created_at":"2026-06-29T12:48:37.147216164Z","actor":"foolycooly","issue_id":"swelligence-slh.2","extra":{"field":"status","new_value":"closed","old_value":"in_progress","reason":"Closed"}}

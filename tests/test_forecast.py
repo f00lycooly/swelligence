@@ -93,6 +93,22 @@ def test_slot_carries_safety_flags():
     assert calm["safety_flags"] == []
 
 
+def test_slot_carries_factors_and_hard_gated():
+    from swelligence.forecast import _slot
+    from swelligence.providers.base import ForecastPoint
+    from swelligence.hazards import Hazard, TIER_HARD
+    from datetime import datetime
+    from swelligence.sports import SPORT_PROFILES
+    profile = SPORT_PROFILES["windsurf"]
+    p = ForecastPoint(time=datetime(2026, 6, 23, 12), wind_speed_kn=22)
+    slot = _slot(p, profile, profile.key, 0, None)
+    assert isinstance(slot["factors"], dict) and "wind" in slot["factors"]
+    assert slot["hard_gated"] is False
+    stormy = ForecastPoint(time=datetime(2026, 6, 23, 12), wind_speed_kn=22,
+                           hazards=[Hazard("thunderstorm", TIER_HARD, "thunderstorm risk")])
+    assert _slot(stormy, profile, profile.key, 0, None)["hard_gated"] is True
+
+
 def test_slot_carries_precip_and_air():
     from swelligence.forecast import _slot
     from swelligence.providers.base import ForecastPoint
