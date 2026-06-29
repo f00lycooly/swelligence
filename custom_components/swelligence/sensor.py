@@ -102,6 +102,8 @@ class SuitabilitySensor(SwelligenceEntity, SensorEntity):
             attrs["nudges"] = res.now.nudges
         if res.now.warnings:
             attrs["warnings"] = res.now.warnings
+        if res.now.safety_flags:
+            attrs["safety_flags"] = [f.as_dict() for f in res.now.safety_flags]
         if res.best is not None:
             attrs["best_score"] = res.best.score
             attrs["best_in_hours"] = res.best_offset_h
