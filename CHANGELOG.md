@@ -2,6 +2,11 @@
 
 All notable changes per release. Versions follow semver; tags are `vX.Y.Z`.
 
+## v0.2.7 — 2026-06-29
+
+- feat(card): land the Card A NOW layout (single-column scrubber)
+- ci: drop Forgejo hassfest job (unpassable under act_runner)
+
 ## v0.2.6 — 2026-06-29
 
 - feat(card): interactive NOW scrubber + Safety cell (erf)
