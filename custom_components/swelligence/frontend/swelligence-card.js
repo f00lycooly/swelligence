@@ -397,37 +397,52 @@ class SwelligenceCard extends HTMLElement {
       ${this._mapHero(d, met, wc, "now", sp, frame)}
       <div class="sc-readcol">
         <div class="sc-read">
-          <div class="sc-cell"><div class="ro-k">Suitability</div>
-            <div class="ro-ring">${this._ring(frame.score ?? 0, col, 72, 7)}<span class="ro-num" style="color:${col}">${Math.round(frame.score ?? 0)}</span></div></div>
-          <div class="sc-cell"><div class="ro-k">Kit</div>${kitCell}</div>
+          <div class="sc-cell">
+            <div class="ro-ring">${this._ring(frame.score ?? 0, col, 70, 7)}<span class="ro-num" style="color:${col}">${Math.round(frame.score ?? 0)}</span></div></div>
+          <div class="sc-cell">${kitCell}</div>
           <div class="sc-cell">${this._safetyCell(frame)}</div>
         </div>
-        <div class="sc-facs">${this._cardAFacs(d, met, frame)}</div>
+        <div class="sc-pills">${this._cardAPills(d, met)}</div>
       </div>
     </div>`;
   }
 
-  /* factor rows: bar width = the hour's factor score, value = the met reading. */
-  _cardAFacs(d, met, frame) {
-    const order = ["wind", "gust", "direction", "wave", "swell", "temp", "tide"];
-    const label = { wind: "Wind", gust: "Gust", direction: "Direction", wave: "Wave", swell: "Swell", temp: "Water", tide: "Tide" };
-    const f = frame.factors || {};
+  /* metric pills: the full raw-conditions readout for the focused hour
+     (the weather data the now-strip used to carry). Each pill = label + value
+     (+ unit). Bound to frame.met so it scrubs with the timeline. */
+  _cardAPills(d, met) {
     const t = d.tide || {};
-    const val = (k) => {
-      switch (k) {
-        case "wind": return met.wind_speed_kn != null ? f1(met.wind_speed_kn) + " kn" : "—";
-        case "gust": return met.wind_gust_kn != null ? f1(met.wind_gust_kn) + " kn" : "—";
-        case "direction": return cardOf(met.wind_dir_deg) || "—";
-        case "wave": return met.wave_height_m != null ? f1(met.wave_height_m) + " m" : "—";
-        case "swell": return met.swell_height_m != null ? f1(met.swell_height_m) + " m" + (met.swell_period_s != null ? " · " + f1(met.swell_period_s) + "s" : "") : "—";
-        case "temp": return met.water_temp_c != null ? f1(met.water_temp_c) + "°" : "—";
-        case "tide": return cap(t.state) + (t.now != null ? " · " + f1(t.now, 1) + "m" : "");
-        default: return "";
-      }
-    };
-    return order.filter((k) => f[k] != null).map((k) =>
-      `<div class="fac"><span class="fac-l">${label[k]}</span><span class="fac-bar"><i style="width:${Math.round(f[k])}%;background:${facCol(f[k])}"></i></span><span class="fac-v">${val(k)}</span></div>`).join("");
+    const [wg] = WMO(met.weather_code);
+    const v = (x, dp = 1) => (x != null ? f1(x, dp) : "—");
+    const pill = (k, val, sub) => `<div class="mp"><div class="mp-k">${k}</div><div class="mp-v">${val}${sub ? `<small>${sub}</small>` : ""}</div></div>`;
+    const pills = [
+      pill("Wind", v(met.wind_speed_kn), " kn " + (cardOf(met.wind_dir_deg) || "")),
+      pill("Gust", v(met.wind_gust_kn), " kn", "amber"),
+      pill("Wave", met.wave_height_m != null ? v(met.wave_height_m) : (met.wind_wave_height_m != null ? v(met.wind_wave_height_m) : "—"), " m"),
+      pill("Swell", v(met.swell_height_m), met.swell_period_s != null ? " m · " + v(met.swell_period_s) + "s" : " m"),
+      pill("Water", v(met.water_temp_c), "°C"),
+      pill("Feels", v(met.apparent_temp_c), "°C"),
+      pill(`Rain ${wg}`, v(met.precip_mm), met.precip_prob_pct != null ? " mm · " + Math.round(met.precip_prob_pct) + "%" : " mm"),
+      pill("UV", met.uv_index != null ? Math.round(met.uv_index) : "—", ""),
+      pill("Vis", met.visibility_m != null ? (met.visibility_m / 1000).toFixed(met.visibility_m < 10000 ? 1 : 0) : "—", " km"),
+      pill("Tide", cap(t.state), t.now != null ? " · " + v(t.now) + "m" : ""),
+    ];
+    return pills.join("");
   }
+
+  /* safety flag → inline icon (kind-specific); falls back to a warning triangle. */
+  _safetyIcon(kind) {
+    const wind = '<path d="M3 8h12.5a2.5 2.5 0 1 0-2.5-2.5"/><path d="M3 12h17a2.5 2.5 0 1 1-2.5 2.5"/><path d="M3 16h8.5"/>';
+    const paths = {
+      too_strong: wind, gusty: wind,
+      too_big: '<path d="M2 9c3.2 0 3.2 4 6.4 4S11.6 9 14.8 9 18 13 21 13"/><path d="M2 15c3.2 0 3.2 4 6.4 4S11.6 15 14.8 15 18 19 21 19"/>',
+      too_choppy: '<path d="M2 12c1.6 0 1.6-2.4 3.2-2.4S7 12 8.6 12s1.6-2.4 3.2-2.4S13.4 12 15 12s1.6-2.4 3.2-2.4S20 12 21.6 12"/>',
+    };
+    const p = paths[kind] || '<path d="M12 3 1.5 21h21z"/><path d="M12 10v4.5"/><path d="M12 17.6v.01"/>';
+    return `<svg viewBox="0 0 24 24" class="sf-ic">${p}</svg>`;
+  }
+  _stormIcon() { return `<svg viewBox="0 0 24 24" class="sf-ic"><path d="M7 16a4 4 0 0 1 .4-8 5.5 5.5 0 0 1 10.5 1.3A3.4 3.4 0 0 1 17 16"/><path d="M12 12.5l-2 3.5h3l-2 3.5"/></svg>`; }
+  _clearIcon() { return `<svg viewBox="0 0 24 24" class="sf-ic"><path d="M12 3l7 3v5c0 4.4-3 7.6-7 9-4-1.4-7-4.6-7-9V6z"/><path d="M9 12l2 2 4-4"/></svg>`; }
 
   /* ---- Card A outlook: daylight lane (sun-elevation curve) over the 24h
      score bars; tap/drag scrubs. ---- */
@@ -522,15 +537,17 @@ class SwelligenceCard extends HTMLElement {
      else a caution flag -> caution; else clear. */
   _safetyCell(frame) {
     const flags = frame.safety_flags || [];
-    const hasDanger = flags.some((f) => f.severity === "danger");
-    const glyph = frame.hard_gated ? "⛈️" : hasDanger ? "⚠️" : flags.length ? "△" : "✓";
-    const cls = frame.hard_gated || hasDanger ? "danger" : flags.length ? "caution" : "ok";
-    const body = flags.length
-      ? flags.map((f) => `<div class="sf-row sf-${f.severity}">${f.message}</div>`).join("")
-      : `<div class="sf-ok">no safety flags</div>`;
-    return `<div class="sd-safety ${cls}">
-      <div class="sf-k">Safety <span class="sf-glyph">${glyph}</span></div>
-      <div class="sf-body">${body}</div></div>`;
+    const short = { too_strong: "too strong", too_big: "too big", too_choppy: "choppy", gusty: "gusty" };
+    if (frame.hard_gated || flags.length) {
+      const hasDanger = frame.hard_gated || flags.some((f) => f.severity === "danger");
+      const rows = [];
+      if (frame.hard_gated) rows.push(`<div class="sf-row sf-danger" title="hard weather hazard">${this._stormIcon()}<span>storm</span></div>`);
+      for (const f of flags.slice(0, 3)) {
+        rows.push(`<div class="sf-row sf-${f.severity}" title="${f.message}">${this._safetyIcon(f.kind)}<span>${short[f.kind] || f.kind}</span></div>`);
+      }
+      return `<div class="sd-safety ${hasDanger ? "danger" : "caution"}">${rows.join("")}</div>`;
+    }
+    return `<div class="sd-safety ok" title="no safety flags">${this._clearIcon()}<span class="sf-ok">clear</span></div>`;
   }
 
   /* SVG progress ring (stroke-dasharray) — 720-panel gauge. */
@@ -1084,17 +1101,19 @@ table.grid{border-collapse:separate;border-spacing:6px;width:100%;}
 .sd-cardA{gap:10px;}
 .sd-cardA .sd-meds{margin:0;}
 .sc-hero{display:grid;grid-template-columns:minmax(200px,240px) minmax(0,1fr);gap:10px;}
-.sc-hero .sd-map{height:auto;min-height:200px;}
-.sc-readcol{min-width:0;display:flex;flex-direction:column;gap:9px;}
-.sc-read{display:grid;grid-template-columns:repeat(3,1fr);background:var(--panel2);border:1px solid var(--line);border-radius:14px;overflow:hidden;}
-.sc-cell{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:6px;padding:11px 6px;min-width:0;}
+.sc-hero{align-items:stretch;}
+.sc-hero .sd-map{height:200px;min-height:0;}
+.sc-readcol{min-width:0;display:flex;flex-direction:column;gap:8px;}
+/* readout = 50% of the 200px map; no headings, just the three gauges */
+.sc-read{flex:0 0 100px;display:grid;grid-template-columns:repeat(3,1fr);background:var(--panel2);border:1px solid var(--line);border-radius:14px;overflow:hidden;}
+.sc-cell{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px;padding:6px;min-width:0;}
 .sc-cell + .sc-cell{border-left:1px solid var(--line);}
-.sc-facs{flex:1 1 auto;display:grid;grid-template-columns:1fr 1fr;column-gap:20px;align-content:space-evenly;background:var(--panel);border:1px solid var(--line);border-radius:13px;padding:8px 16px;}
-.sc-facs .fac{display:grid;grid-template-columns:58px 1fr auto;align-items:center;gap:8px;}
-.sc-facs .fac-l{font-size:10px;font-weight:700;color:var(--mut);text-transform:uppercase;letter-spacing:.04em;}
-.sc-facs .fac-bar{height:7px;border-radius:4px;background:color-mix(in srgb,var(--mut) 16%,transparent);overflow:hidden;}
-.sc-facs .fac-bar i{display:block;height:100%;border-radius:4px;}
-.sc-facs .fac-v{font-size:11px;font-weight:800;color:var(--ink);text-align:right;white-space:nowrap;}
+/* metric pills: full raw-conditions readout (scrubs with the timeline) */
+.sc-pills{flex:1 1 auto;display:grid;grid-template-columns:repeat(5,1fr);grid-auto-rows:1fr;gap:5px;}
+.sc-pills .mp{background:var(--panel2);border:1px solid var(--line);border-radius:9px;padding:5px 7px;min-width:0;display:flex;flex-direction:column;justify-content:center;gap:2px;}
+.sc-pills .mp-k{font-size:8px;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:var(--mut);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+.sc-pills .mp-v{font-size:13px;font-weight:800;color:var(--ink);line-height:1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+.sc-pills .mp-v small{font-size:8px;font-weight:600;color:var(--mut);}
 /* outlook */
 .chartwrap{display:flex;flex-direction:column;gap:7px;background:var(--panel2);border:1px solid var(--line);border-radius:14px;padding:10px 12px 8px;}
 .chartwrap .ch-h{display:flex;align-items:baseline;justify-content:space-between;}
@@ -1198,14 +1217,12 @@ table.grid{border-collapse:separate;border-spacing:6px;width:100%;}
 .ro-ring .sd-ring-svg{width:100%;height:100%;}
 .ro-num{position:absolute;inset:0;display:grid;place-items:center;font-size:20px;font-weight:800;}
 .ro-na{font-size:13px;font-weight:800;color:var(--mut);height:62px;display:grid;place-items:center;}
-.sd-safety{display:flex;flex-direction:column;align-items:center;gap:5px;width:100%;}
-.sd-safety .sf-k{font-size:9px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:var(--mut);}
-.sd-safety .sf-glyph{font-size:12px;}
-.sd-safety .sf-body{display:flex;flex-direction:column;gap:3px;align-items:center;text-align:center;}
-.sd-safety .sf-row{font-size:9.5px;font-weight:700;line-height:1.2;}
+.sd-safety{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:4px;width:100%;}
+.sd-safety .sf-ic{width:17px;height:17px;flex:0 0 auto;fill:none;stroke:currentColor;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round;}
+.sd-safety .sf-row{display:flex;align-items:center;gap:5px;font-size:10px;font-weight:700;line-height:1;white-space:nowrap;}
 .sd-safety .sf-danger{color:#e8593a;} .sd-safety .sf-caution{color:#f6a623;}
-.sd-safety .sf-ok{font-size:9.5px;font-weight:600;color:var(--dim);}
-.sd-safety.danger .sf-glyph{filter:drop-shadow(0 0 4px rgba(232,89,58,.5));}
+.sd-safety.ok{color:#5cb85c;} .sd-safety .sf-ok{font-size:10px;font-weight:700;}
+.sd-safety.danger .sf-ic{filter:drop-shadow(0 0 4px rgba(232,89,58,.45));}
 .sd-kit{display:flex;flex-direction:column;align-items:center;flex:0 0 auto;}
 .sd-kit-svg{width:92px;height:58px;}
 .sd-kit-track{fill:none;stroke:color-mix(in srgb,var(--mut) 25%,transparent);stroke-width:9;stroke-linecap:round;}
