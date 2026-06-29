@@ -2,6 +2,10 @@
 
 All notable changes per release. Versions follow semver; tags are `vX.Y.Z`.
 
+## v0.2.9 — 2026-06-29
+
+- feat(card): NOW-view consistency pass — readout parity, icon pills, equal medallions
+
 ## v0.2.8 — 2026-06-29
 
 - feat(card): readout polish — fixed-height gauges, safety icons, metric pills
