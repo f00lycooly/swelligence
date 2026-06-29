@@ -117,6 +117,7 @@ def _slot(
         "score": res.score,
         "verdict": res.verdict,
         "suitable": res.suitable,
+        "warnings": res.warnings,
         "wind_speed_kn": point.wind_speed_kn,
         "wind_gust_kn": point.wind_gust_kn,
         "wind_bearing": point.wind_dir_deg,

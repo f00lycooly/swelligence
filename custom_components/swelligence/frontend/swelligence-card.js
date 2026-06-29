@@ -616,6 +616,9 @@ class SwelligenceCard extends HTMLElement {
       <div class="sd-detail-top">
         <div><div class="sd-detail-sp">${sp.label || LABELS[sp.sport] || sp.sport}</div>
           <div class="sd-detail-vd" style="color:${col}">${verdictWord}</div>
+          ${view === "now" && (now.warnings && now.warnings.length)
+            ? `<div class="sd-detail-warn">${(now.suitable === false ? "⛈️" : "⚠️")} ${now.warnings.map((w) => w.replace("_", " ")).join(", ")}</div>`
+            : ""}
           <div class="sd-detail-best">${secondLine}</div></div>
         ${view === "now" && now.kit ? this._kitArc(now.kit, sp.sport) : ""}
       </div>

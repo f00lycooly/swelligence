@@ -17,6 +17,8 @@ Now-conditions weather attributes (`precip_mm`, `precip_prob_pct`, `uv_index`,
 ocean current) and the per-sport weekly weather CSVs (`<s>_week_rain`,
 `<s>_week_rain_prob`, `<s>_week_air`) landed in v0.2.5 (weather-rounding safety gate);
 empty fields denote `None` (unknown), per the alignment contract.
+Hazard-warning attributes (`<s>_now_warnings`, `headline_warnings`) landed post-v0.2.5
+(C4: surface hazard warnings); pipe-delimited hazard codes, empty = none.
 
 ---
 
@@ -142,6 +144,7 @@ Statically named so the NOW gauge binds without knowing each spot's sport list.
 | `headline_score` | int | = the entity **state**. |
 | `headline_verdict` | string | Full word (`epic`…`poor`). |
 | `headline_suitable` | bool | |
+| `headline_warnings` | **pipe** string | Active hazard codes for the headline sport right now, pipe-delimited (`thunderstorm\|fog\|squall\|heavy_rain`). **Empty string = none.** |
 
 ---
 
@@ -164,6 +167,7 @@ are positional and aligned with the spot-level axes (`week_days` / `hours`).
 | `<s>_kit_power` | string | Rig sports only (e.g. `powered`); empty for swim/SUP/surf. |
 | `<s>_kit_rig_m2` | float | Recommended owned rig size; empty if N/A. |
 | `<s>_kit_ideal_m2` | float | Ideal rig size; empty if N/A. |
+| `<s>_now_warnings` | **pipe** string | Active hazard codes for this sport right now, pipe-delimited (`thunderstorm\|fog\|squall\|heavy_rain`). **Empty string = none.** |
 | `<s>_factors` | `k:score,…` | Optional factor breakdown — `key:score` pairs (rounded int), in the scorer's own order (factor set differs by sport). e.g. `wind:66,gust:100,wave:100`. |
 
 ### NOW — 24h timeline (aligns with `hours`)

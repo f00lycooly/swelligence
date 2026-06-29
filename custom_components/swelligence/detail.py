@@ -101,6 +101,7 @@ def spot_detail(coordinator, data, sports_f: set) -> dict:
                 "suitable": res.now.suitable, "factors": res.now.factors,
                 "reasons": res.now.reasons, "completeness": res.now.completeness,
                 "nudges": res.now.nudges,
+                "warnings": res.now.warnings,
                 "kit": kit_payload(res.kit),
             },
             "best": best,
@@ -241,6 +242,7 @@ def flatten_detail(d: dict) -> dict:
         attrs["headline_score"] = hnow.get("score")
         attrs["headline_verdict"] = hnow.get("verdict")
         attrs["headline_suitable"] = hnow.get("suitable")
+        attrs["headline_warnings"] = "|".join(hnow.get("warnings") or [])
     for s in sports:
         k = s["sport"]
         now = s.get("now") or {}
@@ -250,6 +252,7 @@ def flatten_detail(d: dict) -> dict:
         attrs[f"{k}_now_score"] = now.get("score")
         attrs[f"{k}_now_verdict"] = now.get("verdict")
         attrs[f"{k}_now_suitable"] = now.get("suitable")
+        attrs[f"{k}_now_warnings"] = "|".join(now.get("warnings") or [])
         attrs[f"{k}_best_score"] = best.get("score")
         attrs[f"{k}_best_in_h"] = best.get("in_hours")
         attrs[f"{k}_best_verdict"] = best.get("verdict")

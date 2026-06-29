@@ -253,6 +253,24 @@ def test_flatten_surfaces_comfort_and_marine_now_fields():
     assert a["current_speed_kn"] == 0.5
 
 
+def test_flatten_emits_now_warnings():
+    from swelligence.detail import flatten_detail
+
+    d = {
+        "name": "X", "water_type": "sea", "now_time": "12:00",
+        "latitude": 1.0, "longitude": 2.0, "current": {},
+        "sports": [{
+            "sport": "surf", "label": "Surf",
+            "now": {"score": 10, "verdict": "poor", "suitable": False,
+                    "warnings": ["thunderstorm", "heavy_rain"]},
+            "best": {}, "hourly": [], "daily": [],
+        }],
+    }
+    a = flatten_detail(d)
+    assert a["surf_now_warnings"] == "thunderstorm|heavy_rain"
+    assert a["headline_warnings"] == "thunderstorm|heavy_rain"
+
+
 def test_flatten_emits_weekly_weather_csvs():
     from swelligence.detail import flatten_detail
 
