@@ -73,6 +73,11 @@ class ForecastPoint:
     #: multi-model ``models=`` request). ``None``/absent = single source, no
     #: agreement signal. Tight agreement -> high; wide divergence -> low.
     source_confidence: dict[str, float] | None = None
+    #: Active weather hazards at this timestep, stamped by the coordinator from
+    #: ``hazards.evaluate_hazards`` before scoring (mirrors ``tide_factor``).
+    #: ``None``/empty = no hazard. Typed loosely to keep this module free of a
+    #: ``hazards`` import.
+    hazards: list | None = None
 
 
 @dataclass(slots=True)
