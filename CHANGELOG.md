@@ -2,6 +2,28 @@
 
 All notable changes per release. Versions follow semver; tags are `vX.Y.Z`.
 
+## v0.2.6 — 2026-06-29
+
+- feat(card): interactive NOW scrubber + Safety cell (erf)
+- feat(detail): per-hour factors + hard_gated for the NOW scrubber (erf)
+- docs(spec): NOW-view scrubber redesign design (erf)
+- feat(safety): safety_flags as first-class scored output (slh.2)
+- docs(spec): safety_flags as first-class output design (slh.2)
+- fix(safety-gate): surface warnings on entity; de-couple tier literals
+- feat(panel): surface weather-hazard warnings on card + panel (C4)
+- feat(scoring): per-point weather safety gate (hard caps, warn advisory) (C3)
+- feat(config): per-hazard safety-gate tiers + Beaufort squall threshold (C2)
+- feat(hazards): pure weather-hazard evaluator (C1)
+- docs(panel): correct weather-attr banner wording (B3 review)
+- docs(panel): document weather + weekly-rain attributes (B3)
+- fix(card): drop unused params from _wxLine helper
+- feat(card): show rain, feels-like, UV, visibility + WMO glyph (B2)
+- feat(panel): surface rain/comfort/marine weather fields (B1)
+- feat(provider): fetch precipitation_probability + cape (A1)
+- docs(plan): weather rounding + safety gate implementation plan
+- docs(spec): rounded weather + tunable safety gate design
+- docs(panel): refresh panel-contract staleness note to v0.2.5
+
 ## v0.2.5 — 2026-06-28
 
 - fix(sensor): config sensor state as readable summary, not raw hash (5g2)

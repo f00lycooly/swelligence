@@ -15,5 +15,5 @@
   "iot_class": "cloud_polling",
   "issue_tracker": "https://git.bagofholding.co.uk/foolycooly/swelligence/issues",
   "requirements": [],
-  "version": "0.2.5"
+  "version": "0.2.6"
 }
