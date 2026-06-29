@@ -354,16 +354,7 @@ class SwelligenceCard extends HTMLElement {
     const headRight = view === "now"
       ? `<div class="sd-now"><span class="pulse${frame.isNow ? "" : " off"}"></span><div><b>${frame.time || d.now_time || "--:--"}</b><span>${frame.isNow ? "now" : frame.label}</span></div></div>`
       : `<div class="sd-now"><div><b>${range || "7 days"}</b><span>7-day</span></div></div>`;
-    const leftLower = view === "now"
-      ? this._tideModule(d) + this._daylight(d)
-      : this._weekSummary(sp);
-    const right = view === "now"
-      ? this._medallions(sportsAll, pi, view) + this._detail(sp, view, frame) + this._hourlyTL(sp)
-        + `<div class="sd-strip">${this._nowStrip(met)}</div>`
-      : this._medallions(sportsAll, pi, view) + this._detail(sp, view) + this._dayRows(sp);
-
-    return `<div class="sd">
-      <div class="sd-hdr">
+    const header = `<div class="sd-hdr">
         <div class="sd-id"><div class="sd-logo">S</div>
           <div><div class="sd-nm">${d.name}</div>
             <div class="sd-sub"><b>${d.water_type || ""}</b>${d.latitude != null ? " · " + d.latitude.toFixed(3) + ", " + d.longitude.toFixed(3) : ""} · Open-Meteo</div></div></div>
@@ -374,12 +365,112 @@ class SwelligenceCard extends HTMLElement {
             <button data-act="view" data-v="week" class="${view === "week" ? "on" : ""}">Week</button>
           </div>
         </div>
-      </div>
+      </div>`;
+
+    // NOW: the Card A single-column layout (medallions → map+readout hero →
+    // full-width outlook with daylight lane). WEEK: the existing two-column.
+    if (view === "now") {
+      return `<div class="sd sd-cardA">
+        ${header}
+        ${this._medallions(sportsAll, pi, view)}
+        ${this._cardAHero(d, met, wc, sp, frame)}
+        ${this._cardAOutlook(sp, d, frame)}
+        ${this._tabs(spots, si, view)}
+      </div>`;
+    }
+    return `<div class="sd">
+      ${header}
       <div class="sd-main">
-        <div class="sd-col">${this._mapHero(d, met, wc, view, sp, frame)}${leftLower}</div>
-        <div class="sd-col sd-sportcol">${right}</div>
+        <div class="sd-col">${this._mapHero(d, met, wc, view, sp, frame)}${this._weekSummary(sp)}</div>
+        <div class="sd-col sd-sportcol">${this._medallions(sportsAll, pi, view) + this._detail(sp, view) + this._dayRows(sp)}</div>
       </div>
       ${this._tabs(spots, si, view)}
+    </div>`;
+  }
+
+  /* ---- Card A NOW hero: map + compass on the left, a 3-cell readout
+     (suitability ring · kit arc · safety) over a 2-column factor list. ---- */
+  _cardAHero(d, met, wc, sp, frame) {
+    const col = vcw(frame.verdict);
+    const kitCell = frame.kit ? this._kitArc(frame.kit, sp.sport) : `<div class="ro-na">—</div>`;
+    return `<div class="sc-hero">
+      ${this._mapHero(d, met, wc, "now", sp, frame)}
+      <div class="sc-readcol">
+        <div class="sc-read">
+          <div class="sc-cell"><div class="ro-k">Suitability</div>
+            <div class="ro-ring">${this._ring(frame.score ?? 0, col, 72, 7)}<span class="ro-num" style="color:${col}">${Math.round(frame.score ?? 0)}</span></div></div>
+          <div class="sc-cell"><div class="ro-k">Kit</div>${kitCell}</div>
+          <div class="sc-cell">${this._safetyCell(frame)}</div>
+        </div>
+        <div class="sc-facs">${this._cardAFacs(d, met, frame)}</div>
+      </div>
+    </div>`;
+  }
+
+  /* factor rows: bar width = the hour's factor score, value = the met reading. */
+  _cardAFacs(d, met, frame) {
+    const order = ["wind", "gust", "direction", "wave", "swell", "temp", "tide"];
+    const label = { wind: "Wind", gust: "Gust", direction: "Direction", wave: "Wave", swell: "Swell", temp: "Water", tide: "Tide" };
+    const f = frame.factors || {};
+    const t = d.tide || {};
+    const val = (k) => {
+      switch (k) {
+        case "wind": return met.wind_speed_kn != null ? f1(met.wind_speed_kn) + " kn" : "—";
+        case "gust": return met.wind_gust_kn != null ? f1(met.wind_gust_kn) + " kn" : "—";
+        case "direction": return cardOf(met.wind_dir_deg) || "—";
+        case "wave": return met.wave_height_m != null ? f1(met.wave_height_m) + " m" : "—";
+        case "swell": return met.swell_height_m != null ? f1(met.swell_height_m) + " m" + (met.swell_period_s != null ? " · " + f1(met.swell_period_s) + "s" : "") : "—";
+        case "temp": return met.water_temp_c != null ? f1(met.water_temp_c) + "°" : "—";
+        case "tide": return cap(t.state) + (t.now != null ? " · " + f1(t.now, 1) + "m" : "");
+        default: return "";
+      }
+    };
+    return order.filter((k) => f[k] != null).map((k) =>
+      `<div class="fac"><span class="fac-l">${label[k]}</span><span class="fac-bar"><i style="width:${Math.round(f[k])}%;background:${facCol(f[k])}"></i></span><span class="fac-v">${val(k)}</span></div>`).join("");
+  }
+
+  /* ---- Card A outlook: daylight lane (sun-elevation curve) over the 24h
+     score bars; tap/drag scrubs. ---- */
+  _cardAOutlook(sp, d, frame) {
+    const ser = (sp.hourly || []).slice(0, 24);
+    if (!ser.length) return `<div class="chartwrap"><div class="ch-h"><span class="k">Outlook · next 24h</span></div><div class="none">no hourly forecast</div></div>`;
+    const selH = this._sv.hour || 0, bestI = sp.best ? sp.best.in_hours : null;
+    const bars = ser.map((p, i) => `<button class="bar ${i === 0 ? "now" : ""} ${i === bestI ? "best" : ""} ${i === selH ? "sel" : ""}" data-act="hour" data-h="${i}" style="height:${Math.max(6, Math.round(p.score ?? 0))}%;background:${vcw(p.verdict)}" title="${(p.datetime || "").slice(11, 16)} · ${Math.round(p.score ?? 0)}"></button>`).join("");
+    let axis = ""; ser.forEach((p, i) => { axis += `<span>${i % 3 === 0 ? (p.datetime || "").slice(11, 16) : ""}</span>`; });
+    return `<div class="chartwrap">
+      <div class="ch-h"><span class="k">Outlook · next 24h</span><span class="hint"><b>${frame.time || "--:--"}</b><span>${frame.isNow ? "NOW" : frame.label}</span></span></div>
+      <div class="chart">
+        ${this._dayLane(d, ser.length)}
+        <div class="barwrap"><div class="bars">${bars}</div></div>
+      </div>
+      <div class="axis">${axis}</div>
+    </div>`;
+  }
+
+  /* daylight lane: sun-elevation curve + sunrise/sunset ticks + a sun/moon mark
+     at the scrubbed hour. Reads d.daylight.sunrise/sunset and now_time. */
+  _dayLane(d, n) {
+    const dl = d.daylight || {};
+    const toH = (t) => { const m = /^(\d{1,2}):(\d{2})/.exec(t || ""); return m ? +m[1] + +m[2] / 60 : null; };
+    const start = parseInt((d.now_time || "").slice(0, 2), 10);
+    const sr = toH(dl.sunrise), ss = toH(dl.sunset);
+    if (isNaN(start) || sr == null || ss == null) return `<div class="daylane plain"><span class="dl-lbl">Daylight</span></div>`;
+    const dlen = ss - sr;
+    const elev = (rel) => { let t = (start + rel) % 24; if (t >= sr && t <= ss) return Math.sin(Math.PI * (t - sr) / dlen); const nt = t < sr ? t + 24 : t; return -0.5 * Math.sin(Math.PI * (nt - ss) / ((sr + 24) - ss)); };
+    const yOf = (e) => (50 - e * 30).toFixed(1), xOf = (r) => (r / 24 * 100).toFixed(1);
+    const pts = []; for (let r = 0; r <= 24; r += 0.5) pts.push(`${xOf(r)},${yOf(elev(r))}`);
+    const ssRel = ((ss - start) + 24) % 24, srRel = ((sr - start) + 24) % 24;
+    const selH = this._sv.hour || 0, e = elev(selH + 0.5), day = e >= 0;
+    return `<div class="daylane">
+      <span class="dl-lbl">Daylight</span>
+      <svg class="sky" viewBox="0 0 100 100" preserveAspectRatio="none">
+        <line class="sky-horizon" x1="0" y1="${yOf(0)}" x2="100" y2="${yOf(0)}"/>
+        <line class="sky-tick" x1="${xOf(ssRel)}" y1="2" x2="${xOf(ssRel)}" y2="98"/>
+        <line class="sky-tick" x1="${xOf(srRel)}" y1="2" x2="${xOf(srRel)}" y2="98"/>
+        <polyline class="sky-line" points="${pts.join(" ")}"/></svg>
+      <span class="dl-t" style="left:${xOf(ssRel)}%">↓ ${dl.sunset}</span>
+      <span class="dl-t" style="left:${xOf(srRel)}%">↑ ${dl.sunrise}</span>
+      <span class="sunmark ${day ? "" : "night"}" style="left:${((selH + 0.5) / n * 100).toFixed(1)}%;top:${yOf(e)}%">${day ? "☀" : "☾"}</span>
     </div>`;
   }
 
@@ -989,6 +1080,45 @@ table.grid{border-collapse:separate;border-spacing:6px;width:100%;}
 /* main split */
 .sd-main{display:grid;grid-template-columns:minmax(0,290px) minmax(0,1fr);gap:12px;align-items:start;}
 .sd-col{min-width:0;display:flex;flex-direction:column;gap:11px;}
+/* ===== Card A NOW layout (single-column scrubber) ===== */
+.sd-cardA{gap:10px;}
+.sd-cardA .sd-meds{margin:0;}
+.sc-hero{display:grid;grid-template-columns:minmax(200px,240px) minmax(0,1fr);gap:10px;}
+.sc-hero .sd-map{height:auto;min-height:200px;}
+.sc-readcol{min-width:0;display:flex;flex-direction:column;gap:9px;}
+.sc-read{display:grid;grid-template-columns:repeat(3,1fr);background:var(--panel2);border:1px solid var(--line);border-radius:14px;overflow:hidden;}
+.sc-cell{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:6px;padding:11px 6px;min-width:0;}
+.sc-cell + .sc-cell{border-left:1px solid var(--line);}
+.sc-facs{flex:1 1 auto;display:grid;grid-template-columns:1fr 1fr;column-gap:20px;align-content:space-evenly;background:var(--panel);border:1px solid var(--line);border-radius:13px;padding:8px 16px;}
+.sc-facs .fac{display:grid;grid-template-columns:58px 1fr auto;align-items:center;gap:8px;}
+.sc-facs .fac-l{font-size:10px;font-weight:700;color:var(--mut);text-transform:uppercase;letter-spacing:.04em;}
+.sc-facs .fac-bar{height:7px;border-radius:4px;background:color-mix(in srgb,var(--mut) 16%,transparent);overflow:hidden;}
+.sc-facs .fac-bar i{display:block;height:100%;border-radius:4px;}
+.sc-facs .fac-v{font-size:11px;font-weight:800;color:var(--ink);text-align:right;white-space:nowrap;}
+/* outlook */
+.chartwrap{display:flex;flex-direction:column;gap:7px;background:var(--panel2);border:1px solid var(--line);border-radius:14px;padding:10px 12px 8px;}
+.chartwrap .ch-h{display:flex;align-items:baseline;justify-content:space-between;}
+.chartwrap .ch-h .k{font-size:10.5px;font-weight:700;text-transform:uppercase;letter-spacing:.12em;color:var(--mut);}
+.chartwrap .ch-h .hint{font-size:10px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--ac);display:flex;align-items:baseline;gap:6px;}
+.chartwrap .ch-h .hint b{color:var(--ink);font-weight:800;font-size:14px;letter-spacing:0;}
+.chartwrap .chart{display:flex;flex-direction:column;gap:6px;}
+.daylane{flex:0 0 46px;height:46px;position:relative;border-radius:8px;overflow:hidden;border:1px solid var(--line);background:linear-gradient(180deg,rgba(86,194,224,.18),rgba(9,18,34,.5));}
+.daylane.plain{background:var(--panel);}
+.daylane .dl-lbl{position:absolute;left:9px;top:50%;transform:translateY(-50%);z-index:2;font-size:9px;font-weight:800;letter-spacing:.12em;text-transform:uppercase;color:rgba(255,255,255,.85);pointer-events:none;text-shadow:0 1px 3px rgba(0,0,0,.85);}
+.daylane .dl-t{position:absolute;bottom:4px;z-index:2;transform:translateX(-50%);font-size:8px;font-weight:700;color:rgba(255,255,255,.85);pointer-events:none;white-space:nowrap;text-shadow:0 1px 2px rgba(0,0,0,.7);}
+.daylane .sky{position:absolute;inset:0;width:100%;height:100%;pointer-events:none;z-index:1;}
+.daylane .sky-horizon{stroke:rgba(255,255,255,.2);stroke-width:1;stroke-dasharray:3 4;vector-effect:non-scaling-stroke;}
+.daylane .sky-line{fill:none;stroke:rgba(255,233,180,.85);stroke-width:1.6;stroke-linejoin:round;vector-effect:non-scaling-stroke;}
+.daylane .sky-tick{stroke:rgba(255,255,255,.26);stroke-width:1;vector-effect:non-scaling-stroke;}
+.daylane .sunmark{position:absolute;transform:translate(-50%,-50%);font-size:13px;line-height:1;pointer-events:none;color:#ffe08a;z-index:3;filter:drop-shadow(0 0 4px rgba(255,210,120,.9));}
+.daylane .sunmark.night{color:#cdd7ea;filter:drop-shadow(0 0 4px rgba(170,200,240,.7));}
+.chartwrap .barwrap{flex:1 1 auto;min-height:120px;position:relative;border-radius:8px;background:linear-gradient(180deg,transparent,color-mix(in srgb,var(--mut) 8%,transparent));}
+.chartwrap .bars{position:absolute;inset:0;display:flex;align-items:flex-end;gap:2px;touch-action:none;}
+.chartwrap .bar{flex:1;border:0;padding:0;border-radius:3px 3px 0 0;min-height:4px;align-self:flex-end;opacity:.6;cursor:pointer;transition:opacity .1s;position:relative;}
+.chartwrap .bar.now{outline:1.5px solid var(--ink);outline-offset:1px;}
+.chartwrap .bar.sel{opacity:1;outline:2px solid var(--ink);outline-offset:1px;}
+.chartwrap .bar.best::before{content:"★";position:absolute;top:-13px;left:50%;transform:translateX(-50%);font-size:10px;color:#f6a623;}
+.chartwrap .axis{display:flex;padding:0 2px;} .chartwrap .axis span{flex:1;text-align:center;font-size:9px;font-weight:700;color:var(--dim);}
 /* map hero */
 .sd-map{position:relative;height:200px;border-radius:14px;overflow:hidden;border:1px solid var(--line);background:var(--panel2);}
 .sd-map .lmap{position:absolute;inset:0;overflow:hidden;}
