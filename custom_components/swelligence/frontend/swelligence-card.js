@@ -43,6 +43,21 @@ const vkey = (v) => (v === "marginal" ? "marg" : v);          // data verdict �
 const vcw = (v) => vc(vkey(v) in VERDICT ? vkey(v) : "poor"); // verdict word → colour
 const cap = (s) => (s ? s[0].toUpperCase() + s.slice(1) : "—");
 
+/* WMO weather code -> [glyph, short label]. Compact; unknown -> blank. */
+function WMO(code) {
+  if (code == null) return ["", ""];
+  const c = Number(code);
+  if (c === 0) return ["☀️", "clear"];
+  if (c <= 2) return ["🌤️", "fair"];
+  if (c === 3) return ["☁️", "cloudy"];
+  if (c <= 48) return ["🌫️", "fog"];
+  if (c <= 67) return ["🌧️", "rain"];
+  if (c <= 77) return ["🌨️", "snow"];
+  if (c <= 82) return ["🌧️", "showers"];
+  if (c <= 86) return ["🌨️", "snow"];
+  return ["⛈️", "storm"]; // 95/96/99
+}
+
 // kit power verdict -> palette colour
 const powerCol = (p) => p === "ideal" ? vc("good") : p === "underpowered" ? vc("marg") : p === "overpowered" ? vc("poor") : "var(--mut)";
 const facCol = (n) => (n == null ? "var(--mut)" : n >= 67 ? vc("good") : n >= 34 ? vc("marg") : vc("poor"));
@@ -306,6 +321,7 @@ class SwelligenceCard extends HTMLElement {
     let pi = sportsAll.findIndex((s) => s.sport === this._sv.sport);
     if (pi < 0) pi = 0;
     const sp = sportsAll[pi], view = this._sv.view, c = d.current || {};
+    this._curRef = () => c;
     const wc = cardOf(c.wind_dir_deg);
     const dl = sp.daily || [];
     const range = dl.length ? `${this._wd(dl[0].date)} – ${this._wd(dl[dl.length - 1].date)}` : "";
@@ -470,10 +486,15 @@ class SwelligenceCard extends HTMLElement {
   /* ---- now-view pieces ---- */
   _nowStrip(c) {
     const cell = (amber, k, v, sub) => `<div class="ns ${amber ? "amber" : ""}"><div class="k">${k}</div><div class="v">${v}${sub ? `<small> ${sub}</small>` : ""}</div></div>`;
+    const [wg] = WMO(c.weather_code);
+    const rain = c.precip_mm != null ? f1(c.precip_mm) : "—";
+    const rainSub = c.precip_prob_pct != null ? `mm · ${Math.round(c.precip_prob_pct)}%` : "mm";
     return cell(false, "Wind", f1(c.wind_speed_kn), "kn " + (cardOf(c.wind_dir_deg) || ""))
       + cell(true, "Gust", f1(c.wind_gust_kn), "kn")
       + cell(false, "Wave", c.wave_height_m != null ? f1(c.wave_height_m) : (c.wind_wave_height_m != null ? f1(c.wind_wave_height_m) : "—"), "m")
-      + cell(false, "Swell", c.swell_height_m != null ? f1(c.swell_height_m) : "—", c.swell_period_s != null ? f1(c.swell_period_s) + "s" : "m");
+      + cell(false, "Swell", c.swell_height_m != null ? f1(c.swell_height_m) : "—", c.swell_period_s != null ? f1(c.swell_period_s) + "s" : "m")
+      + cell(false, `Rain ${wg}`, rain, rainSub)
+      + cell(false, "Feels", c.apparent_temp_c != null ? f1(c.apparent_temp_c) : "—", "°C");
   }
   _hourlyTL(sp) {
     const ser = (sp.hourly || []).slice(0, 24);
@@ -516,6 +537,7 @@ class SwelligenceCard extends HTMLElement {
         ${met("", "Swell", cc.swell_height_m != null ? f1(cc.swell_height_m) : "—", cc.swell_period_s != null ? f1(cc.swell_period_s) + "s" : "m")}
         ${this._config.show_tide === false ? "" : met(tide.state ? "t-" + tide.state : "", "Tide", cap(tide.state), tide.height != null ? f1(tide.height, 2) + " m" : "")}
         ${met("", "Water", cc.water_temp_c != null ? f1(cc.water_temp_c) : "—", "°C")}
+        ${met("", "Rain", cc.precip_mm != null ? f1(cc.precip_mm) : "—", "mm")}
       </div>
     </div>`;
   }
@@ -598,8 +620,20 @@ class SwelligenceCard extends HTMLElement {
         ${view === "now" && now.kit ? this._kitArc(now.kit, sp.sport) : ""}
       </div>
       ${view === "now" && limit ? `<div class="sd-detail-lf"><span class="dot" style="background:${col}"></span>${limit}</div>` : ""}
+      ${view === "now" ? this._wxLine(now, sp) : ""}
       ${view === "now" && facs ? `<div class="sd-detail-facs">${facs}</div>` : ""}
     </div>`;
+  }
+
+  /* compact now-conditions line: weather glyph + UV + visibility */
+  _wxLine(now, sp) {
+    const c = (this._curRef && this._curRef()) || {};
+    const [wg, wl] = WMO(c.weather_code);
+    const bits = [];
+    if (wg) bits.push(`${wg} ${wl}`);
+    if (c.uv_index != null) bits.push(`UV ${Math.round(c.uv_index)}`);
+    if (c.visibility_m != null) bits.push(`${(c.visibility_m / 1000).toFixed(c.visibility_m < 10000 ? 1 : 0)}km vis`);
+    return bits.length ? `<div class="sd-detail-wx">${bits.join(" · ")}</div>` : "";
   }
 
   /* ---- shared chrome: spot tabs ---- */
