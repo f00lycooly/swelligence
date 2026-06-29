@@ -11,6 +11,7 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 
 from .providers.base import ForecastPoint
+from .safety import derive_safety_flags
 from .sports import SportProfile
 
 # Suitability bands for the textual verdict and the binary "suitable" sensor.
@@ -88,6 +89,11 @@ class ScoreResult:
     #: from the safety gate. Hard-tier hazards also cap the score; warn-tier are
     #: advisory only.
     warnings: list[str] = field(default_factory=list)
+    #: Advisory safety markers (why a slot may be unsafe), separate from score and
+    #: confidence. Derived from the factor evals below — the same wind/wave
+    #: hard-fail that caps the score raises the flag (see ``safety.py``). Never
+    #: changes the score.
+    safety_flags: list = field(default_factory=list)
 
 
 def _band(score: float) -> str:
@@ -368,6 +374,9 @@ def score_point(point: ForecastPoint, profile: SportProfile) -> ScoreResult:
     completeness: dict[str, str] = {}
     nudges: list[str] = []
     essential_missing: list[str] = []
+    # (value, note) for the factors that can raise an advisory safety flag,
+    # captured straight from the evals so the flag and the score stay in lockstep.
+    flag_factors: dict[str, tuple] = {}
     hard_fail = False
     for name, weight, ev in evals:
         # weight <= 0 means the sport genuinely doesn't score this factor at all;
@@ -380,6 +389,8 @@ def score_point(point: ForecastPoint, profile: SportProfile) -> ScoreResult:
             factors[name] = round(ev.value * 100, 1)
             num += ev.value * weight
             den += weight
+            if name in ("wind", "wave", "gust"):
+                flag_factors[name] = (ev.value, ev.note)
             if ev.note:
                 reasons.append(ev.note)
             # A zeroed essential factor caps the whole session. Gusts are excluded:
@@ -433,6 +444,7 @@ def score_point(point: ForecastPoint, profile: SportProfile) -> ScoreResult:
         completeness=completeness,
         nudges=nudges,
         warnings=warnings,
+        safety_flags=derive_safety_flags(profile, flag_factors),
     )
 
 
@@ -456,6 +468,7 @@ def blend_kit(result: ScoreResult, kit_factor: float) -> ScoreResult:
         completeness=dict(result.completeness),
         nudges=list(result.nudges),
         warnings=list(result.warnings),
+        safety_flags=list(result.safety_flags),
     )
 
 

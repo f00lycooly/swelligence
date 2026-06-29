@@ -118,6 +118,7 @@ def _slot(
         "verdict": res.verdict,
         "suitable": res.suitable,
         "warnings": res.warnings,
+        "safety_flags": [f.as_dict() for f in res.safety_flags],
         "wind_speed_kn": point.wind_speed_kn,
         "wind_gust_kn": point.wind_gust_kn,
         "wind_bearing": point.wind_dir_deg,

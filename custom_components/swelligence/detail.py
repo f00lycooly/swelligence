@@ -102,6 +102,7 @@ def spot_detail(coordinator, data, sports_f: set) -> dict:
                 "reasons": res.now.reasons, "completeness": res.now.completeness,
                 "nudges": res.now.nudges,
                 "warnings": res.now.warnings,
+                "safety_flags": [f.as_dict() for f in res.now.safety_flags],
                 "kit": kit_payload(res.kit),
             },
             "best": best,

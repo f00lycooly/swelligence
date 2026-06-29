@@ -79,6 +79,20 @@ def test_unsized_sport_has_no_kit_even_with_rider():
     assert all("kit_power" not in s for s in slots)
 
 
+def test_slot_carries_safety_flags():
+    from swelligence.forecast import _slot
+    from swelligence.providers.base import ForecastPoint
+    from datetime import datetime
+    from swelligence.sports import SPORT_PROFILES
+    profile = SPORT_PROFILES["windsurf"]  # wind_max_kn=40
+    over = ForecastPoint(time=datetime(2026, 6, 23, 12), wind_speed_kn=60)
+    benign = ForecastPoint(time=datetime(2026, 6, 23, 12), wind_speed_kn=22)
+    hot = _slot(over, profile, profile.key, 0, None)
+    calm = _slot(benign, profile, profile.key, 0, None)
+    assert {"kind": "too_strong", "severity": "danger", "message": "too strong (60kn)"} in hot["safety_flags"]
+    assert calm["safety_flags"] == []
+
+
 def test_slot_carries_precip_and_air():
     from swelligence.forecast import _slot
     from swelligence.providers.base import ForecastPoint
