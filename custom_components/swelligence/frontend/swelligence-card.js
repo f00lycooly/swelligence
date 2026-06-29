@@ -620,13 +620,13 @@ class SwelligenceCard extends HTMLElement {
         ${view === "now" && now.kit ? this._kitArc(now.kit, sp.sport) : ""}
       </div>
       ${view === "now" && limit ? `<div class="sd-detail-lf"><span class="dot" style="background:${col}"></span>${limit}</div>` : ""}
-      ${view === "now" ? this._wxLine(now, sp) : ""}
+      ${view === "now" ? this._wxLine() : ""}
       ${view === "now" && facs ? `<div class="sd-detail-facs">${facs}</div>` : ""}
     </div>`;
   }
 
   /* compact now-conditions line: weather glyph + UV + visibility */
-  _wxLine(now, sp) {
+  _wxLine() {
     const c = (this._curRef && this._curRef()) || {};
     const [wg, wl] = WMO(c.weather_code);
     const bits = [];
