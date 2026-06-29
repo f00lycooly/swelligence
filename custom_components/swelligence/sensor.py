@@ -100,6 +100,8 @@ class SuitabilitySensor(SwelligenceEntity, SensorEntity):
             attrs["completeness"] = res.now.completeness
         if res.now.nudges:
             attrs["nudges"] = res.now.nudges
+        if res.now.warnings:
+            attrs["warnings"] = res.now.warnings
         if res.best is not None:
             attrs["best_score"] = res.best.score
             attrs["best_in_hours"] = res.best_offset_h

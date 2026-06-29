@@ -37,6 +37,11 @@ INCOMPLETE_CAP = 50.0
 # capped into the "poor" band and reads not-suitable regardless of wind/wave.
 HARD_GATE_CAP = 20.0
 
+# Module-private copy of the "hard" tier literal — keeps scoring.py free of a
+# hazards import (scoring must stay pure-logic with no HA or domain deps) while
+# still avoiding bare string coupling in the safety-gate comparison.
+_TIER_HARD = "hard"  # must match hazards.TIER_HARD
+
 # Per-factor completeness states. A factor's ``None`` is no longer a single
 # "unknown" — it is one of three distinct things, scored differently:
 APPLICABLE = "applicable"  # has a value; contributes to the weighted mean
@@ -415,7 +420,7 @@ def score_point(point: ForecastPoint, profile: SportProfile) -> ScoreResult:
     warnings: list[str] = []
     for hz in point.hazards or []:
         warnings.append(hz.kind)
-        if hz.tier == "hard":
+        if hz.tier == _TIER_HARD:
             score = min(score, HARD_GATE_CAP)
             reasons.append(hz.reason)
 

@@ -77,6 +77,7 @@ from .const import (
     WATER_TYPES,
 )
 from .geocoding import GeocodeResult, async_geocode
+from .hazards import TIER_HARD, TIER_WARN
 from .providers import PROVIDERS, TIDE_PROVIDERS
 from .sports import SPORT_PROFILES, apply_overrides
 from .tide import TIDE_STATE_ANY, TIDE_STATES
@@ -867,10 +868,10 @@ class SwelligenceOptionsFlow(OptionsFlow):
             ): selector.EntitySelector(selector.EntitySelectorConfig(domain="ai_task")),
         }
         for key, default in (
-            (CONF_HAZARD_THUNDERSTORM, "hard"),
-            (CONF_HAZARD_FOG, "warn"),
-            (CONF_HAZARD_SQUALL, "warn"),
-            (CONF_HAZARD_HEAVY_RAIN, "warn"),
+            (CONF_HAZARD_THUNDERSTORM, TIER_HARD),
+            (CONF_HAZARD_FOG, TIER_WARN),
+            (CONF_HAZARD_SQUALL, TIER_WARN),
+            (CONF_HAZARD_HEAVY_RAIN, TIER_WARN),
         ):
             m, s = tier(key, default)
             fields[m] = s
