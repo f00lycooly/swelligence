@@ -132,6 +132,9 @@ def _detail():
                 "sport": "kitesurf", "label": "Kitesurf",
                 "now": {"score": 81, "verdict": "great", "suitable": True,
                         "factors": {"wind": 66.0, "gust": 100.0, "wave": 100.0},
+                        "safety_flags": [{"kind": "gusty", "severity": "caution",
+                                          "message": "gusting 26kn (over 20)"}],
+                        "hard_gated": False,
                         "kit": {"power": "powered", "rig_m2": 9.0, "ideal_m2": 8.4}},
                 "best": {"score": 83, "in_hours": 1, "verdict": "great", "time": "13:00"},
                 "hourly": [_slot("2026-06-25T12:00:00", 81, "great"),
@@ -175,6 +178,15 @@ def test_flatten_exposes_now_strip_with_wind_wave_fallback_field():
     assert a["wave_m"] == 0.66 and a["swell_m"] == 0.2
     # wind_wave_m carried so the panel's Wave cell can fall back when wave is None.
     assert a["wind_wave_m"] == 0.6
+
+
+def test_flatten_exposes_now_safety_flags_and_hard_gated():
+    a = flatten_detail(_detail())
+    # severity:kind pairs, "|"-joined, so the panel can colour + label each flag.
+    assert a["kitesurf_now_safety"] == "caution:gusty"
+    assert a["kitesurf_now_hard_gated"] is False
+    # a sport with no flags emits an empty field (position kept, like warnings).
+    assert a["sup_now_safety"] == ""
 
 
 def test_flatten_carries_tide_and_daylight_scalars():

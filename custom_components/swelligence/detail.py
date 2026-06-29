@@ -103,6 +103,7 @@ def spot_detail(coordinator, data, sports_f: set) -> dict:
                 "nudges": res.now.nudges,
                 "warnings": res.now.warnings,
                 "safety_flags": [f.as_dict() for f in res.now.safety_flags],
+                "hard_gated": res.now.hard_gated,
                 "kit": kit_payload(res.kit),
             },
             "best": best,
@@ -244,6 +245,7 @@ def flatten_detail(d: dict) -> dict:
         attrs["headline_verdict"] = hnow.get("verdict")
         attrs["headline_suitable"] = hnow.get("suitable")
         attrs["headline_warnings"] = "|".join(hnow.get("warnings") or [])
+        attrs["headline_hard_gated"] = hnow.get("hard_gated", False)
     for s in sports:
         k = s["sport"]
         now = s.get("now") or {}
@@ -254,6 +256,12 @@ def flatten_detail(d: dict) -> dict:
         attrs[f"{k}_now_verdict"] = now.get("verdict")
         attrs[f"{k}_now_suitable"] = now.get("suitable")
         attrs[f"{k}_now_warnings"] = "|".join(now.get("warnings") or [])
+        # Advisory safety markers as "severity:kind" pairs (panel colours+labels
+        # each); hard_gated lets the panel pick the hazard glyph from the tier.
+        attrs[f"{k}_now_safety"] = "|".join(
+            f"{f.get('severity')}:{f.get('kind')}" for f in (now.get("safety_flags") or [])
+        )
+        attrs[f"{k}_now_hard_gated"] = now.get("hard_gated", False)
         attrs[f"{k}_best_score"] = best.get("score")
         attrs[f"{k}_best_in_h"] = best.get("in_hours")
         attrs[f"{k}_best_verdict"] = best.get("verdict")

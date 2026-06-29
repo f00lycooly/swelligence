@@ -40,6 +40,32 @@ def pt(**kw) -> ForecastPoint:
 
 # --- wind window --------------------------------------------------------------
 
+def test_hard_gated_true_under_hard_hazard():
+    from swelligence.hazards import Hazard, TIER_HARD
+    p = pt(wind_speed_kn=20, hazards=[Hazard("thunderstorm", TIER_HARD, "thunderstorm risk")])
+    res = score_point(p, wind_only())
+    assert res.hard_gated is True
+
+
+def test_hard_gated_false_without_hazard():
+    res = score_point(pt(wind_speed_kn=20), wind_only())
+    assert res.hard_gated is False
+
+
+def test_hard_gated_false_under_warn_hazard_only():
+    from swelligence.hazards import Hazard, TIER_WARN
+    p = pt(wind_speed_kn=20, hazards=[Hazard("fog", TIER_WARN, "low visibility")])
+    res = score_point(p, wind_only())
+    assert res.hard_gated is False
+
+
+def test_blend_kit_carries_hard_gated():
+    from swelligence.hazards import Hazard, TIER_HARD
+    p = pt(wind_speed_kn=20, hazards=[Hazard("thunderstorm", TIER_HARD, "thunderstorm risk")])
+    res = blend_kit(score_point(p, wind_only()), 0.5)
+    assert res.hard_gated is True
+
+
 def test_wind_at_ideal_scores_full():
     res = score_point(pt(wind_speed_kn=20), wind_only())
     assert res.score == 100.0
