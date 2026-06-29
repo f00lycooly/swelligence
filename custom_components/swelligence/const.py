@@ -15,6 +15,31 @@ CONF_AI_TASK_ENTITY: Final = "ai_task_entity_id"
 CONF_USE_LLM: Final = "use_llm"
 CONF_SCAN_INTERVAL_MINUTES: Final = "scan_interval_minutes"
 
+# Weather safety gate — per-hazard tier ("off"|"warn"|"hard"), shown in the
+# options "settings" step and consumed by hazards.evaluate_hazards via the
+# coordinator. Only the squall gust threshold is tunable (Beaufort dropdown);
+# the stored value is the lower-bound gust (knots) of the chosen force.
+CONF_HAZARD_THUNDERSTORM: Final = "hazard_thunderstorm"
+CONF_HAZARD_FOG: Final = "hazard_fog"
+CONF_HAZARD_SQUALL: Final = "hazard_squall"
+CONF_HAZARD_HEAVY_RAIN: Final = "hazard_heavy_rain"
+CONF_SQUALL_BEAUFORT_KN: Final = "squall_beaufort_kn"
+
+HAZARD_TIERS: Final = ["off", "warn", "hard"]
+
+# Beaufort force -> lower-bound gust (knots) that triggers a squall. The select
+# shows the force + range; the value stored/compared is the lower-bound knots.
+BEAUFORT_SQUALL_OPTIONS: Final = [
+    ("22", "Force 6 — Strong breeze (22–27 kn)"),
+    ("28", "Force 7 — Near gale (28–33 kn)"),
+    ("34", "Force 8 — Gale (34–40 kn)"),
+    ("41", "Force 9 — Severe gale (41–47 kn)"),
+    ("48", "Force 10 — Storm (48–55 kn)"),
+    ("56", "Force 11 — Violent storm (56–63 kn)"),
+    ("64", "Force 12 — Hurricane (64+ kn)"),
+]
+DEFAULT_SQUALL_BEAUFORT_KN: Final = 34
+
 # Single local rider personalisation
 CONF_RIDER: Final = "rider"
 CONF_RIDER_WEIGHT: Final = "weight_kg"
