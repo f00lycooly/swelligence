@@ -20,6 +20,12 @@ from .const import (
     CONF_AI_TASK_ENTITY,
     CONF_API_KEY,
     CONF_FREE_TIER,
+    CONF_HAZARD_THUNDERSTORM,
+    CONF_HAZARD_FOG,
+    CONF_HAZARD_SQUALL,
+    CONF_HAZARD_HEAVY_RAIN,
+    CONF_SQUALL_BEAUFORT_KN,
+    DEFAULT_SQUALL_BEAUFORT_KN,
     CONF_MARINE_BLEND,
     CONF_MARINE_ENSEMBLE,
     CONF_MARINE_PREFER,
@@ -38,6 +44,7 @@ from .const import (
     WATER_TYPE_SEA,
 )
 from .forecast import anchor_to_now, daily_forecast, hourly_forecast
+from .hazards import HazardConfig, TIER_HARD, TIER_WARN, evaluate_hazards
 from .llm import async_semantic_verdict
 from .authority import recommend_sources, resolve_overlay
 from .overlay import ensemble_marine, filled_domains, merge_marine, resolve_route
@@ -173,6 +180,10 @@ class SpotCoordinator(DataUpdateCoordinator[SpotData]):
         # Tide awareness: attach a tide overlay if needed, then stamp a per-point
         # tide factor the scorer folds in (no-op for non-tide-dependent spots).
         await self._apply_tide(forecast, session, water_type)
+
+        # Weather safety gate: stamp each point's active hazards so score_point
+        # applies the (user-tunable) gate uniformly across now / best / timelines.
+        self._apply_safety(forecast)
 
         current = forecast.current()
         rider = self.entry.options.get(CONF_RIDER, {})
@@ -401,6 +412,25 @@ class SpotCoordinator(DataUpdateCoordinator[SpotData]):
             if forecast.tide_events:
                 return forecast.tide_events
         return []
+
+    def _hazard_config(self) -> HazardConfig:
+        """Build the per-hazard gate config from entry options (safe defaults)."""
+        o = self.entry.options
+        return HazardConfig(
+            thunderstorm=o.get(CONF_HAZARD_THUNDERSTORM, TIER_HARD),
+            fog=o.get(CONF_HAZARD_FOG, TIER_WARN),
+            squall=o.get(CONF_HAZARD_SQUALL, TIER_WARN),
+            heavy_rain=o.get(CONF_HAZARD_HEAVY_RAIN, TIER_WARN),
+            squall_gust_kn=float(
+                o.get(CONF_SQUALL_BEAUFORT_KN, DEFAULT_SQUALL_BEAUFORT_KN)
+            ),
+        )
+
+    def _apply_safety(self, forecast) -> None:
+        """Stamp each forecast point with its active weather hazards."""
+        cfg = self._hazard_config()
+        for point in forecast.points:
+            point.hazards = evaluate_hazards(point, cfg)
 
     def _resolve_tide_source(self) -> str | None:
         """The tide source for this spot: explicit override, else auto-resolved.

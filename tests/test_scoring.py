@@ -324,3 +324,46 @@ def test_blend_kit_partial_match_scales():
     # 90 * (0.4 + 0.6*0.5) = 90 * 0.7 = 63
     assert out.score == pytest.approx(63.0, abs=0.1)
     assert out.suitable is True
+
+
+# --- weather safety gate (C3) -------------------------------------------------
+
+def test_hard_hazard_caps_score_and_unsuitable():
+    from swelligence.hazards import Hazard, TIER_HARD, THUNDERSTORM
+    from swelligence.scoring import HARD_GATE_CAP
+
+    p = wind_only()
+    pt_great = pt(wind_speed_kn=20)  # would score well
+    pt_great.hazards = [Hazard(THUNDERSTORM, TIER_HARD, "thunderstorm risk")]
+    res = score_point(pt_great, p)
+    assert res.score <= HARD_GATE_CAP
+    assert res.suitable is False
+    assert res.verdict == "poor"
+    assert "thunderstorm" in res.warnings
+
+
+def test_warn_hazard_is_advisory_only():
+    from swelligence.hazards import Hazard, TIER_WARN, HEAVY_RAIN
+
+    p = wind_only()
+    base = score_point(pt(wind_speed_kn=20), p).score
+    pw = pt(wind_speed_kn=20)
+    pw.hazards = [Hazard(HEAVY_RAIN, TIER_WARN, "heavy rain")]
+    res = score_point(pw, p)
+    assert res.score == base          # score untouched
+    assert "heavy_rain" in res.warnings
+
+
+def test_no_hazards_no_warnings():
+    res = score_point(pt(wind_speed_kn=20), wind_only())
+    assert res.warnings == []
+
+
+def test_blend_kit_preserves_warnings():
+    from swelligence.hazards import Hazard, TIER_WARN, FOG
+
+    p = wind_only()
+    pw = pt(wind_speed_kn=20)
+    pw.hazards = [Hazard(FOG, TIER_WARN, "fog")]
+    res = blend_kit(score_point(pw, p), 0.5)
+    assert "fog" in res.warnings

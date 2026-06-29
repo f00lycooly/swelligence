@@ -26,11 +26,16 @@ from homeassistant.helpers import selector
 from homeassistant.helpers.aiohttp_client import async_get_clientsession
 
 from .const import (
+    BEAUFORT_SQUALL_OPTIONS,
     COMPASS_SECTORS,
     CONF_AI_TASK_ENTITY,
     CONF_API_KEY,
     CONF_FREE_TIER,
     CONF_DEFAULT_PROVIDER,
+    CONF_HAZARD_FOG,
+    CONF_HAZARD_HEAVY_RAIN,
+    CONF_HAZARD_SQUALL,
+    CONF_HAZARD_THUNDERSTORM,
     CONF_LATITUDE,
     CONF_LONGITUDE,
     CONF_MARINE_BLEND,
@@ -48,12 +53,15 @@ from .const import (
     CONF_SPOT_PROVIDER,
     CONF_SPOT_SPORTS,
     CONF_SPOTS,
+    CONF_SQUALL_BEAUFORT_KN,
     CONF_TIDE_SOURCE,
     CONF_TIDE_STATE,
     CONF_TIDE_WINDOW_H,
     CONF_USE_LLM,
     CONF_WATER_TYPE,
+    DEFAULT_SQUALL_BEAUFORT_KN,
     DOMAIN,
+    HAZARD_TIERS,
     OVERRIDE_FIELDS,
     PREF_GUST_MAX,
     PREF_SWELL_DIRS,
@@ -69,6 +77,7 @@ from .const import (
     WATER_TYPES,
 )
 from .geocoding import GeocodeResult, async_geocode
+from .hazards import TIER_HARD, TIER_WARN
 from .providers import PROVIDERS, TIDE_PROVIDERS
 from .sports import SPORT_PROFILES, apply_overrides
 from .tide import TIDE_STATE_ANY, TIDE_STATES
@@ -837,19 +846,42 @@ class SwelligenceOptionsFlow(OptionsFlow):
             return self._save(user_input)
 
         opts = self.config_entry.options
-        schema = vol.Schema(
-            {
-                vol.Optional(
-                    CONF_USE_LLM, default=opts.get(CONF_USE_LLM, False)
-                ): selector.BooleanSelector(),
-                vol.Optional(
-                    CONF_AI_TASK_ENTITY,
-                    description={"suggested_value": opts.get(CONF_AI_TASK_ENTITY)},
-                ): selector.EntitySelector(
-                    selector.EntitySelectorConfig(domain="ai_task")
-                ),
-            }
-        )
+        tier_opts = [selector.SelectOptionDict(value=t, label=t) for t in HAZARD_TIERS]
+        beaufort_opts = [
+            selector.SelectOptionDict(value=v, label=lbl)
+            for v, lbl in BEAUFORT_SQUALL_OPTIONS
+        ]
+
+        def tier(key, default):
+            return (
+                vol.Optional(key, default=opts.get(key, default)),
+                selector.SelectSelector(selector.SelectSelectorConfig(options=tier_opts)),
+            )
+
+        fields = {
+            vol.Optional(
+                CONF_USE_LLM, default=opts.get(CONF_USE_LLM, False)
+            ): selector.BooleanSelector(),
+            vol.Optional(
+                CONF_AI_TASK_ENTITY,
+                description={"suggested_value": opts.get(CONF_AI_TASK_ENTITY)},
+            ): selector.EntitySelector(selector.EntitySelectorConfig(domain="ai_task")),
+        }
+        for key, default in (
+            (CONF_HAZARD_THUNDERSTORM, TIER_HARD),
+            (CONF_HAZARD_FOG, TIER_WARN),
+            (CONF_HAZARD_SQUALL, TIER_WARN),
+            (CONF_HAZARD_HEAVY_RAIN, TIER_WARN),
+        ):
+            m, s = tier(key, default)
+            fields[m] = s
+        fields[
+            vol.Optional(
+                CONF_SQUALL_BEAUFORT_KN,
+                default=str(opts.get(CONF_SQUALL_BEAUFORT_KN, DEFAULT_SQUALL_BEAUFORT_KN)),
+            )
+        ] = selector.SelectSelector(selector.SelectSelectorConfig(options=beaufort_opts))
+        schema = vol.Schema(fields)
         return self.async_show_form(step_id="settings", data_schema=schema)
 
     def _save(self, changes: dict[str, Any]) -> ConfigFlowResult:

@@ -12,6 +12,13 @@ payload landed across v0.2.1–v0.2.4 (PR #35 onward: WEEK peak-hour conditions,
 day/hour axes, `wind_wave_m`, `*_week_peak_idx`, `*_factors`). The per-sport
 `SuitabilitySensor` entities (§7), their `best_time` attribute, and the hub
 `sensor.swelligence_config` topology source of truth landed in v0.2.4–v0.2.5.
+Now-conditions weather attributes (`precip_mm`, `precip_prob_pct`, `uv_index`,
+`visibility_m`, `cloud_pct`, `weather_code`, plus wave/swell period & direction and
+ocean current) and the per-sport weekly weather CSVs (`<s>_week_rain`,
+`<s>_week_rain_prob`, `<s>_week_air`) landed in v0.2.5 (weather-rounding safety gate);
+empty fields denote `None` (unknown), per the alignment contract.
+Hazard-warning attributes (`<s>_now_warnings`, `headline_warnings`) landed post-v0.2.5
+(C4: surface hazard warnings); pipe-delimited hazard codes, empty = none.
 
 ---
 
@@ -89,6 +96,19 @@ strings in a lambda (see §6).
 | `swell_m` | float | |
 | `swell_period_s` | float | |
 | `water_temp_c` | float | |
+| `precip_mm` | float | Precipitation amount, this hour (1 dp). |
+| `precip_prob_pct` | int | Probability of precipitation (%). |
+| `air_temp_c` | float | Air temperature (1 dp). |
+| `apparent_temp_c` | float | "Feels like" temperature (1 dp). |
+| `uv_index` | int | UV index. |
+| `visibility_m` | int | Horizontal visibility (m). |
+| `cloud_pct` | int | Cloud cover (%). |
+| `weather_code` | int | WMO weather condition code (card maps to glyph). |
+| `wave_period_s` | float | Total wave period (s, 1 dp). |
+| `wave_dir_deg` | int | Wave direction (**from**, degrees). |
+| `swell_dir_deg` | int | Swell direction (**from**, degrees). |
+| `current_speed_kn` | float | Ocean surface current speed (knots, 1 dp). |
+| `current_dir_deg` | int | Current direction (**toward**, degrees). |
 
 ### Tide (NOW tide module)
 | Attribute | Type | Notes |
@@ -124,6 +144,7 @@ Statically named so the NOW gauge binds without knowing each spot's sport list.
 | `headline_score` | int | = the entity **state**. |
 | `headline_verdict` | string | Full word (`epic`…`poor`). |
 | `headline_suitable` | bool | |
+| `headline_warnings` | **pipe** string | Active hazard codes for the headline sport right now, pipe-delimited (`thunderstorm\|fog\|squall\|heavy_rain`). **Empty string = none.** |
 
 ---
 
@@ -146,6 +167,7 @@ are positional and aligned with the spot-level axes (`week_days` / `hours`).
 | `<s>_kit_power` | string | Rig sports only (e.g. `powered`); empty for swim/SUP/surf. |
 | `<s>_kit_rig_m2` | float | Recommended owned rig size; empty if N/A. |
 | `<s>_kit_ideal_m2` | float | Ideal rig size; empty if N/A. |
+| `<s>_now_warnings` | **pipe** string | Active hazard codes for this sport right now, pipe-delimited (`thunderstorm\|fog\|squall\|heavy_rain`). **Empty string = none.** |
 | `<s>_factors` | `k:score,…` | Optional factor breakdown — `key:score` pairs (rounded int), in the scorer's own order (factor set differs by sport). e.g. `wind:66,gust:100,wave:100`. |
 
 ### NOW — 24h timeline (aligns with `hours`)
@@ -168,6 +190,9 @@ are positional and aligned with the spot-level axes (`week_days` / `hours`).
 | `<s>_week_swell` | CSV float | Swell height at peak hour. |
 | `<s>_week_per` | CSV float | Swell period (s) at peak hour. |
 | `<s>_week_water` | CSV float | Water temp (°C) at peak hour. |
+| `<s>_week_rain` | CSV float | Precipitation (mm, 1 dp) at each day's peak hour. |
+| `<s>_week_rain_prob` | CSV int | Probability of precipitation (%) at each day's peak hour. |
+| `<s>_week_air` | CSV float | Air temperature (°C, 1 dp) at each day's peak hour. |
 | `<s>_week_tide_state` | CSV string | Tide phase at peak hour (`rising`/`falling`/`high`/`low`/`slack`). |
 | `<s>_week_tide_h` | CSV float | Tide height (m, 2 dp) at peak hour. |
 

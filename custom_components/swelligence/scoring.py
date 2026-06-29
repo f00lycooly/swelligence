@@ -33,6 +33,15 @@ _SECTOR_DEG = 360.0 / 16  # 22.5
 # the `SUITABLE_THRESHOLD` so an incomplete forecast never reads "suitable".
 INCOMPLETE_CAP = 50.0
 
+# A hard safety hazard (e.g. thunderstorm) overrides conditions: the slot is
+# capped into the "poor" band and reads not-suitable regardless of wind/wave.
+HARD_GATE_CAP = 20.0
+
+# Module-private copy of the "hard" tier literal — keeps scoring.py free of a
+# hazards import (scoring must stay pure-logic with no HA or domain deps) while
+# still avoiding bare string coupling in the safety-gate comparison.
+_TIER_HARD = "hard"  # must match hazards.TIER_HARD
+
 # Per-factor completeness states. A factor's ``None`` is no longer a single
 # "unknown" — it is one of three distinct things, scored differently:
 APPLICABLE = "applicable"  # has a value; contributes to the weighted mean
@@ -75,6 +84,10 @@ class ScoreResult:
     completeness: dict[str, str] = field(default_factory=dict)
     #: Actionable data-quality hints (config gaps), separate from ``reasons``.
     nudges: list[str] = field(default_factory=list)
+    #: Active weather-hazard kind codes for this slot (e.g. ``"thunderstorm"``),
+    #: from the safety gate. Hard-tier hazards also cap the score; warn-tier are
+    #: advisory only.
+    warnings: list[str] = field(default_factory=list)
 
 
 def _band(score: float) -> str:
@@ -400,6 +413,17 @@ def score_point(point: ForecastPoint, profile: SportProfile) -> ScoreResult:
         if point.tide_factor < 0.95:
             reasons.append("tide off")
 
+    # Safety gate: weather hazards stamped per point by the coordinator. A hard
+    # hazard overrides conditions (capped to "poor", not suitable); a warn hazard
+    # is advisory only. Mirrors the tide gate's per-point application — this is
+    # the single choke point every consumer (now / best / timelines) hits.
+    warnings: list[str] = []
+    for hz in point.hazards or []:
+        warnings.append(hz.kind)
+        if hz.tier == _TIER_HARD:
+            score = min(score, HARD_GATE_CAP)
+            reasons.append(hz.reason)
+
     return ScoreResult(
         score=score,
         verdict=_band(score),
@@ -408,6 +432,7 @@ def score_point(point: ForecastPoint, profile: SportProfile) -> ScoreResult:
         reasons=reasons,
         completeness=completeness,
         nudges=nudges,
+        warnings=warnings,
     )
 
 
@@ -430,6 +455,7 @@ def blend_kit(result: ScoreResult, kit_factor: float) -> ScoreResult:
         reasons=list(result.reasons),
         completeness=dict(result.completeness),
         nudges=list(result.nudges),
+        warnings=list(result.warnings),
     )
 
 

@@ -54,6 +54,10 @@ class ForecastPoint:
     visibility_m: float | None = None
     #: WMO weather code — compact condition for the card/LLM summary.
     weather_code: int | None = None
+    #: Probability of precipitation (%) and convective available potential
+    #: energy (J/kg) — rain likelihood and thunderstorm-instability signals.
+    precip_prob_pct: float | None = None
+    cape_jkg: float | None = None
     #: Ocean surface current — rip/drift safety (speed in knots, "toward" bearing).
     current_speed_kn: float | None = None
     current_dir_deg: float | None = None
@@ -69,6 +73,11 @@ class ForecastPoint:
     #: multi-model ``models=`` request). ``None``/absent = single source, no
     #: agreement signal. Tight agreement -> high; wide divergence -> low.
     source_confidence: dict[str, float] | None = None
+    #: Active weather hazards at this timestep, stamped by the coordinator from
+    #: ``hazards.evaluate_hazards`` before scoring (mirrors ``tide_factor``).
+    #: ``None``/empty = no hazard. Typed loosely to keep this module free of a
+    #: ``hazards`` import.
+    hazards: list | None = None
 
 
 @dataclass(slots=True)

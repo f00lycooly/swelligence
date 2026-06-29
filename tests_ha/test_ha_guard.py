@@ -47,6 +47,7 @@ HA_MODULES = [
     "overlay",
     "config_export",
     "geocoding",
+    "hazards",
     "providers",
     "providers.base",
     "providers.domains",

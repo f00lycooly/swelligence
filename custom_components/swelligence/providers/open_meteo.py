@@ -40,6 +40,8 @@ _FORECAST_HOURLY = [
     "uv_index",
     "visibility",
     "weather_code",
+    "precipitation_probability",
+    "cape",
 ]
 _MARINE_HOURLY = [
     "wave_height",
@@ -268,6 +270,8 @@ class OpenMeteoProvider(ForecastProvider):
                     uv_index=_at(wh.get("uv_index", []), i),
                     visibility_m=_at(wh.get("visibility", []), i),
                     weather_code=_at(wh.get("weather_code", []), i),
+                    precip_prob_pct=_at(wh.get("precipitation_probability", []), i),
+                    cape_jkg=_at(wh.get("cape", []), i),
                     wave_height_m=_at(mh.get("wave_height", []), mi),
                     wave_period_s=_at(mh.get("wave_period", []), mi),
                     wave_dir_deg=_at(mh.get("wave_direction", []), mi),

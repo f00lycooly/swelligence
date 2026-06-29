@@ -26,7 +26,7 @@ NOW_FIELDS = (
     "wave_dir_deg", "swell_height_m", "swell_period_s", "swell_peak_period_s",
     "swell_dir_deg", "wind_wave_height_m", "current_speed_kn", "current_dir_deg",
     "sea_level_m", "water_temp_c", "air_temp_c", "apparent_temp_c", "uv_index",
-    "visibility_m", "weather_code",
+    "visibility_m", "weather_code", "precip_mm", "precip_prob_pct", "cloud_pct",
 )
 
 # Verdict -> 1-char code: keeps the per-hour / per-day verdict CSVs tiny so the
@@ -41,6 +41,7 @@ _ARRAY_SUFFIXES = (
     "week_scores", "week_times", "week_verdicts",
     "week_wind", "week_gust", "week_dir", "week_wave", "week_swell",
     "week_per", "week_water", "week_tide_state", "week_tide_h",
+    "week_rain", "week_rain_prob", "week_air",
 )
 # Spot-level (non-per-sport) high-churn arrays.
 _SPOT_ARRAYS = ("tide_levels", "hours", "week_days", "week_dates")
@@ -100,6 +101,7 @@ def spot_detail(coordinator, data, sports_f: set) -> dict:
                 "suitable": res.now.suitable, "factors": res.now.factors,
                 "reasons": res.now.reasons, "completeness": res.now.completeness,
                 "nudges": res.now.nudges,
+                "warnings": res.now.warnings,
                 "kit": kit_payload(res.kit),
             },
             "best": best,
@@ -182,6 +184,21 @@ def flatten_detail(d: dict) -> dict:
         "wind_wave_m": cur.get("wind_wave_height_m"),
         "swell_m": cur.get("swell_height_m"),
         "swell_period_s": cur.get("swell_period_s"),
+        # Comfort/safety weather (now).
+        "precip_mm": cur.get("precip_mm"),
+        "precip_prob_pct": cur.get("precip_prob_pct"),
+        "air_temp_c": cur.get("air_temp_c"),
+        "apparent_temp_c": cur.get("apparent_temp_c"),
+        "uv_index": cur.get("uv_index"),
+        "visibility_m": cur.get("visibility_m"),
+        "cloud_pct": cur.get("cloud_pct"),
+        "weather_code": cur.get("weather_code"),
+        # Marine quality (now).
+        "wave_period_s": cur.get("wave_period_s"),
+        "wave_dir_deg": cur.get("wave_dir_deg"),
+        "swell_dir_deg": cur.get("swell_dir_deg"),
+        "current_speed_kn": cur.get("current_speed_kn"),
+        "current_dir_deg": cur.get("current_dir_deg"),
         "water_temp_c": cur.get("water_temp_c"),
         # Tide — honesty label carried verbatim (modelled vs overlay).
         "tide_state": tide.get("state"),
@@ -225,6 +242,7 @@ def flatten_detail(d: dict) -> dict:
         attrs["headline_score"] = hnow.get("score")
         attrs["headline_verdict"] = hnow.get("verdict")
         attrs["headline_suitable"] = hnow.get("suitable")
+        attrs["headline_warnings"] = "|".join(hnow.get("warnings") or [])
     for s in sports:
         k = s["sport"]
         now = s.get("now") or {}
@@ -234,6 +252,7 @@ def flatten_detail(d: dict) -> dict:
         attrs[f"{k}_now_score"] = now.get("score")
         attrs[f"{k}_now_verdict"] = now.get("verdict")
         attrs[f"{k}_now_suitable"] = now.get("suitable")
+        attrs[f"{k}_now_warnings"] = "|".join(now.get("warnings") or [])
         attrs[f"{k}_best_score"] = best.get("score")
         attrs[f"{k}_best_in_h"] = best.get("in_hours")
         attrs[f"{k}_best_verdict"] = best.get("verdict")
@@ -262,6 +281,9 @@ def flatten_detail(d: dict) -> dict:
         attrs[f"{k}_week_swell"] = _rcsv(e.get("swell_height_m") for e in daily)
         attrs[f"{k}_week_per"] = _rcsv(e.get("swell_period_s") for e in daily)
         attrs[f"{k}_week_water"] = _rcsv(e.get("water_temp_c") for e in daily)
+        attrs[f"{k}_week_rain"] = _rcsv(e.get("precip_mm") for e in daily)
+        attrs[f"{k}_week_rain_prob"] = _csv(_i(e.get("precip_prob_pct")) for e in daily)
+        attrs[f"{k}_week_air"] = _rcsv(e.get("air_temp_c") for e in daily)
         attrs[f"{k}_week_tide_state"] = _csv(
             (e.get("tide") or {}).get("state") for e in daily
         )

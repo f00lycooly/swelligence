@@ -218,3 +218,24 @@ def test_grid_distance_from_snapped_coords():
     # Missing or coord-less payloads yield no signal.
     assert _grid_distance_km(-43.5, 172.7, None) is None
     assert _grid_distance_km(-43.5, 172.7, {"latitude": -43.5}) is None
+
+
+def test_merge_parses_precip_prob_and_cape():
+    wind = {
+        "hourly": {
+            "time": ["2026-06-29T12:00"],
+            "precipitation_probability": [70],
+            "cape": [1500.0],
+        }
+    }
+    points = OpenMeteoProvider._merge(wind, None)
+    assert len(points) == 1
+    assert points[0].precip_prob_pct == 70
+    assert points[0].cape_jkg == 1500.0
+
+
+def test_merge_missing_precip_prob_and_cape_are_none():
+    wind = {"hourly": {"time": ["2026-06-29T12:00"]}}
+    points = OpenMeteoProvider._merge(wind, None)
+    assert points[0].precip_prob_pct is None
+    assert points[0].cape_jkg is None
