@@ -2,7 +2,7 @@
 
 **Date:** 2026-06-29
 **Status:** approved (brainstorming) — ready for implementation plan
-**Epic:** _(beads epic id to be filled in on creation)_
+**Epic:** swelligence-0no (children .1–.8)
 
 ## Problem
 
