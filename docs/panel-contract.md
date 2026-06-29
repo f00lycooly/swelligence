@@ -12,6 +12,9 @@ payload landed across v0.2.1–v0.2.4 (PR #35 onward: WEEK peak-hour conditions,
 day/hour axes, `wind_wave_m`, `*_week_peak_idx`, `*_factors`). The per-sport
 `SuitabilitySensor` entities (§7), their `best_time` attribute, and the hub
 `sensor.swelligence_config` topology source of truth landed in v0.2.4–v0.2.5.
+Weather comfort + marine condition attributes (`*_weather_code`, `*_temp_c`, `*_week_rain*`,
+`*_week_air`) landed in v0.2.5 (weather-rounding safety gate); empty fields denote `None`
+(unknown), per the alignment contract.
 
 ---
 
@@ -89,6 +92,19 @@ strings in a lambda (see §6).
 | `swell_m` | float | |
 | `swell_period_s` | float | |
 | `water_temp_c` | float | |
+| `precip_mm` | float | Precipitation amount, this hour (1 dp). |
+| `precip_prob_pct` | int | Probability of precipitation (%). |
+| `air_temp_c` | float | Air temperature (1 dp). |
+| `apparent_temp_c` | float | "Feels like" temperature (1 dp). |
+| `uv_index` | int | UV index. |
+| `visibility_m` | int | Horizontal visibility (m). |
+| `cloud_pct` | int | Cloud cover (%). |
+| `weather_code` | int | WMO weather condition code (card maps to glyph). |
+| `wave_period_s` | float | Total wave period (s, 1 dp). |
+| `wave_dir_deg` | int | Wave direction (**from**, degrees). |
+| `swell_dir_deg` | int | Swell direction (**from**, degrees). |
+| `current_speed_kn` | float | Ocean surface current speed (knots, 1 dp). |
+| `current_dir_deg` | int | Current direction (**toward**, degrees). |
 
 ### Tide (NOW tide module)
 | Attribute | Type | Notes |
@@ -168,6 +184,9 @@ are positional and aligned with the spot-level axes (`week_days` / `hours`).
 | `<s>_week_swell` | CSV float | Swell height at peak hour. |
 | `<s>_week_per` | CSV float | Swell period (s) at peak hour. |
 | `<s>_week_water` | CSV float | Water temp (°C) at peak hour. |
+| `<s>_week_rain` | CSV float | Precipitation (mm, 1 dp) at each day's peak hour. |
+| `<s>_week_rain_prob` | CSV int | Probability of precipitation (%) at each day's peak hour. |
+| `<s>_week_air` | CSV float | Air temperature (°C, 1 dp) at each day's peak hour. |
 | `<s>_week_tide_state` | CSV string | Tide phase at peak hour (`rising`/`falling`/`high`/`low`/`slack`). |
 | `<s>_week_tide_h` | CSV float | Tide height (m, 2 dp) at peak hour. |
 
