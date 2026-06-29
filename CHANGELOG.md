@@ -2,6 +2,10 @@
 
 All notable changes per release. Versions follow semver; tags are `vX.Y.Z`.
 
+## v0.2.8 — 2026-06-29
+
+- feat(card): readout polish — fixed-height gauges, safety icons, metric pills
+
 ## v0.2.7 — 2026-06-29
 
 - feat(card): land the Card A NOW layout (single-column scrubber)
