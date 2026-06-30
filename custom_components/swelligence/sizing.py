@@ -5,20 +5,31 @@ Pure, calibratable, no I/O. The relationship is the standard inverse model:
 
     ideal_size_m2 ~= constant * rider_weight_kg / wind_kn
 
-with constants tuned so a typical rider lands on sensible sizes (an 80 kg rider:
-~9 m² kite at 20 kn, ~15 m² at 12 kn, ~6 m² at 30 kn; ~5 m² wing at 16 kn). The
-constants are defaults — callers may pass overrides once per-rider calibration
-exists. Only kitesurf and wing foil are sized in v1; other sports return a
-neutral ("n/a") recommendation so they're unaffected.
+The constants are calibrated against published manufacturer wind-range charts
+(Cabrinha Moto X Lite + Cabrinha/Duotone wings) cross-checked with industry size
+grids (kitesurftheworld, windance) — see
+``mockups/research/kit-sizing-manufacturers.md`` for the data and the per-chart
+implied-constant fit. Real charts are ~linear in 1/wind across the riding band
+(n≈1–1.3); the textbook 1/wind² law over-corrects vs. what brands actually print
+(depower range + kite efficiency flatten the theoretical curve), so the model
+stays linear and the constant carries the calibration. The constants are
+defaults — callers may pass overrides once per-rider calibration exists. Only
+kitesurf and wing foil are sized in v1; other sports return a neutral ("n/a")
+recommendation so they're unaffected.
+
+Sanity checks at the calibrated constants (80 kg rider): kite ~10.4 m² @ 20 kn,
+~6.9 m² @ 30 kn; wing ~5.5 m² @ 16 kn.
 """
 
 from __future__ import annotations
 
 from dataclasses import dataclass
 
-# Calibratable model constants (see module docstring for the sanity checks).
-KITE_CONSTANT = 2.25
-WING_CONSTANT = 1.0
+# Calibratable model constants. Fit to manufacturer + industry charts (see module
+# docstring + mockups/research/kit-sizing-manufacturers.md): kite charts cluster
+# at c≈2.5–2.8 (central 2.6), wings at c≈1.1 in the 3–5 m / 12–22 kn band.
+KITE_CONSTANT = 2.6
+WING_CONSTANT = 1.1
 
 # Sizes within this fractional deviation of ideal are treated as "ideal".
 _IDEAL_BAND = 0.12
