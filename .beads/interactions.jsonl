@@ -76,3 +76,5 @@
 {"id":"int-39363b00","kind":"field_change","created_at":"2026-06-29T09:44:28.051122512Z","actor":"foolycooly","issue_id":"swelligence-0no.7","extra":{"field":"status","new_value":"closed","old_value":"in_progress","reason":"Closed"}}
 {"id":"int-5859a97f","kind":"field_change","created_at":"2026-06-29T09:49:49.907510199Z","actor":"foolycooly","issue_id":"swelligence-0no.8","extra":{"field":"status","new_value":"closed","old_value":"in_progress","reason":"Closed"}}
 {"id":"int-a5b54df0","kind":"field_change","created_at":"2026-06-29T12:48:37.147216164Z","actor":"foolycooly","issue_id":"swelligence-slh.2","extra":{"field":"status","new_value":"closed","old_value":"in_progress","reason":"Closed"}}
+{"id":"int-e6fba795","kind":"field_change","created_at":"2026-06-30T15:56:54.514930645Z","actor":"foolycooly","issue_id":"swelligence-mx7.1","extra":{"field":"status","new_value":"closed","old_value":"in_progress","reason":"Closed"}}
+{"id":"int-56a78053","kind":"field_change","created_at":"2026-06-30T16:00:45.594519607Z","actor":"foolycooly","issue_id":"swelligence-mx7.2","extra":{"field":"status","new_value":"closed","old_value":"in_progress","reason":"Closed"}}
