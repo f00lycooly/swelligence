@@ -1,8 +1,11 @@
 """UKHO Admiralty tide overlay — UK-only high/low water predictions.
 
-The UK Hydrographic Office Admiralty UK Tidal API
-(https://admiraltyapi.portal.azure-api.net) is station-based and keyed by an
-``Ocp-Apim-Subscription-Key`` header. We resolve the nearest tidal station to
+The UK Hydrographic Office Admiralty UK Tidal API is station-based and keyed by
+an ``Ocp-Apim-Subscription-Key`` header. Register for a free key on the developer
+portal (https://developer.admiralty.co.uk — sign up, then subscribe to the
+"UK Tidal API - Discovery" product: 607 UK stations, current + 6 days of events,
+10k calls/month). The earlier Azure portal (admiraltyapi.portal.azure-api.net) is
+retired; the API *gateway* below is unchanged. We resolve the nearest tidal station to
 the spot's coordinate (one cached ``/Stations`` call), then fetch that station's
 tidal events. It supplies tides only — no wind/wave — so it implements
 :class:`TideProvider` and overlays any forecast provider.
