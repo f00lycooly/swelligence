@@ -2,6 +2,12 @@
 
 All notable changes per release. Versions follow semver; tags are `vX.Y.Z`.
 
+## v0.2.10 — 2026-06-30
+
+- docs(ukho): update retired Admiralty portal URL to developer.admiralty.co.uk
+- docs(scoring): review per-sport weights vs industry 'good session' norms
+- feat(sizing): calibrate kit-size constants to manufacturer wind-range charts
+
 ## v0.2.9 — 2026-06-29
 
 - feat(card): NOW-view consistency pass — readout parity, icon pills, equal medallions
